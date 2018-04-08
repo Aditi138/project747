@@ -112,6 +112,9 @@ class DataLoader():
                 else:
                     test_docs.append(doc)
 
+        if summary_only:
+            pickle_folder += "summary_"
+
         with open(pickle_folder + "train.pickle", "wb") as fout:
             pickle.dump(train_docs, fout)
         with open(pickle_folder + "validate.pickle", "wb") as fout:
