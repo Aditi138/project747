@@ -5,9 +5,17 @@ class Document:
         self.set = set
         self.document_tokens = document_tokens
         self.summary_tokens = summary_tokens
-        # List of query classes
+        # List of query instances
         self.queries = queries
 
+class Summary:
+    def __init__(self, id, set, kind, summary_tokens, queries):
+        self.document_id = id
+        self.kind = kind
+        self.set = set
+        self.summary_tokens = summary_tokens
+        # List of query instances
+        self.queries = queries
 
 class Query:
     question_tokens = []
