@@ -16,7 +16,7 @@ import math
 import random
 # import spacy
 from nltk import word_tokenize
-from data import Document, Query, Summary
+from data import Document, Query
 from utility import start_tags, end_tags, start_tags_with_attributes
 
 
@@ -28,7 +28,7 @@ class DataLoader():
         self.vocab = Vocabulary()
 
     # This function loads raw documents, summaries and queries, processes them, stores them in document class and finally saves to a pickle
-    def process_data(self, input_folder, summary_path, qap_path, document_path, pickle_folder, small_number=-1, summary_only=False):
+    def process_data(self, input_folder, summary_path, qap_path, document_path, pickle_folder, small_number=-1, summary_only=False, interval=50):
 
         # # Takes time to load so only do this inside function rather than in constructor
         # self.nlp =spacy.load('en_core_web_md', disable= ["tagger", "parser"])
@@ -73,6 +73,46 @@ class DataLoader():
 
                 index = index + 1
 
+
+        # Create lists of document objects for the summaries
+        train_summaries = []
+        valid_summaries= []
+        test_summaries= []
+
+        if small_number > 0:
+            small_summaries = []
+
+        for doc_id in documents:    
+            set, kind, _, _ = documents[doc_id]
+            summary = Document(doc_id, set, kind, summaries[doc_id], qaps[doc_id])
+
+            # When constructing small data set, just add to one pile and save when we have a sufficient number
+            if small_number > 0:
+                small_summaries.append(summary)
+                if len(small_summaries)==small_number:
+                    with open(pickle_folder + "small_summaries.pickle", "wb") as fout:
+                        pickle.dump(small_summaries, fout)
+                    break
+            else:
+                if set == 'train':
+                    train_summaries.append(summary)
+                elif set == 'valid':
+                    valid_summaries.append(summary)
+                elif set == 'test':
+                    test_summaries.append(summary)
+
+        print("Pickling summaries")
+        with open(pickle_folder + "train_summaries.pickle", "wb") as fout:
+            pickle.dump(train_summaries, fout)
+        with open(pickle_folder + "valid_summaries.pickle", "wb") as fout:
+            pickle.dump(valid_summaries, fout)
+        with open(pickle_folder + "test_summaries.pickle", "wb") as fout:
+            pickle.dump(test_summaries, fout)
+
+        # If only interested in summaries, return here so we don't process the documents
+        if summary_only:
+            return
+
         train_docs = []
         valid_docs = []
         test_docs = []
@@ -81,49 +121,19 @@ class DataLoader():
         if small_number > 0:
             small_docs = []
 
-        # Here we load documents, tokenize them, and create Document class instances (or Summary instances in case of just summaries)
-        for filename in glob.glob(os.path.join(input_folder, '*.content')):
+        # Here we load documents, tokenize them, and create Document class instances
+        print("Processing documents")
+        filenames=glob.glob(os.path.join(input_folder, '*.content'))
+        for file_number in range(len(filenames)):
+            filename=filenames[file_number]
             doc_id = os.path.basename(filename).replace(".content", "")
 
             try:
-                (set, kind, _, _) = documents[doc_id]
+                (set, kind, start_tag, end_tag) = documents[doc_id]
             except KeyError:
                 print("Document id not found: {0}".format(doc_id))
-                exit(0)
+                exit(0)                
 
-            if summary_only:
-                doc = process_summary(doc_id)
-            else:
-                doc = process_document(doc_id)
-
-            # If testing, add to test list, pickle and return when sufficient documents retrieved
-            if small_number > 0:
-                small_docs.append(doc)
-                if len(small_docs) == small_number:
-                    with open(pickle_folder + "small.pickle", "wb") as fout:
-                        pickle.dump(small_docs, fout)
-                    return
-
-            else:
-                if set == "train":
-                    train_docs.append(doc)
-                elif set == "valid":
-                    valid_docs.append(doc)
-                else:
-                    test_docs.append(doc)
-
-        if summary_only:
-            pickle_folder += "summary_"
-
-        with open(pickle_folder + "train.pickle", "wb") as fout:
-            pickle.dump(train_docs, fout)
-        with open(pickle_folder + "validate.pickle", "wb") as fout:
-            pickle.dump(valid_docs, fout)
-        with open(pickle_folder + "test.pickle", "wb") as fout:
-            pickle.dump(test_docs, fout)
-
-        def process_document(doc_id):
-            (set, kind, start_tag, end_tag) = documents[doc_id]
             if kind == "gutenberg":
                 try:
                     with codecs.open(input_folder + doc_id + ".content", "r", encoding='utf-8', errors='replace') as fin:
@@ -135,9 +145,8 @@ class DataLoader():
                         filtered_data = tokenized_data[start_index:end_index]
                         if len(filtered_data) == 0:
                             print("Error in book extraction: ",
-                                  filename, start_tag, end_tag)
+                                    filename, start_tag, end_tag)
                         else:
-                            print(filename)
                             filtered_data = filtered_data.replace(
                                 " 's ", " s ")
                             document_tokens = word_tokenize(filtered_data)
@@ -149,7 +158,7 @@ class DataLoader():
                 try:
                     # Here we remove some annotation that is unique to movie scripts
                     with codecs.open(input_folder + doc_id + ".content", "r", encoding="utf-8",
-                                     errors="replace") as fin:
+                                        errors="replace") as fin:
                         text = fin.read()
                         text = text.replace('"', '')
                         script_regex = r"<script.*>.*?</script>|<SCRIPT.*>.*?</SCRIPT>"
@@ -171,9 +180,8 @@ class DataLoader():
                         filtered_data = tokenized_data[start_index:end_index]
                         if len(filtered_data) == 0:
                             print("Error in movie extraction: ",
-                                  filename, start_tag)
+                                    filename, start_tag)
                         else:
-                            print(filename)
                             filtered_data == filtered_data.replace(
                                 " 's ", " s ")
                             document_tokens = word_tokenize(filtered_data)
@@ -183,24 +191,43 @@ class DataLoader():
                     print(
                         "Movie for which html extraction doesnt work doesnt work: ", doc_id)
 
-            document = Document(
-                doc_id, set, kind, document_tokens, summaries[doc_id], qaps[doc_id])
+            doc = Document(
+                doc_id, set, kind, document_tokens, qaps[doc_id])
 
-            return document
+            
+            if (file_number+1) % interval == 0:
+                print("Processed {} documents".format(file_number+1))
 
-        def process_summary(doc_id):
-            (set, kind, _, _) = documents[doc_id]
-            document = Summary(doc_id, set, kind,
-                               summaries[doc_id], qaps[doc_id])
-            return document
+            # If testing, add to test list, pickle and return when sufficient documents retrieved
+            if small_number > 0:
+                small_docs.append(doc)
+                if len(small_docs) == small_number:
+                    with open(pickle_folder + "small_docs.pickle", "wb") as fout:
+                        pickle.dump(small_docs, fout)
+                    return
 
-    def load_documents(self, path, summary_only=False):
+                if set == "train":
+                    train_docs.append(doc)
+                elif set == "valid":
+                    valid_docs.append(doc)
+                else:
+                    test_docs.append(doc)
+
+        # Save documents to pickle
+        print("Pickling documents")
+        with open(pickle_folder + "train_docs.pickle", "wb") as fout:
+            pickle.dump(train_docs, fout)
+        with open(pickle_folder + "validate_docs.pickle", "wb") as fout:
+            pickle.dump(valid_docs, fout)
+        with open(pickle_folder + "test_docs.pickle", "wb") as fout:
+            pickle.dump(test_docs, fout)
+
+
+    def load_documents(self, path):
         with open(path, "r") as fin:
             documents = pickle.load(fin)
         for document in documents:
-            document.summary_tokens = self.vocab.add_and_get_indices(document.summary_tokens)
-            if not summary_only:
-                document.document_tokens = self.vocab.add_and_get_indices(document.document_tokens)
+            document.document_tokens = self.vocab.add_and_get_indices(document.document_tokens)
             for query in document.queries:
                 query.question_tokens=self.vocab.add_and_get_indices(query.question_tokens)
                 query.answer1_tokens=self.vocab.add_and_get_indices(query.answer1_tokens)
