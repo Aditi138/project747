@@ -16,8 +16,8 @@ import math
 import random
 # import spacy
 from nltk import word_tokenize
-from data import Document, Query
-from utility import start_tags, end_tags, start_tags_with_attributes
+from .data import Document, Query
+from .utility import start_tags, end_tags, start_tags_with_attributes
 
 
 class DataLoader():
@@ -36,6 +36,7 @@ class DataLoader():
         # Here we load files that contain the summaries, questions, answers and information about the documents
         # Not the documents themselves
         # assuming every unique id has one summary only
+        
         summaries = {}
         with codecs.open(summary_path, "r", encoding='utf-8', errors='replace') as fin:
             for line in reader(fin):
@@ -75,12 +76,12 @@ class DataLoader():
 
 
         # Create lists of document objects for the summaries
-        train_summaries = []
-        valid_summaries= []
-        test_summaries= []
+        train_summaries = {}
+        valid_summaries= {}
+        test_summaries= {}
 
         if small_number > 0:
-            small_summaries = []
+            small_summaries = {}
 
         for doc_id in documents:    
             set, kind, _, _ = documents[doc_id]
@@ -88,18 +89,18 @@ class DataLoader():
 
             # When constructing small data set, just add to one pile and save when we have a sufficient number
             if small_number > 0:
-                small_summaries.append(summary)
+                small_summaries[doc_id] = summary
                 if len(small_summaries)==small_number:
                     with open(pickle_folder + "small_summaries.pickle", "wb") as fout:
                         pickle.dump(small_summaries, fout)
                     break
             else:
                 if set == 'train':
-                    train_summaries.append(summary)
+                    train_summaries[doc_id] = summary
                 elif set == 'valid':
-                    valid_summaries.append(summary)
+                    valid_summaries[doc_id] = summary
                 elif set == 'test':
-                    test_summaries.append(summary)
+                    test_summaries[doc_id] = summary
 
         print("Pickling summaries")
         with open(pickle_folder + "train_summaries.pickle", "wb") as fout:
@@ -113,13 +114,13 @@ class DataLoader():
         if summary_only:
             return
 
-        train_docs = []
-        valid_docs = []
-        test_docs = []
+        train_docs = {}
+        valid_docs = {}
+        test_docs = {}
 
         # In case of creation of small test dataset
         if small_number > 0:
-            small_docs = []
+            small_docs = {}
 
         # Here we load documents, tokenize them, and create Document class instances
         print("Processing documents")
@@ -132,7 +133,9 @@ class DataLoader():
                 (set, kind, start_tag, end_tag) = documents[doc_id]
             except KeyError:
                 print("Document id not found: {0}".format(doc_id))
-                exit(0)                
+                exit(0)      
+                
+                          
 
             if kind == "gutenberg":
                 try:
@@ -200,18 +203,19 @@ class DataLoader():
 
             # If testing, add to test list, pickle and return when sufficient documents retrieved
             if small_number > 0:
-                small_docs.append(doc)
+                small_docs[doc_id] = doc
                 if len(small_docs) == small_number:
                     with open(pickle_folder + "small_docs.pickle", "wb") as fout:
                         pickle.dump(small_docs, fout)
                     return
 
+            else:
                 if set == "train":
-                    train_docs.append(doc)
+                    train_docs[doc_id] = doc
                 elif set == "valid":
-                    valid_docs.append(doc)
+                    valid_docs[doc_id] = doc
                 else:
-                    test_docs.append(doc)
+                    test_docs[doc_id] = doc
 
         # Save documents to pickle
         print("Pickling documents")
@@ -233,7 +237,6 @@ class DataLoader():
                 query.answer1_tokens=self.vocab.add_and_get_indices(query.answer1_tokens)
                 query.answer2_tokens=self.vocab.add_and_get_indices(query.answer2_tokens)
         return documents
-
 
 
 class Vocabulary(object):
