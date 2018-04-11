@@ -39,6 +39,7 @@ class DataLoader():
         to_anonymize = ["GPE", "PERSON", "ORG", "LOC"]
         def _getNER(string_data,entity_dict):
             doc = nlp(string_data)
+            data = string_data.split()
             NE_data = ""
             start_pos = 0
             for ents in doc.ents:
@@ -221,12 +222,18 @@ class DataLoader():
             title_document_tokens = [token.lower() if token.isupper() else token for token in document_tokens]
             string_doc = " ".join(title_document_tokens)
             if len(string_doc) > 1000000:
-                half_count = len(string_doc) / 2
-                first_half = string_doc[0:half_count]
-                second_half = string_doc[half_count:]
-                first_half_tokens = _getNER(first_half,entity_dictionary)
-                second_half_tokens = _getNER(second_half, entity_dictionary)
-                NER_document_tokens = first_half_tokens + second_half_tokens
+                q1 = len(string_doc) / 4
+
+                first_quarter = string_doc[0:q1]
+                second_quarter = string_doc[q1:q1*2]
+                third_quarter = string_doc[q1 * 2:q1*3]
+                fourth_quarter = string_doc[q1*3:]
+                first_q_tokens = _getNER(first_quarter,entity_dictionary)
+                second_q_tokens = _getNER(second_quarter, entity_dictionary)
+                third_q_tokens = _getNER(third_quarter, entity_dictionary)
+                fourth_q_tokens = _getNER(fourth_quarter, entity_dictionary)
+
+                NER_document_tokens = first_q_tokens + second_q_tokens + third_q_tokens + fourth_q_tokens
             else:
                 NER_document_tokens = _getNER(string_doc,entity_dictionary)
 
