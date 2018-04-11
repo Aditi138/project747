@@ -9,15 +9,12 @@ try:
     import cPickle as pickle
 except:
     import pickle
-import io
-import random
-import numpy as np
-import math
-import random
-# import spacy
+
+import sys
+import spacy
 from nltk import word_tokenize
-from .data import Document, Query
-from .utility import start_tags, end_tags, start_tags_with_attributes
+from data import Document, Query
+from utility import start_tags, end_tags, start_tags_with_attributes
 
 
 class DataLoader():
@@ -29,6 +26,8 @@ class DataLoader():
 
     # This function loads raw documents, summaries and queries, processes them, stores them in document class and finally saves to a pickle
     def process_data(self, input_folder, summary_path, qap_path, document_path, pickle_folder, small_number=-1, summary_only=False, interval=50):
+        reload(sys)
+        sys.setdefaultencoding('utf8')
 
         # # Takes time to load so only do this inside function rather than in constructor
         # self.nlp =spacy.load('en_core_web_md', disable= ["tagger", "parser"])
@@ -36,7 +35,33 @@ class DataLoader():
         # Here we load files that contain the summaries, questions, answers and information about the documents
         # Not the documents themselves
         # assuming every unique id has one summary only
-        
+        nlp = spacy.load('en',disable=['parser'])
+        to_anonymize = ["GPE", "PERSON", "ORG", "LOC"]
+        def _getNER(string_data,entity_dict):
+            doc = nlp(string_data)
+            data = string_data.split()
+            NE_data = ""
+            start_pos = 0
+            for ents in doc.ents:
+                start = ents.start_char
+                end = ents.end_char
+                label = ents.label_
+                tokens = ents.text
+                key = tokens.lower()
+                if label in to_anonymize:
+                    if key not in data:
+                        if key not in entity_dict:
+                            entity_dict[key] = "@ent" + str(len(entity_dict)) + "~ner:" + label
+                        NE_data += string_data[start_pos:start] + entity_dict[key] + " "
+                        start_pos = end + 1
+                else:
+                    NE_data += string_data[start_pos:start] + tokens + "~ner:" + label + " "
+                    start_pos = end + 1
+
+            NE_data += string_data[start_pos:]
+            return NE_data.split()
+
+
         summaries = {}
         with codecs.open(summary_path, "r", encoding='utf-8', errors='replace') as fin:
             for line in reader(fin):
@@ -76,31 +101,31 @@ class DataLoader():
 
 
         # Create lists of document objects for the summaries
-        train_summaries = {}
-        valid_summaries= {}
-        test_summaries= {}
+        train_summaries = []
+        valid_summaries= []
+        test_summaries= []
 
         if small_number > 0:
-            small_summaries = {}
+            small_summaries = []
 
-        for doc_id in documents:    
+        for doc_id in documents:
             set, kind, _, _ = documents[doc_id]
-            summary = Document(doc_id, set, kind, summaries[doc_id], qaps[doc_id])
+            summary = Document(doc_id, set, kind, summaries[doc_id], qaps[doc_id],{})
 
             # When constructing small data set, just add to one pile and save when we have a sufficient number
             if small_number > 0:
-                small_summaries[doc_id] = summary
+                small_summaries.append(summary)
                 if len(small_summaries)==small_number:
                     with open(pickle_folder + "small_summaries.pickle", "wb") as fout:
                         pickle.dump(small_summaries, fout)
                     break
             else:
                 if set == 'train':
-                    train_summaries[doc_id] = summary
+                    train_summaries.append(summary)
                 elif set == 'valid':
-                    valid_summaries[doc_id] = summary
+                    valid_summaries.append(summary)
                 elif set == 'test':
-                    test_summaries[doc_id] = summary
+                    test_summaries.append(summary)
 
         print("Pickling summaries")
         with open(pickle_folder + "train_summaries.pickle", "wb") as fout:
@@ -114,13 +139,13 @@ class DataLoader():
         if summary_only:
             return
 
-        train_docs = {}
-        valid_docs = {}
-        test_docs = {}
+        train_docs = []
+        valid_docs = []
+        test_docs = []
 
         # In case of creation of small test dataset
         if small_number > 0:
-            small_docs = {}
+            small_docs = []
 
         # Here we load documents, tokenize them, and create Document class instances
         print("Processing documents")
@@ -128,14 +153,12 @@ class DataLoader():
         for file_number in range(len(filenames)):
             filename=filenames[file_number]
             doc_id = os.path.basename(filename).replace(".content", "")
-
+            print("Processing:{0}".format(doc_id))
             try:
                 (set, kind, start_tag, end_tag) = documents[doc_id]
             except KeyError:
                 print("Document id not found: {0}".format(doc_id))
-                exit(0)      
-                
-                          
+                exit(0)                
 
             if kind == "gutenberg":
                 try:
@@ -194,8 +217,28 @@ class DataLoader():
                     print(
                         "Movie for which html extraction doesnt work doesnt work: ", doc_id)
 
+            #Get NER
+            entity_dictionary = {}
+            title_document_tokens = [token.lower() if token.isupper() else token for token in document_tokens]
+            string_doc = " ".join(title_document_tokens)
+            if len(string_doc) > 1000000:
+                q1 = len(string_doc) / 4
+
+                first_quarter = string_doc[0:q1]
+                second_quarter = string_doc[q1:q1*2]
+                third_quarter = string_doc[q1 * 2:q1*3]
+                fourth_quarter = string_doc[q1*3:]
+                first_q_tokens = _getNER(first_quarter,entity_dictionary)
+                second_q_tokens = _getNER(second_quarter, entity_dictionary)
+                third_q_tokens = _getNER(third_quarter, entity_dictionary)
+                fourth_q_tokens = _getNER(fourth_quarter, entity_dictionary)
+
+                NER_document_tokens = first_q_tokens + second_q_tokens + third_q_tokens + fourth_q_tokens
+            else:
+                NER_document_tokens = _getNER(string_doc,entity_dictionary)
+
             doc = Document(
-                doc_id, set, kind, document_tokens, qaps[doc_id])
+                doc_id, set, kind, NER_document_tokens, qaps[doc_id], entity_dictionary)
 
             
             if (file_number+1) % interval == 0:
@@ -203,19 +246,18 @@ class DataLoader():
 
             # If testing, add to test list, pickle and return when sufficient documents retrieved
             if small_number > 0:
-                small_docs[doc_id] = doc
+                small_docs.append(doc)
                 if len(small_docs) == small_number:
                     with open(pickle_folder + "small_docs.pickle", "wb") as fout:
                         pickle.dump(small_docs, fout)
                     return
 
-            else:
                 if set == "train":
-                    train_docs[doc_id] = doc
+                    train_docs.append(doc)
                 elif set == "valid":
-                    valid_docs[doc_id] = doc
+                    valid_docs.append(doc)
                 else:
-                    test_docs[doc_id] = doc
+                    test_docs.append(doc)
 
         # Save documents to pickle
         print("Pickling documents")
@@ -237,6 +279,7 @@ class DataLoader():
                 query.answer1_tokens=self.vocab.add_and_get_indices(query.answer1_tokens)
                 query.answer2_tokens=self.vocab.add_and_get_indices(query.answer2_tokens)
         return documents
+
 
 
 class Vocabulary(object):
