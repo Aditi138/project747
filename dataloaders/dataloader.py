@@ -37,7 +37,7 @@ class DataLoader():
         # assuming every unique id has one summary only
         nlp = spacy.load('en',disable=['parser'])
         to_anonymize = ["GPE", "PERSON", "ORG", "LOC"]
-        def _getNER(string_data,entity_dict):
+        def _getNER(string_data,entity_dict,other_dict):
             doc = nlp(string_data)
             data = string_data.split()
             NE_data = ""
@@ -55,6 +55,7 @@ class DataLoader():
                         NE_data += string_data[start_pos:start] + entity_dict[key] + " "
                         start_pos = end + 1
                 else:
+                    other_dict[key] = tokens + "~ner:" + label
                     NE_data += string_data[start_pos:start] + tokens + "~ner:" + label + " "
                     start_pos = end + 1
 
@@ -110,7 +111,7 @@ class DataLoader():
 
         for doc_id in documents:
             set, kind, _, _ = documents[doc_id]
-            summary = Document(doc_id, set, kind, summaries[doc_id], qaps[doc_id],{})
+            summary = Document(doc_id, set, kind, summaries[doc_id], qaps[doc_id],{},{})
 
             # When constructing small data set, just add to one pile and save when we have a sufficient number
             if small_number > 0:
@@ -219,6 +220,7 @@ class DataLoader():
 
             #Get NER
             entity_dictionary = {}
+            other_dictionary = {}
             title_document_tokens = [token.lower() if token.isupper() else token for token in document_tokens]
             string_doc = " ".join(title_document_tokens)
             if len(string_doc) > 1000000:
@@ -228,17 +230,17 @@ class DataLoader():
                 second_quarter = string_doc[q1:q1*2]
                 third_quarter = string_doc[q1 * 2:q1*3]
                 fourth_quarter = string_doc[q1*3:]
-                first_q_tokens = _getNER(first_quarter,entity_dictionary)
-                second_q_tokens = _getNER(second_quarter, entity_dictionary)
-                third_q_tokens = _getNER(third_quarter, entity_dictionary)
-                fourth_q_tokens = _getNER(fourth_quarter, entity_dictionary)
+                first_q_tokens = _getNER(first_quarter,entity_dictionary,other_dictionary)
+                second_q_tokens = _getNER(second_quarter, entity_dictionary,other_dictionary)
+                third_q_tokens = _getNER(third_quarter, entity_dictionary,other_dictionary)
+                fourth_q_tokens = _getNER(fourth_quarter, entity_dictionary,other_dictionary)
 
                 NER_document_tokens = first_q_tokens + second_q_tokens + third_q_tokens + fourth_q_tokens
             else:
-                NER_document_tokens = _getNER(string_doc,entity_dictionary)
+                NER_document_tokens = _getNER(string_doc,entity_dictionary,other_dictionary)
 
             doc = Document(
-                doc_id, set, kind, NER_document_tokens, qaps[doc_id], entity_dictionary)
+                doc_id, set, kind, NER_document_tokens, qaps[doc_id], entity_dictionary,other_dictionary)
 
             
             if (file_number+1) % interval == 0:
@@ -252,6 +254,7 @@ class DataLoader():
                         pickle.dump(small_docs, fout)
                     return
 
+            else:
                 if set == "train":
                     train_docs.append(doc)
                 elif set == "valid":

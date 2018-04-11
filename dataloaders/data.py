@@ -1,11 +1,12 @@
 class Document:
-    def __init__(self, id, set, kind, document_tokens, queries, entity_dictionary):
+    def __init__(self, id, set, kind, document_tokens, queries, entity_dictionary,other_dictionary):
         self.document_id = id
         self.kind = kind
         self.set = set
         self.document_tokens = document_tokens
         self.queries = queries
         self.entity_dictionary = entity_dictionary
+        self.other_dictionary = other_dictionary
 
 class Query:
     question_tokens = []
