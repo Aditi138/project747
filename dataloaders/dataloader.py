@@ -9,12 +9,9 @@ try:
     import cPickle as pickle
 except:
     import pickle
-import io
-import random
-import numpy as np
-import math
-import random
-# import spacy
+
+import sys
+import spacy
 from nltk import word_tokenize
 from data import Document, Query
 from utility import start_tags, end_tags, start_tags_with_attributes
@@ -29,6 +26,8 @@ class DataLoader():
 
     # This function loads raw documents, summaries and queries, processes them, stores them in document class and finally saves to a pickle
     def process_data(self, input_folder, summary_path, qap_path, document_path, pickle_folder, small_number=-1, summary_only=False, interval=50):
+        reload(sys)
+        sys.setdefaultencoding('utf8')
 
         # # Takes time to load so only do this inside function rather than in constructor
         # self.nlp =spacy.load('en_core_web_md', disable= ["tagger", "parser"])
@@ -36,6 +35,33 @@ class DataLoader():
         # Here we load files that contain the summaries, questions, answers and information about the documents
         # Not the documents themselves
         # assuming every unique id has one summary only
+        nlp = spacy.load('en')
+        to_anonymize = ["GPE", "PERSON", "ORG", "LOC"]
+        def _getNER(data,entity_dict):
+            string_data = " ".join(data)
+            doc = nlp(string_data)
+            NE_data = ""
+            start_pos = 0
+            for ents in doc.ents:
+                start = ents.start_char
+                end = ents.end_char
+                label = ents.label_
+                tokens = ents.text
+                key = tokens.lower()
+                if label in to_anonymize:
+                    if key not in data:
+                        if key not in entity_dict:
+                            entity_dict[key] = "@ent" + str(len(entity_dict)) + "~ner:" + label
+                        NE_data += string_data[start_pos:start] + entity_dict[key] + " "
+                        start_pos = end + 1
+                else:
+                    NE_data += string_data[start_pos:start] + tokens + "~ner:" + label + " "
+                    start_pos = end + 1
+
+            NE_data += string_data[start_pos:]
+            return NE_data.split()
+
+
         summaries = {}
         with codecs.open(summary_path, "r", encoding='utf-8', errors='replace') as fin:
             for line in reader(fin):
@@ -82,9 +108,9 @@ class DataLoader():
         if small_number > 0:
             small_summaries = []
 
-        for doc_id in documents:    
+        for doc_id in documents:
             set, kind, _, _ = documents[doc_id]
-            summary = Document(doc_id, set, kind, summaries[doc_id], qaps[doc_id])
+            summary = Document(doc_id, set, kind, summaries[doc_id], qaps[doc_id],{})
 
             # When constructing small data set, just add to one pile and save when we have a sufficient number
             if small_number > 0:
@@ -191,8 +217,13 @@ class DataLoader():
                     print(
                         "Movie for which html extraction doesnt work doesnt work: ", doc_id)
 
+            #Get NER
+            entity_dictionary = {}
+            title_document_tokens = [token.lower() if token.isupper() else token for token in document_tokens]
+            NER_document_tokens = _getNER(title_document_tokens,entity_dictionary)
+
             doc = Document(
-                doc_id, set, kind, document_tokens, qaps[doc_id])
+                doc_id, set, kind, NER_document_tokens, qaps[doc_id], entity_dictionary)
 
             
             if (file_number+1) % interval == 0:

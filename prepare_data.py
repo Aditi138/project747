@@ -1,7 +1,7 @@
 from dataloaders.dataloader import DataLoader
 import argparse
 import sys
-from line_profiler import LineProfiler
+
 
 if __name__ == "__main__":
     reload(sys)
