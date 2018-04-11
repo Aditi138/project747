@@ -35,10 +35,9 @@ class DataLoader():
         # Here we load files that contain the summaries, questions, answers and information about the documents
         # Not the documents themselves
         # assuming every unique id has one summary only
-        nlp = spacy.load('en')
+        nlp = spacy.load('en',disable=['parser'])
         to_anonymize = ["GPE", "PERSON", "ORG", "LOC"]
-        def _getNER(data,entity_dict):
-            string_data = " ".join(data)
+        def _getNER(string_data,entity_dict):
             doc = nlp(string_data)
             NE_data = ""
             start_pos = 0
@@ -153,7 +152,7 @@ class DataLoader():
         for file_number in range(len(filenames)):
             filename=filenames[file_number]
             doc_id = os.path.basename(filename).replace(".content", "")
-
+            print("Processing:{0}".format(doc_id))
             try:
                 (set, kind, start_tag, end_tag) = documents[doc_id]
             except KeyError:
@@ -220,7 +219,16 @@ class DataLoader():
             #Get NER
             entity_dictionary = {}
             title_document_tokens = [token.lower() if token.isupper() else token for token in document_tokens]
-            NER_document_tokens = _getNER(title_document_tokens,entity_dictionary)
+            string_doc = " ".join(title_document_tokens)
+            if len(string_doc) > 1000000:
+                half_count = len(string_doc) / 2
+                first_half = string_doc[0:half_count]
+                second_half = string_doc[half_count:]
+                first_half_tokens = _getNER(first_half,entity_dictionary)
+                second_half_tokens = _getNER(second_half, entity_dictionary)
+                NER_document_tokens = first_half_tokens + second_half_tokens
+            else:
+                NER_document_tokens = _getNER(string_doc,entity_dictionary)
 
             doc = Document(
                 doc_id, set, kind, NER_document_tokens, qaps[doc_id], entity_dictionary)
