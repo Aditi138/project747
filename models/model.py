@@ -1,8 +1,8 @@
 import torch.nn as nn
 
-class model(nn.Module):
+class Model(nn.Module):
     def __init__(self):
-        super(model, self).__init__()
+        super(Model, self).__init__()
 
 
 
