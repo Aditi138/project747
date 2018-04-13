@@ -50,9 +50,9 @@ def main(args):
     begin=timer()
     total_answers=0
     for summary in train_summaries[:]:
-        answers=[[elmo_tokenize(word) for word in answer] for answer in summary.answers]
+        answers=[[elmo_tokenize(word) for word in answer]*2 for answer in summary.answers]
         answers=pad_elmo(answers)
-        answers = answers * 5
+        answers = answers * 2
         batch=variable(torch.LongTensor(answers))
         a=elmo_instance(batch)
         total_answers+=len(answers)
