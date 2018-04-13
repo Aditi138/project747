@@ -6,10 +6,9 @@ from allennlp.modules.elmo import Elmo
 from allennlp.data.token_indexers.elmo_indexer import ELMoCharacterMapper
 elmo_tokenize=ELMoCharacterMapper.convert_word_to_char_ids
 import torch
-from torch.autograd import Variable
 import numpy as np
 from numpy import random
-from dataloaders.utility import options_url, weights_url, use_cuda, pad_elmo
+from dataloaders.utility import options_url, weights_url, use_cuda, pad_elmo, variable
 import argparse
 from models.no_context import BILSTMsim
 from timeit import default_timer as timer
@@ -35,14 +34,14 @@ def main(args):
     with open(args.train_path, "rb") as file:
         train_summaries = pickle.load(file, encoding='utf-8')
     
-    with open(args.valid_path, "rb") as file:
-        valid_summaries = pickle.load(file, encoding='utf-8')
+    # with open(args.valid_path, "rb") as file:
+    #     valid_summaries = pickle.load(file, encoding='utf-8')
 
     for summary in train_summaries:
         convert_document(summary)
     
-    for summary in valid_summaries:
-        convert_document(summary)
+    # for summary in valid_summaries:
+    #     convert_document(summary)
 
     elmo_instance = Elmo(options_url, weights_url, 1)
     if use_cuda:
@@ -50,10 +49,11 @@ def main(args):
 
     begin=timer()
     total_answers=0
-    for summary in train_summaries[:100]:
+    for summary in train_summaries[:]:
         answers=[[elmo_tokenize(word) for word in answer] for answer in summary.answers]
         answers=pad_elmo(answers)
-        batch=Variable(torch.LongTensor(answers))
+        answers = answers * 5
+        batch=variable(torch.LongTensor(answers))
         a=elmo_instance(batch)
         total_answers+=len(answers)
 
