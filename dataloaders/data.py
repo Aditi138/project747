@@ -1,5 +1,5 @@
 class Document:
-    def __init__(self, id, set, kind, document_tokens, queries, entity_dictionary,other_dictionary):
+    def __init__(self, id, set, kind, document_tokens, queries, entity_dictionary,other_dictionary, candidates):
         self.document_id = id
         self.kind = kind
         self.set = set
@@ -7,16 +7,19 @@ class Document:
         self.queries = queries
         self.entity_dictionary = entity_dictionary
         self.other_dictionary = other_dictionary
+        self.candidates = candidates
 
 class Query:
     question_tokens = []
+    answer_indices = []
     answer1_tokens = []
     answer2_tokens = []
 
-    def __init__(self, question_tokens, answer1_tokens, answer2_tokens):
+    def __init__(self, question_tokens, answer_indices):
         self.question_tokens = question_tokens
-        self.answer1_tokens = answer1_tokens
-        self.answer2_tokens = answer2_tokens
+        self.answer_indices = answer_indices
+        # self.answer1_tokens = answer1_tokens
+        # self.answer2_tokens = answer2_tokens
 
     def get_question_tokens(self):
         return self.question_tokens

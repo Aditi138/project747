@@ -71,16 +71,30 @@ class DataLoader():
                 summaries[id] = summary_tokens.split()
         print("Loaded summaries")
         qaps = {}
+        candidates = []
+        candidate_index = 0
         with codecs.open(qap_path, "r") as fin:
+            first= True
             for line in reader(fin):
+                if first:
+                    first= False
+                    continue
                 id = line[0]
                 if id in qaps:
+                    candidates.append(line[6].split())
+                    candidates.append(line[7].split())
+                    indices = [candidate_index, candidate_index + 1]
+                    candidate_index += 2
                     qaps[id].append(
-                        Query(line[5].split(), line[6].split(), line[7].split()))
+                        Query(line[5].split(), indices))
                 else:
                     qaps[id] = []
+                    candidates.append(line[6].split())
+                    candidates.append(line[7].split())
+                    indices= [candidate_index, candidate_index + 1]
+                    candidate_index += 2
                     qaps[id].append(
-                        Query(line[5].split(), line[6].split(), line[7].split()))
+                        Query(line[5].split(), indices))
         print("Loaded question answer pairs")
         documents = {}
         with codecs.open(document_path, "r") as fin:
@@ -111,7 +125,7 @@ class DataLoader():
 
         for doc_id in documents:
             set, kind, _, _ = documents[doc_id]
-            summary = Document(doc_id, set, kind, summaries[doc_id], qaps[doc_id],{},{})
+            summary = Document(doc_id, set, kind, summaries[doc_id], qaps[doc_id],{},{}, candidates)
 
             # When constructing small data set, just add to one pile and save when we have a sufficient number
             if small_number > 0:
@@ -147,6 +161,9 @@ class DataLoader():
         # In case of creation of small test dataset
         if small_number > 0:
             small_docs = []
+            small_train_docs = []
+            small_valid_docs = []
+            small_test_docs = []
 
         # Here we load documents, tokenize them, and create Document class instances
         print("Processing documents")
@@ -240,7 +257,7 @@ class DataLoader():
                 NER_document_tokens = _getNER(string_doc,entity_dictionary,other_dictionary)
 
             doc = Document(
-                doc_id, set, kind, NER_document_tokens, qaps[doc_id], entity_dictionary,other_dictionary)
+                doc_id, set, kind, NER_document_tokens, qaps[doc_id], entity_dictionary,other_dictionary,candidates)
 
             
             if (file_number+1) % interval == 0:
@@ -249,10 +266,21 @@ class DataLoader():
             # If testing, add to test list, pickle and return when sufficient documents retrieved
             if small_number > 0:
                 small_docs.append(doc)
+                if set == "train":
+                    small_train_docs.append(doc)
+                elif set == "valid":
+                    small_valid_docs.append(doc)
+                else:
+                    small_test_docs.append(doc)
                 if len(small_docs) == small_number:
-                    with open(pickle_folder + "small_docs.pickle", "wb") as fout:
-                        pickle.dump(small_docs, fout)
+                    with open(pickle_folder + "small_train_docs.pickle", "wb") as fout:
+                        pickle.dump(small_train_docs, fout)
+                    with open(pickle_folder + "small_valid_docs.pickle", "wb") as fout:
+                        pickle.dump(small_valid_docs, fout)
+                    with open(pickle_folder + "small_test_docs.pickle", "wb") as fout:
+                        pickle.dump(small_test_docs, fout)
                     return
+
 
             else:
                 if set == "train":
@@ -272,12 +300,73 @@ class DataLoader():
             pickle.dump(test_docs, fout)
 
 
-    def load_documents(self, path):
+    def replace_entities(self, entity_dictionary, other_dictionary, document_tokens):
+        for index, token in enumerate(document_tokens):
+            if token.lower() in entity_dictionary:
+                document_tokens[index] = entity_dictionary[token.lower()]
+            elif token.lower() in other_dictionary:
+                document_tokens[index] = other_dictionary[token.lower()]
+
+    def replace_entities_using_ngrams(self, sent, entity_dictionary, other_dictionary):
+        ngrams = []
+        all_starts = []
+        start = [j for j in range(len(sent))]
+        for i in range(6, 0, -1):
+            ngrams += zip(*[sent[j:] for j in range(i)])
+            all_starts += zip(*[start[j:] for j in range(i)])
+
+        label_sent = [None] * len(sent)
+        positions_marked = [False for i in range(len(sent))]
+        to_remove = []
+
+        for i, ngram in enumerate(ngrams):
+            word = " ".join(ngram)
+            if word.lower() in entity_dictionary and positions_marked[all_starts[i][0]] == False:
+                label_sent[all_starts[i][0]] = entity_dictionary[word.lower()]
+                positions_marked[all_starts[i][0]] = True
+                for j in range(1,len(ngram)):
+                    to_remove.append(all_starts[i][j])
+
+            elif word.lower() in other_dictionary and positions_marked[all_starts[i][0]] == False:
+                label_sent[all_starts[i][0]] = other_dictionary[word.lower()]
+                positions_marked[all_starts[i][0]] = True
+                for j in range(1,len(ngram)):
+                    to_remove.append(all_starts[i][j])
+
+        NER_sent = []
+        for index in range(len(sent)):
+            if index not in to_remove:
+                if label_sent[index] is None:
+                    NER_sent.append(sent[index])
+                else:
+                    NER_sent.append(label_sent[index])
+
+        return NER_sent
+
+
+    def load_documents(self, path, summary_path=None):
+        anonymize_summary = False
         with open(path, "r") as fin:
             documents = pickle.load(fin)
-        for document in documents:
+
+        if summary_path is not None:
+            with open(summary_path, "r") as fin:
+                summary_documents = pickle.load(fin)
+            anonymize_summary = True
+            assert len(summary_documents) == len(documents)
+
+        for index,document in enumerate(documents):
+
+            self.replace_entities(document.entity_dictionary, document.other_dictionary,document.document_tokens)
             document.document_tokens = self.vocab.add_and_get_indices(document.document_tokens)
+            if anonymize_summary:
+                self.replace_entities(document.entity_dictionary, document.other_dictionary, summary_documents[index].document_tokens)
+
             for query in document.queries:
+                query.question_tokens = self.replace_entities_using_ngrams(query.question_tokens,document.entity_dictionary, document.other_dictionary)
+                query.answer1_tokens = self.replace_entities_using_ngrams(query.answer1_tokens,document.entity_dictionary, document.other_dictionary)
+                query.answer2_tokens =   self.replace_entities_using_ngrams(query.answer2_tokens,document.entity_dictionary, document.other_dictionary)
+
                 query.question_tokens=self.vocab.add_and_get_indices(query.question_tokens)
                 query.answer1_tokens=self.vocab.add_and_get_indices(query.answer1_tokens)
                 query.answer2_tokens=self.vocab.add_and_get_indices(query.answer2_tokens)

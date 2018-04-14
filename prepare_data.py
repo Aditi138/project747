@@ -8,6 +8,8 @@ if __name__ == "__main__":
     sys.setdefaultencoding('utf8')
     parser = argparse.ArgumentParser()
 
+    parser.add_argument("--mode", type=str, default=None,
+                        help="[train,load]")
     parser.add_argument("--input_folder", type=str, default=None,
                         help="Path to the directory of raw documents")
     parser.add_argument("--summary_path", type=str, default=None,
