@@ -1,6 +1,7 @@
 import torch
 from torch.autograd import Variable
 
+
 PAD_token = 0
 SOS_token = 1
 EOS_token = 2
@@ -35,3 +36,6 @@ def pad_elmo(batch):
     max_len = len(max(batch, key=len))
     padded_batch=[sequence + [[0]*50 for i in range(max_len - len(sequence))] for sequence in batch]
     return padded_batch
+
+
+

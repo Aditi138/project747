@@ -34,5 +34,17 @@ class Query:
     def get_answer_tokens(self):
         return (self.answer1_tokens, self.answer2_tokens)
 
+class Data_Point:
+    question_tokens = []
+    candidates = []
+    answer_indices = []
+
+
+    def __init__(self, question_tokens,answer_indices, candidates):
+        self.question_tokens = question_tokens
+        self.answer_indices =answer_indices
+        self.candidates = candidates
+
+
 
 

@@ -13,8 +13,11 @@ except:
 import sys
 import spacy
 from nltk import word_tokenize
-from data import Document, Query
-from utility import start_tags, end_tags, start_tags_with_attributes
+from data import Document, Query, Data_Point
+from utility import start_tags, end_tags, start_tags_with_attributes, pad_seq
+import random
+import numpy as np
+from collections import defaultdict
 
 
 class DataLoader():
@@ -23,6 +26,7 @@ class DataLoader():
         # Actually define args here
         # self.x = args.x
         self.vocab = Vocabulary()
+
 
     # This function loads raw documents, summaries and queries, processes them, stores them in document class and finally saves to a pickle
     def process_data(self, input_folder, summary_path, qap_path, document_path, pickle_folder, small_number=-1, summary_only=False, interval=50):
@@ -71,8 +75,8 @@ class DataLoader():
                 summaries[id] = summary_tokens.split()
         print("Loaded summaries")
         qaps = {}
-        candidates = []
-        candidate_index = 0
+
+        candidates_per_doc = defaultdict(list)
         with codecs.open(qap_path, "r") as fin:
             first= True
             for line in reader(fin):
@@ -81,16 +85,18 @@ class DataLoader():
                     continue
                 id = line[0]
                 if id in qaps:
-                    candidates.append(line[6].split())
-                    candidates.append(line[7].split())
+                    candidates_per_doc[id].append(line[6].split())
+                    candidates_per_doc[id].append(line[7].split())
                     indices = [candidate_index, candidate_index + 1]
                     candidate_index += 2
                     qaps[id].append(
                         Query(line[5].split(), indices))
                 else:
                     qaps[id] = []
-                    candidates.append(line[6].split())
-                    candidates.append(line[7].split())
+                    candidates_per_doc[id] = []
+                    candidate_index = 0
+                    candidates_per_doc[id].append(line[6].split())
+                    candidates_per_doc[id].append(line[7].split())
                     indices= [candidate_index, candidate_index + 1]
                     candidate_index += 2
                     qaps[id].append(
@@ -125,7 +131,7 @@ class DataLoader():
 
         for doc_id in documents:
             set, kind, _, _ = documents[doc_id]
-            summary = Document(doc_id, set, kind, summaries[doc_id], qaps[doc_id],{},{}, candidates)
+            summary = Document(doc_id, set, kind, summaries[doc_id], qaps[doc_id],{},{}, candidates_per_doc[doc_id])
 
             # When constructing small data set, just add to one pile and save when we have a sufficient number
             if small_number > 0:
@@ -257,7 +263,7 @@ class DataLoader():
                 NER_document_tokens = _getNER(string_doc,entity_dictionary,other_dictionary)
 
             doc = Document(
-                doc_id, set, kind, NER_document_tokens, qaps[doc_id], entity_dictionary,other_dictionary,candidates)
+                doc_id, set, kind, NER_document_tokens, qaps[doc_id], entity_dictionary,other_dictionary,candidates_per_doc[doc_id])
 
             
             if (file_number+1) % interval == 0:
@@ -298,7 +304,6 @@ class DataLoader():
             pickle.dump(valid_docs, fout)
         with open(pickle_folder + "test_docs.pickle", "wb") as fout:
             pickle.dump(test_docs, fout)
-
 
     def replace_entities(self, entity_dictionary, other_dictionary, document_tokens):
         for index, token in enumerate(document_tokens):
@@ -343,8 +348,11 @@ class DataLoader():
 
         return NER_sent
 
-
     def load_documents(self, path, summary_path=None):
+        data_points = []
+        self.SOS_Token = self.vocab.get_index("<sos>")
+        self.EOS_Token = self.vocab.get_index("<eos>")
+
         anonymize_summary = False
         with open(path, "r") as fin:
             documents = pickle.load(fin)
@@ -364,18 +372,115 @@ class DataLoader():
 
             for query in document.queries:
                 query.question_tokens = self.replace_entities_using_ngrams(query.question_tokens,document.entity_dictionary, document.other_dictionary)
-                query.answer1_tokens = self.replace_entities_using_ngrams(query.answer1_tokens,document.entity_dictionary, document.other_dictionary)
-                query.answer2_tokens =   self.replace_entities_using_ngrams(query.answer2_tokens,document.entity_dictionary, document.other_dictionary)
+                document.candidates[query.answer_indices[0]] = self.replace_entities_using_ngrams(document.candidates[query.answer_indices[0]],document.entity_dictionary, document.other_dictionary)
+                document.candidates[query.answer_indices[1]] =   self.replace_entities_using_ngrams(document.candidates[query.answer_indices[1]],document.entity_dictionary, document.other_dictionary)
 
                 query.question_tokens=self.vocab.add_and_get_indices(query.question_tokens)
-                query.answer1_tokens=self.vocab.add_and_get_indices(query.answer1_tokens)
-                query.answer2_tokens=self.vocab.add_and_get_indices(query.answer2_tokens)
-        return documents
+                document.candidates[query.answer_indices[0]]=self.vocab.add_and_get_indices(document.candidates[query.answer_indices[0]])
+                document.candidates[query.answer_indices[1]]=self.vocab.add_and_get_indices(document.candidates[query.answer_indices[1]])
+
+            for query in document.queries:
+                data_points.append(Data_Point(query.question_tokens, query.answer_indices, document.candidates))
+
+
+
+
+
+        return data_points
+
+    def create_id_to_vocabulary(self):
+        self.vocab.id_to_vocab = {v:k for k,v in self.vocab.vocabulary.items()}
+
+    def create_single_batch(self, batch_data, type='train'):
+        batch_length = len(batch_data)
+        batch_query_lengths = np.array([len(data_point.question_tokens) for data_point in batch_data])
+        maximum_query_length = max(batch_query_lengths)
+
+        queries = np.array([pad_seq(data_point.question_tokens, maximum_query_length)
+                            for data_point in batch_data])
+
+        # select answer 1 for teacher forcing
+        batch_answers = [data_point.candidates[data_point.answer_indices[0]] for data_point in batch_data]
+        batch_answer_lengths = np.array([len(answer) for answer in batch_answers])
+        maximum_answer_length = max(batch_answer_lengths)
+
+        answers = np.array([pad_seq(answer, maximum_answer_length) for answer in batch_answers])
+        answer_length_mask = np.array([[int(x < batch_answer_lengths[i])
+                                        for x in range(maximum_answer_length)] for i in range(batch_length)])
+
+        candidate_information = {}
+        batch_candidate_answers_padded = []
+        batch_candidate_answer_length_mask = []
+
+        if type == 'test':
+            for index, data_point in enumerate(batch_data):
+                # create a batch mask over candidates similar to the one over different questions
+                candidates = data_point.candidates
+                candidate_answer_lengths = [len(answer) for answer in candidates]
+                max_candidate_length = max(candidate_answer_lengths)
+                candidate_padded_answers = np.array([pad_seq(answer, max_candidate_length) for answer in candidates])
+
+                candidate_answer_length_mask = np.array([[int(x < candidate_answer_lengths[i])
+                                                          for x in range(max_candidate_length)] for i in
+                                                         range(len(candidates))])
+                batch_candidate_answers_padded.append(candidate_padded_answers)
+                batch_candidate_answer_length_mask.append(candidate_answer_length_mask)
+
+        candidate_information["answers"] = batch_candidate_answers_padded
+        candidate_information["anslenmasks"] = batch_candidate_answer_length_mask
+
+        batch = {}
+        batch['queries'] = queries
+        batch['answers'] = answers
+        batch['qlengths'] = batch_query_lengths
+        batch['alengths'] = batch_answer_lengths
+        batch["candidates"] = candidate_information
+
+        return batch
+
+    def view_batch(self, batch):
+        queries= batch['queries']
+        for question_tokens in queries:
+            print(" ".join([self.vocab.get_word(id) for id in question_tokens]) + "\n")
+        answers = batch['answers']
+        for answer_tokens in answers:
+            print(" ".join([self.vocab.get_word(id) for id in answer_tokens]) + "\n")
+
+
+    def create_batches(self,data, batch_size,type='train'):
+        # shuffle the actual data
+        temp_data = list(data)
+        random.shuffle(temp_data)
+        batches = []
+
+        question_lengths = [len(data_point.question_tokens) for data_point in data]
+        # within batch, sort data by length
+        sorted_data = zip(question_lengths, data)
+        sorted_data.sort(reverse=True)
+
+        question_lengths, data = zip(*sorted_data)
+
+        # Calculate number of batches
+        number_batches = len(data) // batch_size + \
+                         int((len(data) % batch_size) > 0)
+        end_index =0
+        for j in range(number_batches - 1):
+            begin_index, end_index = j * batch_size, (j + 1) * batch_size
+            batch_data = list(data[begin_index:end_index])
+            batch = self.create_single_batch(batch_data,type)
+            #self.view_batch(batch)
+            batches.append(batch)
+
+        batch_data = list(data[end_index:])
+        batches.append(self.create_single_batch(batch_data,type))
+
+        print("Created batches of {0}".format(batch_size))
+        return batches
 
 
 
 class Vocabulary(object):
-    def __init__(self, pad_token='pad', unk='unk'):
+    def __init__(self, pad_token='pad', unk='unk', sos='<sos>',eos='<eos>' ):
 
         self.vocabulary = dict()
         self.inverse_vocabulary = dict()
@@ -383,6 +488,9 @@ class Vocabulary(object):
         self.unk = unk
         self.vocabulary[pad_token] = 0
         self.vocabulary[unk] = 1
+        self.vocabulary[sos] = 2
+        self.vocabulary[eos] = 3
+        self.id_to_vocab = {}
 
     def add_and_get_index(self, word):
         if word in self.vocabulary:
@@ -401,3 +509,9 @@ class Vocabulary(object):
 
     def get_length(self):
         return len(self.vocabulary)
+
+    def get_word(self,index):
+        if index < len(self.id_to_vocab):
+            return self.id_to_vocab[index]
+        else:
+            return ""
