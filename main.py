@@ -1,7 +1,7 @@
 import argparse
 import sys
 
-from dataloaders.dataloader import DataLoader
+from dataloaders.dataloader import DataLoader, create_batches
 from models.model import *
 
 torch.manual_seed(2)
@@ -173,12 +173,13 @@ if __name__ == "__main__":
     parser.add_argument("--valid_path", type=str, default=None)
     parser.add_argument("--test_path", type=str, default=None)
     parser.add_argument("--model_path", type=str, default=None)
+    parser.add_argument("--job_size", type=int, default=5)
     parser.add_argument("--pretrain_path", type=str, default=None, help="Path to the pre-trained word embeddings")
 
     #Model parameters
     parser.add_argument("--hidden_size", type=int, default=100)
     parser.add_argument("--embed_size", type=int, default=100)
-    parser.add_argument("--cuda", action="store", type=str)
+    parser.add_argument("--cuda", default=False, action="store_true")
     parser.add_argument("--batch_length", type=int, default=10)
     parser.add_argument("--eval_interval", type=int, default=10)
     parser.add_argument("--learning_rate", type=float, default=0.1)
@@ -202,9 +203,9 @@ if __name__ == "__main__":
 
     loader.create_id_to_vocabulary()
 
-    train_batches = loader.create_batches(train_documents,args.batch_length)
-    valid_batches = loader.create_batches(valid_documents,args.batch_length)
-    test_batches = loader.create_batches(test_documents,args.batch_length)
+    train_batches = create_batches(train_documents,args.batch_length, args.job_size)
+    valid_batches = create_batches(valid_documents,args.batch_length,args.job_size)
+    test_batches = create_batches(test_documents,args.batch_length,args.job_size)
 
     model = Model(args, loader)
     if args.use_cuda:
