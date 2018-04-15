@@ -38,12 +38,12 @@ class Data_Point:
     question_tokens = []
     candidates = []
     answer_indices = []
-
-
-    def __init__(self, question_tokens,answer_indices, candidates):
+    metrics=[]
+    def __init__(self, question_tokens,answer_indices, candidates,metrics):
         self.question_tokens = question_tokens
         self.answer_indices =answer_indices
         self.candidates = candidates
+        self.metrics = metrics
 
 
 

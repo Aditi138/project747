@@ -18,6 +18,8 @@ from utility import start_tags, end_tags, start_tags_with_attributes, pad_seq
 import random
 import numpy as np
 from collections import defaultdict
+from test_metrics import Performance
+
 
 
 class DataLoader():
@@ -26,6 +28,7 @@ class DataLoader():
         # Actually define args here
         # self.x = args.x
         self.vocab = Vocabulary()
+        self.performance = Performance(args)
 
 
     # This function loads raw documents, summaries and queries, processes them, stores them in document class and finally saves to a pickle
@@ -369,8 +372,21 @@ class DataLoader():
             document.document_tokens = self.vocab.add_and_get_indices(document.document_tokens)
             if anonymize_summary:
                 self.replace_entities(document.entity_dictionary, document.other_dictionary, summary_documents[index].document_tokens)
+            metrics_per_doc= []
 
+
+            candidates_per_doc = list(document.candidates)
             for query in document.queries:
+
+                #computing bleu with respect to the first correct answer
+
+                metrics = []
+                for candidate_tokens in candidates_per_doc:
+                    self.performance.computeMetrics(candidate_tokens, [candidates_per_doc[query.answer_indices[0]]])
+                    metrics.append(1.0 - self.performance.bleu1)
+
+                metrics_per_doc.append(metrics)
+
                 query.question_tokens = self.replace_entities_using_ngrams(query.question_tokens,document.entity_dictionary, document.other_dictionary)
                 document.candidates[query.answer_indices[0]] = self.replace_entities_using_ngrams(document.candidates[query.answer_indices[0]],document.entity_dictionary, document.other_dictionary)
                 document.candidates[query.answer_indices[1]] =   self.replace_entities_using_ngrams(document.candidates[query.answer_indices[1]],document.entity_dictionary, document.other_dictionary)
@@ -379,8 +395,8 @@ class DataLoader():
                 document.candidates[query.answer_indices[0]]=self.vocab.add_and_get_indices(document.candidates[query.answer_indices[0]])
                 document.candidates[query.answer_indices[1]]=self.vocab.add_and_get_indices(document.candidates[query.answer_indices[1]])
 
-            for query in document.queries:
-                data_points.append(Data_Point(query.question_tokens, query.answer_indices, document.candidates))
+            for idx,query in enumerate(document.queries):
+                data_points.append(Data_Point(query.question_tokens, query.answer_indices, document.candidates,metrics_per_doc[idx] ))
 
 
 
@@ -391,7 +407,7 @@ class DataLoader():
     def create_id_to_vocabulary(self):
         self.vocab.id_to_vocab = {v:k for k,v in self.vocab.vocabulary.items()}
 
-    def create_single_batch(self, batch_data, type='train'):
+    def create_single_batch(self, batch_data):
         batch_length = len(batch_data)
         batch_query_lengths = np.array([len(data_point.question_tokens) for data_point in batch_data])
         maximum_query_length = max(batch_query_lengths)
@@ -400,41 +416,43 @@ class DataLoader():
                             for data_point in batch_data])
 
         # select answer 1 for teacher forcing
-        batch_answers = [data_point.candidates[data_point.answer_indices[0]] for data_point in batch_data]
-        batch_answer_lengths = np.array([len(answer) for answer in batch_answers])
-        maximum_answer_length = max(batch_answer_lengths)
-
-        answers = np.array([pad_seq(answer, maximum_answer_length) for answer in batch_answers])
-        answer_length_mask = np.array([[int(x < batch_answer_lengths[i])
-                                        for x in range(maximum_answer_length)] for i in range(batch_length)])
+        # batch_answers = [data_point.candidates[data_point.answer_indices[0]] for data_point in batch_data]
+        # batch_answer_lengths = np.array([len(answer) for answer in batch_answers])
+        # maximum_answer_length = max(batch_answer_lengths)
+        #
+        # answers = np.array([pad_seq(answer, maximum_answer_length) for answer in batch_answers])
+        # answer_length_mask = np.array([[int(x < batch_answer_lengths[i])
+        #                                 for x in range(maximum_answer_length)] for i in range(batch_length)])
 
         candidate_information = {}
         batch_candidate_answers_padded = []
-        batch_candidate_answer_length_mask = []
+        batch_candidate_answer_lengths = []
+        batch_answer_indices = []
+        batch_metrics =  np.array([data_point.metrics for data_point in batch_data])
 
-        if type == 'test':
-            for index, data_point in enumerate(batch_data):
-                # create a batch mask over candidates similar to the one over different questions
-                candidates = data_point.candidates
-                candidate_answer_lengths = [len(answer) for answer in candidates]
-                max_candidate_length = max(candidate_answer_lengths)
-                candidate_padded_answers = np.array([pad_seq(answer, max_candidate_length) for answer in candidates])
 
-                candidate_answer_length_mask = np.array([[int(x < candidate_answer_lengths[i])
-                                                          for x in range(max_candidate_length)] for i in
-                                                         range(len(candidates))])
-                batch_candidate_answers_padded.append(candidate_padded_answers)
-                batch_candidate_answer_length_mask.append(candidate_answer_length_mask)
+        for index, data_point in enumerate(batch_data):
+            # create a batch mask over candidates similar to the one over different questions
+            candidates = data_point.candidates
+            candidate_answer_lengths = [len(answer) for answer in candidates]
+            max_candidate_length = max(candidate_answer_lengths)
+            candidate_padded_answers = np.array([pad_seq(answer, max_candidate_length) for answer in candidates])
+
+            batch_candidate_answers_padded.append(candidate_padded_answers)
+            batch_candidate_answer_lengths.append(candidate_answer_lengths)
+
+            batch_answer_indices.append(data_point.answer_indices[0])
 
         candidate_information["answers"] = batch_candidate_answers_padded
-        candidate_information["anslenmasks"] = batch_candidate_answer_length_mask
+        candidate_information["anslengths"] = batch_candidate_answer_lengths
 
         batch = {}
         batch['queries'] = queries
-        batch['answers'] = answers
+        batch['answer_indices']  = batch_answer_indices
         batch['qlengths'] = batch_query_lengths
-        batch['alengths'] = batch_answer_lengths
+        # batch['alengths'] = batch_answer_lengths
         batch["candidates"] = candidate_information
+        batch["metrics"] = batch_metrics
 
         return batch
 
@@ -467,12 +485,12 @@ class DataLoader():
         for j in range(number_batches - 1):
             begin_index, end_index = j * batch_size, (j + 1) * batch_size
             batch_data = list(data[begin_index:end_index])
-            batch = self.create_single_batch(batch_data,type)
+            batch = self.create_single_batch(batch_data)
             #self.view_batch(batch)
             batches.append(batch)
 
         batch_data = list(data[end_index:])
-        batches.append(self.create_single_batch(batch_data,type))
+        batches.append(self.create_single_batch(batch_data))
 
         print("Created batches of {0}".format(batch_size))
         return batches
