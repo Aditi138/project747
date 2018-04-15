@@ -178,7 +178,7 @@ if __name__ == "__main__":
     #Model parameters
     parser.add_argument("--hidden_size", type=int, default=100)
     parser.add_argument("--embed_size", type=int, default=100)
-    parser.add_argument("--cuda", action="store", type=str)
+    parser.add_argument("--cuda", action="store_true", default=True)
     parser.add_argument("--batch_length", type=int, default=10)
     parser.add_argument("--eval_interval", type=int, default=10)
     parser.add_argument("--learning_rate", type=float, default=0.1)

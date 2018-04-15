@@ -33,13 +33,18 @@ class Model(nn.Module):
 
         #Unsort the candidates back to original
         question_answer_dot_unsort = torch.index_select(question_answer_dot, 0, batch_candidate_unsort)
+	gold_index=Variable(torch.LongTensor([gold_answer_index]))
+	negative_indices = [idx for idx in range(batch_len)]
+	negative_indices.pop(gold_answer_index)
+	negative_indices = Variable(torch.LongTensor(negative_indices))
+	if self.args.use_cuda:
+	    gold_index = gold_index.cuda()
+	    negative_indices = negative_indices.cuda()
 
-        gold_features = torch.index_select(question_answer_dot_unsort,0,index=Variable(torch.LongTensor([gold_answer_index])))
+        gold_features = torch.index_select(question_answer_dot_unsort,0,index=gold_index)
+        negative_features = torch.index_select(question_answer_dot_unsort,0,index=negative_indices)
 
-        negative_indices = [idx for idx in range(batch_len)]
-        negative_indices.pop(gold_answer_index)
-        negative_features = torch.index_select(question_answer_dot_unsort,0,index=Variable(torch.LongTensor(negative_indices)))
-        negative_metrics = torch.index_select(batch_metrics,0,index=Variable(torch.LongTensor(negative_indices)))
+        negative_metrics = torch.index_select(batch_metrics,0,index=negative_indices)
         negative_features = negative_features.squeeze(2) + negative_metrics.unsqueeze(1)
         max_negtaive_feature, max_negative_index = torch.max(negative_features, 0)
 
