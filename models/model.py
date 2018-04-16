@@ -27,11 +27,12 @@ class Model(nn.Module):
 
 
         encoder_output, encoder_hidden = self.encoder(batch_query.unsqueeze(0), batch_query_length)
-        encoder_hidden = torch.cat(encoder_hidden, dim=1)
+        encoder_hidden = encoder_hidden.view(1, encoder_hidden.size(0) * encoder_hidden.size(2))
         query_expanded = encoder_hidden.expand(batch_len, encoder_hidden.size(0), encoder_hidden.size(1))
 
         answer_encoder_output, answer_encoder_hidden = self.answer_encoder(batch_candidate, batch_candidate_lengths)
-        answer_encoder_hidden = torch.cat(answer_encoder_hidden, dim = 1)
+        answer_encoder_hidden = answer_encoder_hidden.view(batch_len, answer_encoder_hidden.size(0) * answer_encoder_hidden.size(2))
+
 
         question_answer_dot = torch.bmm(query_expanded,answer_encoder_hidden.unsqueeze(1).transpose(1,2))
 
@@ -67,11 +68,13 @@ class Model(nn.Module):
 
 
         encoder_output, encoder_hidden = self.encoder(batch_query.unsqueeze(0), batch_query_length)
-        encoder_hidden = torch.cat(encoder_hidden, dim=1)
+        encoder_hidden = encoder_hidden.view(1, encoder_hidden.size(0)* encoder_hidden.size(2))
         query_expanded = encoder_hidden.expand(batch_len, encoder_hidden.size(0), encoder_hidden.size(1))
 
         answer_encoder_output, answer_encoder_hidden = self.encoder(batch_candidate, batch_candidate_lengths)
-        answer_encoder_hidden = torch.cat(answer_encoder_hidden, dim=1)
+        answer_encoder_hidden = answer_encoder_hidden.view(batch_len,
+                                                           answer_encoder_hidden.size(0) * answer_encoder_hidden.size(
+                                                               2))
 
         question_answer_dot = torch.bmm(query_expanded,answer_encoder_hidden.unsqueeze(1).transpose(1,2))
 
