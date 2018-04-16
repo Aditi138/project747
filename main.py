@@ -11,9 +11,7 @@ import numpy as np
 
 def evaluate(batches):
     global model
-    global best_rouge
-    global best_bleu1
-    global best_bleu4
+    global best_mrr
 
     mrr_value = []
     for iteration in range(len(batches)):
@@ -58,6 +56,7 @@ def evaluate(batches):
 
 
     mean_rr = np.mean(mrr_value)
+    best_mrr = max(best_mrr, mean_rr)
     print("MRR :{0}".format(mean_rr))
 
 
@@ -88,16 +87,15 @@ def train_epochs(train_batches):
                 print("train loss: {}".format(train_loss / train_denom))
 
                 if iteration != 0:
-                    average_bleu = evaluate(valid_batches)
-                    validation_history.append(average_bleu)
+                    average_rr = evaluate(valid_batches)
+                    validation_history.append(average_rr)
 
                     if (iteration + 1) % (eval_interval * 5) == 0:
-                        if average_bleu >= max(validation_history):
+                        if average_rr >= max(validation_history):
                             saved = True
                             print("Saving best model seen so far at epoch number {0}".format(iteration))
                             torch.save(model, args.model_path)
-                            print("Best on Validation: BLEU_1:{0} BLEU_4:{1} ROUGE_L:{2}".format(best_bleu1, best_bleu4,
-                                                                                                 best_rouge))
+                            print("Best on Validation: MRR:{0}".format(best_mrr))
                             bad_counter = 0
                         else:
                             bad_counter += 1
@@ -208,6 +206,7 @@ if __name__ == "__main__":
     test_batches = create_batches(test_documents,args.batch_length,args.job_size)
 
     model = Model(args, loader)
+    best_mrr = -1.0
     if args.use_cuda:
         model = model.cuda()
     train_epochs(train_batches)
