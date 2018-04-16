@@ -1,5 +1,5 @@
 #/usr/bin/python
-CUDA_VISIBLE_DEVICES=1 python -u  main.py \
+CUDA_VISIBLE_DEVICES=1 python -u  nocontext.py \
 	--train_path ../lor_codes/narrativeqa/out/out/train_docs.pickle \
 	--valid_path ../lor_codes/narrativeqa/out/out/validate_docs.pickle \
 	--test_path ../lor_codes/narrativeqa/out/out/test_docs.pickle \
