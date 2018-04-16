@@ -12,8 +12,10 @@ class Model(nn.Module):
         input_size = dataloader.vocab.get_length()
 
         #Simple Seq2Seq with Bahdanau attention
-        self.encoder = EncoderRNN(input_size, embed_size, hidden_size)
-        self.decoder = BahdanauAttnDecoderRNN(hidden_size, embed_size, input_size)
+        self.encoder = EncoderRNN(input_size, embed_size, hidden_size,n_layers=args.num_layers)
+
+        self.answer_encoder = EncoderRNN(input_size, embed_size, hidden_size,n_layers=args.num_layers)
+        #self.decoder = BahdanauAttnDecoderRNN(hidden_size, embed_size, input_size)
 
         if args.use_cuda:
             self.encoder = self.encoder.cuda()
@@ -25,9 +27,11 @@ class Model(nn.Module):
 
 
         encoder_output, encoder_hidden = self.encoder(batch_query.unsqueeze(0), batch_query_length)
+        encoder_hidden = torch.cat(encoder_hidden, dim=1)
         query_expanded = encoder_hidden.expand(batch_len, encoder_hidden.size(0), encoder_hidden.size(1))
 
-        answer_encoder_output, answer_encoder_hidden = self.encoder(batch_candidate, batch_candidate_lengths)
+        answer_encoder_output, answer_encoder_hidden = self.answer_encoder(batch_candidate, batch_candidate_lengths)
+        answer_encoder_hidden = torch.cat(answer_encoder_hidden, dim = 1)
 
         question_answer_dot = torch.bmm(query_expanded,answer_encoder_hidden.unsqueeze(1).transpose(1,2))
 
@@ -40,9 +44,11 @@ class Model(nn.Module):
         negative_indices.pop(gold_answer_index)
         negative_indices = Variable(torch.LongTensor(negative_indices))
 
+        zero = Variable(torch.zeros(1))
         if self.args.use_cuda:
             gold_index = gold_index.cuda()
             negative_indices = negative_indices.cuda()
+            zero = zero.cuda()
 
         gold_features = torch.index_select(question_answer_dot_unsort,0,index=gold_index)
         negative_features = torch.index_select(question_answer_dot_unsort,0,index=negative_indices)
@@ -51,7 +57,8 @@ class Model(nn.Module):
         negative_features = negative_features.squeeze(2) + negative_metrics.unsqueeze(1)
         max_negtaive_feature, max_negative_index = torch.max(negative_features, 0)
 
-        loss = max_negtaive_feature - gold_features
+        margin = max_negtaive_feature - gold_features
+        loss = torch.clamp(margin,min=0)
         return loss,max_negative_index
 
     def eval(self,batch_query, batch_query_length, batch_candidate, batch_candidate_lengths,batch_candidate_unsort,gold_answer_index,batch_metrics, batch_len):
@@ -60,9 +67,11 @@ class Model(nn.Module):
 
 
         encoder_output, encoder_hidden = self.encoder(batch_query.unsqueeze(0), batch_query_length)
+        encoder_hidden = torch.cat(encoder_hidden, dim=1)
         query_expanded = encoder_hidden.expand(batch_len, encoder_hidden.size(0), encoder_hidden.size(1))
 
         answer_encoder_output, answer_encoder_hidden = self.encoder(batch_candidate, batch_candidate_lengths)
+        answer_encoder_hidden = torch.cat(answer_encoder_hidden, dim=1)
 
         question_answer_dot = torch.bmm(query_expanded,answer_encoder_hidden.unsqueeze(1).transpose(1,2))
 

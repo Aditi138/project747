@@ -32,7 +32,7 @@ class EncoderRNN(nn.Module):
         self.gru.flatten_parameters()
         outputs, hidden = self.gru(packed)  # output: concatenated hidden dimension
         outputs_unpacked, _ = torch.nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
-        return outputs_unpacked, torch.sum(hidden, dim=0)
+        return outputs_unpacked, hidden
 
 
 
