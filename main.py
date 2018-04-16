@@ -58,9 +58,10 @@ def evaluate(batches):
     mean_rr = np.mean(mrr_value)
     best_mrr = max(best_mrr, mean_rr)
     print("MRR :{0}".format(mean_rr))
+    return mean_rr
 
 
-def train_epochs(train_batches):
+def train_epochs():
     global model
     global valid_batches
     global test_batches
@@ -77,6 +78,7 @@ def train_epochs(train_batches):
 
     for epoch in range(args.num_epochs):
 
+        train_batches = create_batches(train_documents, args.batch_length, args.job_size)
         print("Starting epoch {}".format(epoch))
 
         saved = False
@@ -201,7 +203,7 @@ if __name__ == "__main__":
 
     loader.create_id_to_vocabulary()
 
-    train_batches = create_batches(train_documents,args.batch_length, args.job_size)
+
     valid_batches = create_batches(valid_documents,args.batch_length,args.job_size)
     test_batches = create_batches(test_documents,args.batch_length,args.job_size)
 
@@ -209,5 +211,5 @@ if __name__ == "__main__":
     best_mrr = -1.0
     if args.use_cuda:
         model = model.cuda()
-    train_epochs(train_batches)
+    train_epochs()
 
