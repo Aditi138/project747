@@ -78,6 +78,7 @@ def train_epochs():
 
     for epoch in range(args.num_epochs):
 
+        print("Creating batches ...")
         train_batches = create_batches(train_documents, args.batch_length, args.job_size)
         print("Starting epoch {}".format(epoch))
 
