@@ -196,6 +196,8 @@ if __name__ == "__main__":
     parser.add_argument("--num_epochs", type=int, default=10)
     parser.add_argument("--clip_threshold", type=int, default=10)
     parser.add_argument("--num_layers", type=int, default=3)
+    parser.add_argument("--ner_dim", type=int, default=32)
+    parser.add_argument("--pos_dim", type=int, default=32)
 
     parser.add_argument("--meteor_path", type=str, default=10)
 
@@ -208,13 +210,11 @@ if __name__ == "__main__":
 
     loader = DataLoader(args)
 
-    NER_tagset = set()
-    POS_tagset = set()
-    NER_tagset.add("O")
 
-    train_documents = loader.load_documents( args.train_path,NER_tagset,POS_tagset, summary_path=None)
-    valid_documents = loader.load_documents(args.valid_path,NER_tagset,POS_tagset, summary_path=None)
-    test_documents = loader.load_documents(args.test_path,NER_tagset,POS_tagset, summary_path=None)
+
+    train_documents = loader.load_documents( args.train_path, summary_path=None)
+    valid_documents = loader.load_documents(args.valid_path, summary_path=None)
+    test_documents = loader.load_documents(args.test_path, summary_path=None)
 
     loader.create_id_to_vocabulary()
 

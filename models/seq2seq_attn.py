@@ -12,10 +12,10 @@ class EncoderRNN(nn.Module):
         self.embed_size = embed_size
         self.n_layers = n_layers
         self.dropout = dropout
-        self.embedding = nn.Embedding(input_size,embed_size)
+
         self.gru = nn.GRU(embed_size, hidden_size, n_layers, dropout=self.dropout, bidirectional=True, batch_first=True)
 
-    def forward(self, input_seqs, input_lengths, hidden=None):
+    def forward(self, input_embedded, input_lengths, hidden=None):
         '''
         :param input_seqs:
             Variable of shape (num_step(T),batch_size(B)), sorted decreasingly by lengths(for packing)
@@ -27,8 +27,7 @@ class EncoderRNN(nn.Module):
             GRU outputs in shape (T,B,hidden_size(H))
             last hidden stat of RNN(i.e. last output for GRU)
         '''
-        embedded = self.embedding(input_seqs)
-        packed = torch.nn.utils.rnn.pack_padded_sequence(embedded, input_lengths,batch_first=True)
+        packed = torch.nn.utils.rnn.pack_padded_sequence(input_embedded, input_lengths,batch_first=True)
         self.gru.flatten_parameters()
         outputs, hidden = self.gru(packed)  # output: concatenated hidden dimension
         outputs_unpacked, _ = torch.nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)

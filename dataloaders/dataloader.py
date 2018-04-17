@@ -189,14 +189,16 @@ class DataLoader():
         candidates_per_doc = defaultdict(list)
         ner_candidates_per_doc = defaultdict(list)
         pos_candidates_per_doc = defaultdict(list)
-
+        count = 0
         with codecs.open(qap_path, "r") as fin:
             first= True
             for line in reader(fin):
+
                 if first:
                     first= False
                     continue
                 id = line[0]
+
                 if id in qaps:
                     candidates_per_doc[id].append(line[6].split())
                     candidates_per_doc[id].append(line[7].split())
@@ -216,6 +218,7 @@ class DataLoader():
                     qaps[id].append(
                         Query(line[5].split(),ner_question, pos_question, indices))
                 else:
+                    print(id)
                     qaps[id] = []
                     candidates_per_doc[id] = []
                     candidate_index = 0
@@ -236,6 +239,7 @@ class DataLoader():
                     ner_question, pos_question = self.getNER(line[5])
                     qaps[id].append(
                         Query(line[5].split(),ner_question, pos_question,indices))
+
         print("Loaded question answer pairs")
         documents = {}
         with codecs.open(document_path, "r") as fin:
@@ -489,41 +493,15 @@ class DataLoader():
         doc = nlp(string_data)
 
         pos_tags = []
+        ner_tags = []
 
-        for token in doc:
+        for index,token in enumerate(doc):
             pos_tags.append(token.pos_)
-            #POS_tagset.add(token.pos_)
+            type  = token.ent_iob_
+            if type == "B" or type == "I":
+                type = type + "-" + token.ent_type_
 
-        ner_tags = ["O"] * len(pos_tags)
-
-        NE_data = ""
-        start_pos = 0
-        for ents in doc.ents:
-            start = ents.start_char
-            end = ents.end_char
-            label = ents.label_
-
-            #NER_tagset.add("B_"+label)
-            #NER_tagset.add("I_" + label)
-
-            tokens = ents.text
-
-            NE_data += string_data[start_pos:start]
-            NE_data += "B_" + label + " "
-            for i in range(1,len(tokens.split())):
-                NE_data += "I_" + label + " "
-
-            start_pos = end + 1
-
-        NE_data += string_data[start_pos:]
-
-        NE_data_tokenized = nlp(NE_data)
-        index = 0
-        for token in NE_data_tokenized:
-            tag = token.text
-            if tag.startswith("B_") or tag.startswith("I_"):
-                ner_tags[index]= tag
-            index += 1
+            ner_tags.append(type )
 
         assert(len(ner_tags) == len(pos_tags))
         return ner_tags,pos_tags
@@ -583,18 +561,18 @@ class DataLoader():
                                    (query.question_tokens, query.answer_indices, candidate_per_doc_per_answer,metrics_per_doc[idx],
                                     query.ner_tokens, query.pos_tokens,document.ner_candidates,document.pos_candidates ))
 
-
-
-
-
         return data_points
+
+    def get_vocab_from_set(self, a_set, shift=0):
+        vocab = {}
+        for i, elem in enumerate(a_set):
+            vocab[elem] = i + shift
+        return vocab
 
     def create_id_to_vocabulary(self):
         self.vocab.id_to_vocab = {v:k for k,v in self.vocab.vocabulary.items()}
-
-
-
-
+        self.vocab.nertag_to_id = self.get_vocab_from_set(self.vocab.NER_tagset)
+        self.vocab.postag_to_id = self.get_vocab_from_set(self.vocab.POS_tagset)
 
 
 
@@ -610,6 +588,12 @@ class Vocabulary(object):
         self.vocabulary[sos] = 2
         self.vocabulary[eos] = 3
         self.id_to_vocab = {}
+
+        self.NER_tagset = set()
+        self.POS_tagset = set()
+        self.NER_tagset.add("O")
+        self.nertag_to_id = {}
+        self.postag_to_id = {}
 
     def add_and_get_index(self, word):
         if word in self.vocabulary:
@@ -634,3 +618,9 @@ class Vocabulary(object):
             return self.id_to_vocab[index]
         else:
             return ""
+
+    def ner_tag_size(self):
+        return len(self.nertag_to_id)
+
+    def pos_tag_size(self):
+        return len(self.postag_to_id)
