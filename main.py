@@ -208,11 +208,20 @@ if __name__ == "__main__":
 
     loader = DataLoader(args)
 
-    train_documents = loader.load_documents( args.train_path, summary_path=None)
-    valid_documents = loader.load_documents(args.valid_path, summary_path=None)
-    test_documents = loader.load_documents(args.test_path, summary_path=None)
+    NER_tagset = set()
+    POS_tagset = set()
+    NER_tagset.add("O")
+
+    train_documents = loader.load_documents( args.train_path,NER_tagset,POS_tagset, summary_path=None)
+    valid_documents = loader.load_documents(args.valid_path,NER_tagset,POS_tagset, summary_path=None)
+    test_documents = loader.load_documents(args.test_path,NER_tagset,POS_tagset, summary_path=None)
 
     loader.create_id_to_vocabulary()
+
+    for i in range(10):
+        view_data_point(train_documents[i], loader.vocab)
+
+
 
     valid_batches = create_batches(valid_documents,args.batch_length,args.job_size, loader.vocab)
     # for i in range(10):

@@ -187,6 +187,9 @@ class DataLoader():
         qaps = {}
 
         candidates_per_doc = defaultdict(list)
+        ner_candidates_per_doc = defaultdict(list)
+        pos_candidates_per_doc = defaultdict(list)
+
         with codecs.open(qap_path, "r") as fin:
             first= True
             for line in reader(fin):
@@ -197,20 +200,42 @@ class DataLoader():
                 if id in qaps:
                     candidates_per_doc[id].append(line[6].split())
                     candidates_per_doc[id].append(line[7].split())
+
+                    ner_answer, pos_answer = self.getNER(line[6])
+                    ner_candidates_per_doc[id].append(ner_answer)
+                    pos_candidates_per_doc[id].append(pos_answer)
+
+                    ner_answer, pos_answer = self.getNER(line[7])
+                    ner_candidates_per_doc[id].append(ner_answer)
+                    pos_candidates_per_doc[id].append(pos_answer)
+
                     indices = [candidate_index, candidate_index + 1]
                     candidate_index += 2
+
+                    ner_question, pos_question = self.getNER(line[5])
                     qaps[id].append(
-                        Query(line[5].split(), indices))
+                        Query(line[5].split(),ner_question, pos_question, indices))
                 else:
                     qaps[id] = []
                     candidates_per_doc[id] = []
                     candidate_index = 0
                     candidates_per_doc[id].append(line[6].split())
                     candidates_per_doc[id].append(line[7].split())
+
+                    ner_answer, pos_answer = self.getNER(line[6])
+                    ner_candidates_per_doc[id].append(ner_answer)
+                    pos_candidates_per_doc[id].append(pos_answer)
+
+                    ner_answer, pos_answer = self.getNER(line[7])
+                    ner_candidates_per_doc[id].append(ner_answer)
+                    pos_candidates_per_doc[id].append(pos_answer)
+
                     indices= [candidate_index, candidate_index + 1]
                     candidate_index += 2
+
+                    ner_question, pos_question = self.getNER(line[5])
                     qaps[id].append(
-                        Query(line[5].split(), indices))
+                        Query(line[5].split(),ner_question, pos_question,indices))
         print("Loaded question answer pairs")
         documents = {}
         with codecs.open(document_path, "r") as fin:
@@ -241,7 +266,7 @@ class DataLoader():
 
         for doc_id in documents:
             set, kind, _, _ = documents[doc_id]
-            summary = Document(doc_id, set, kind, summaries[doc_id], qaps[doc_id],{},{}, candidates_per_doc[doc_id])
+            summary = Document(doc_id, set, kind, summaries[doc_id], qaps[doc_id],{},{}, candidates_per_doc[doc_id],ner_candidates_per_doc[doc_id], pos_candidates_per_doc[doc_id])
 
             # When constructing small data set, just add to one pile and save when we have a sufficient number
             if small_number > 0:
@@ -373,7 +398,7 @@ class DataLoader():
                 NER_document_tokens = _getNER(string_doc,entity_dictionary,other_dictionary)
 
             doc = Document(
-                doc_id, set, kind, NER_document_tokens, qaps[doc_id], entity_dictionary,other_dictionary,candidates_per_doc[doc_id])
+                doc_id, set, kind, NER_document_tokens, qaps[doc_id], entity_dictionary,other_dictionary,candidates_per_doc[doc_id],ner_candidates_per_doc[doc_id], pos_candidates_per_doc[doc_id])
 
             
             if (file_number+1) % interval == 0:
@@ -458,10 +483,56 @@ class DataLoader():
 
         return NER_sent
 
-    def load_documents(self, path, summary_path=None):
+    def getNER(self,string_data):
+        nlp = spacy.load('en')
+        string_data = string_data.decode('utf-8')
+        doc = nlp(string_data)
+
+        pos_tags = []
+
+        for token in doc:
+            pos_tags.append(token.pos_)
+            #POS_tagset.add(token.pos_)
+
+        ner_tags = ["O"] * len(pos_tags)
+
+        NE_data = ""
+        start_pos = 0
+        for ents in doc.ents:
+            start = ents.start_char
+            end = ents.end_char
+            label = ents.label_
+
+            #NER_tagset.add("B_"+label)
+            #NER_tagset.add("I_" + label)
+
+            tokens = ents.text
+
+            NE_data += string_data[start_pos:start]
+            NE_data += "B_" + label + " "
+            for i in range(1,len(tokens.split())):
+                NE_data += "I_" + label + " "
+
+            start_pos = end + 1
+
+        NE_data += string_data[start_pos:]
+
+        NE_data_tokenized = nlp(NE_data)
+        index = 0
+        for token in NE_data_tokenized:
+            tag = token.text
+            if tag.startswith("B_") or tag.startswith("I_"):
+                ner_tags[index]= tag
+            index += 1
+
+        assert(len(ner_tags) == len(pos_tags))
+        return ner_tags,pos_tags
+
+    def load_documents(self, path, NER_tagset,POS_tagset, summary_path=None):
         data_points = []
         self.SOS_Token = self.vocab.get_index("<sos>")
         self.EOS_Token = self.vocab.get_index("<eos>")
+
 
         anonymize_summary = False
         with open(path, "r") as fin:
@@ -503,17 +574,14 @@ class DataLoader():
 
                 metrics_per_doc.append(metrics)
 
-                query.question_tokens = self.replace_entities_using_ngrams(query.question_tokens,document.entity_dictionary, document.other_dictionary)
-                candidate_per_doc_per_answer[query.answer_indices[0] / 2] = self.replace_entities_using_ngrams(candidate_per_doc_per_answer[query.answer_indices[0] / 2],document.entity_dictionary, document.other_dictionary)
-                # candidate_per_doc_per_answer[query.answer_indices[1]] =   self.replace_entities_using_ngrams(document.candidates[query.answer_indices[1]],document.entity_dictionary, document.other_dictionary)
-
                 query.question_tokens=self.vocab.add_and_get_indices(query.question_tokens)
                 candidate_per_doc_per_answer[query.answer_indices[0] / 2]=self.vocab.add_and_get_indices(candidate_per_doc_per_answer[query.answer_indices[0] / 2])
-                # document.candidates[query.answer_indices[1]]=self.vocab.add_and_get_indices(document.candidates[query.answer_indices[1]])
 
             for idx,query in enumerate(document.queries):
                 query.answer_indices[0]  = query.answer_indices[0] / 2
-                data_points.append(Data_Point(query.question_tokens, query.answer_indices, candidate_per_doc_per_answer,metrics_per_doc[idx] ))
+                data_points.append(Data_Point
+                                   (query.question_tokens, query.answer_indices, candidate_per_doc_per_answer,metrics_per_doc[idx],
+                                    query.ner_tokens, query.pos_tokens,document.ner_candidates,document.pos_candidates ))
 
 
 
