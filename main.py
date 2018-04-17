@@ -8,7 +8,7 @@ torch.manual_seed(2)
 from torch import optim
 from dataloaders.utility import *
 import numpy as np
-
+from time import time
 
 
 def evaluate(batches):
@@ -211,15 +211,16 @@ if __name__ == "__main__":
     loader = DataLoader(args)
 
 
-
+    start = time()
     train_documents = loader.load_documents( args.train_path, summary_path=None)
     valid_documents = loader.load_documents(args.valid_path, summary_path=None)
     test_documents = loader.load_documents(args.test_path, summary_path=None)
 
-    loader.create_id_to_vocabulary()
+    end = time()
+    print(end-start)
 
-    for i in range(10):
-        view_data_point(train_documents[i], loader.vocab)
+    # for i in range(10):
+    #     view_data_point(train_documents[i], loader.vocab)
 
 
 
