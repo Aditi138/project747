@@ -38,7 +38,6 @@ def view_batch(batch,vocab):
     for index in range(len(q)):
         print(q[index] + " " + a[index] +"\n")
 
-
 def create_single_batch(batch_data):
 
     batch_query_lengths = np.array([len(data_point.question_tokens) for data_point in batch_data])
@@ -46,6 +45,12 @@ def create_single_batch(batch_data):
 
     queries = np.array([pad_seq(data_point.question_tokens, maximum_query_length)
                         for data_point in batch_data])
+
+    queries_ner = np.array([pad_seq(data_point.ner_for_question, maximum_query_length)
+                        for data_point in batch_data])
+
+    queries_pos = np.array([pad_seq(data_point.pos_for_question, maximum_query_length)
+                            for data_point in batch_data])
 
     candidate_information = {}
     batch_candidate_answers_padded = []
@@ -127,7 +132,6 @@ def create_batches(data, batch_size, job_size,vocab):
     print("Created batches of batch_size {0} and number {1}".format(batch_size, number_batches))
     return batches
 
-
 class DataLoader():
     def __init__(self, args):
 
@@ -149,10 +153,10 @@ class DataLoader():
         # Here we load files that contain the summaries, questions, answers and information about the documents
         # Not the documents themselves
         # assuming every unique id has one summary only
-        nlp = spacy.load('en',disable=['parser'])
+
         to_anonymize = ["GPE", "PERSON", "ORG", "LOC"]
         def _getNER(string_data,entity_dict,other_dict):
-            doc = nlp(string_data)
+            doc = self.nlp(string_data)
             data = string_data.split()
             NE_data = ""
             start_pos = 0
@@ -179,10 +183,16 @@ class DataLoader():
 
         summaries = {}
         with codecs.open(summary_path, "r", encoding='utf-8', errors='replace') as fin:
+            first = True
             for line in reader(fin):
+                if first:
+                    first=False
+                    continue
                 id = line[0]
-                summary_tokens = line[3]
-                summaries[id] = summary_tokens.split()
+                summary_tokens = line[2]
+                doc = self.nlp(summary_tokens.decode('utf-8'))
+                tokens =[t.text for t in doc]
+                summaries[id] = tokens
         print("Loaded summaries")
         qaps = {}
 
@@ -200,45 +210,49 @@ class DataLoader():
                 id = line[0]
 
                 if id in qaps:
-                    candidates_per_doc[id].append(line[6].split())
-                    candidates_per_doc[id].append(line[7].split())
 
-                    ner_answer, pos_answer = self.getNER(line[6])
+
+
+                    ner_answer, pos_answer,tokens= self.getNER(line[3])
                     ner_candidates_per_doc[id].append(ner_answer)
                     pos_candidates_per_doc[id].append(pos_answer)
+                    candidates_per_doc[id].append(tokens)
 
-                    ner_answer, pos_answer = self.getNER(line[7])
+                    ner_answer, pos_answer,tokens = self.getNER(line[4])
                     ner_candidates_per_doc[id].append(ner_answer)
                     pos_candidates_per_doc[id].append(pos_answer)
+                    candidates_per_doc[id].append(tokens)
 
                     indices = [candidate_index, candidate_index + 1]
                     candidate_index += 2
 
-                    ner_question, pos_question = self.getNER(line[5])
+                    ner_question, pos_question,tokens = self.getNER(line[2])
                     qaps[id].append(
-                        Query(line[5].split(),ner_question, pos_question, indices))
+                        Query(tokens,ner_question, pos_question, indices))
                 else:
-                    print(id)
+                    #print(id)
                     qaps[id] = []
                     candidates_per_doc[id] = []
                     candidate_index = 0
-                    candidates_per_doc[id].append(line[6].split())
-                    candidates_per_doc[id].append(line[7].split())
 
-                    ner_answer, pos_answer = self.getNER(line[6])
+
+                    ner_answer, pos_answer,tokens = self.getNER(line[3])
                     ner_candidates_per_doc[id].append(ner_answer)
                     pos_candidates_per_doc[id].append(pos_answer)
+                    candidates_per_doc[id].append(tokens)
 
-                    ner_answer, pos_answer = self.getNER(line[7])
+
+                    ner_answer, pos_answer,tokens = self.getNER(line[4])
                     ner_candidates_per_doc[id].append(ner_answer)
                     pos_candidates_per_doc[id].append(pos_answer)
+                    candidates_per_doc[id].append(tokens)
 
                     indices= [candidate_index, candidate_index + 1]
                     candidate_index += 2
 
-                    ner_question, pos_question = self.getNER(line[5])
+                    ner_question, pos_question,tokens = self.getNER(line[2])
                     qaps[id].append(
-                        Query(line[5].split(),ner_question, pos_question,indices))
+                        Query(tokens,ner_question, pos_question,indices))
 
         print("Loaded question answer pairs")
         documents = {}
@@ -493,9 +507,11 @@ class DataLoader():
 
         pos_tags = []
         ner_tags = []
+        tokens = []
 
         for index,token in enumerate(doc):
             pos_tags.append(token.pos_)
+            tokens.append(token.text)
             type  = token.ent_iob_
             if type == "B" or type == "I":
                 type = type + "-" + token.ent_type_
@@ -503,7 +519,7 @@ class DataLoader():
             ner_tags.append(type )
 
         assert(len(ner_tags) == len(pos_tags))
-        return ner_tags,pos_tags
+        return ner_tags,pos_tags,tokens
 
     def load_documents(self, path, NER_tagset,POS_tagset, summary_path=None):
         data_points = []
@@ -554,6 +570,12 @@ class DataLoader():
                 query.question_tokens=self.vocab.add_and_get_indices(query.question_tokens)
                 candidate_per_doc_per_answer[query.answer_indices[0] / 2]=self.vocab.add_and_get_indices(candidate_per_doc_per_answer[query.answer_indices[0] / 2])
 
+                query.ner_tokens = self.vocab.add_and_get_indices_NER(query.ner_tokens)
+                query.pos_tokens = self.vocab.add_and_get_indices_POS(query.pos_tokens)
+                document.ner_candidates[query.answer_indices[0] / 2]  =  self.vocab.add_and_get_indices_NER(document.ner_candidates[query.answer_indices[0] / 2])
+                document.pos_candidates[query.answer_indices[0] / 2] = self.vocab.add_and_get_indices_POS(
+                    document.pos_candidates[query.answer_indices[0] / 2])
+
             for idx,query in enumerate(document.queries):
                 query.answer_indices[0]  = query.answer_indices[0] / 2
                 data_points.append(Data_Point
@@ -562,16 +584,7 @@ class DataLoader():
 
         return data_points
 
-    def get_vocab_from_set(self, a_set, shift=0):
-        vocab = {}
-        for i, elem in enumerate(a_set):
-            vocab[elem] = i + shift
-        return vocab
 
-    def create_id_to_vocabulary(self):
-        self.vocab.id_to_vocab = {v:k for k,v in self.vocab.vocabulary.items()}
-        self.vocab.nertag_to_id = self.get_vocab_from_set(self.vocab.NER_tagset)
-        self.vocab.postag_to_id = self.get_vocab_from_set(self.vocab.POS_tagset)
 
 
 
@@ -579,20 +592,19 @@ class Vocabulary(object):
     def __init__(self, pad_token='pad', unk='unk', sos='<sos>',eos='<eos>' ):
 
         self.vocabulary = dict()
-        self.inverse_vocabulary = dict()
+        self.id_to_vocab = dict()
         self.pad_token = pad_token
         self.unk = unk
         self.vocabulary[pad_token] = 0
         self.vocabulary[unk] = 1
         self.vocabulary[sos] = 2
         self.vocabulary[eos] = 3
-        self.id_to_vocab = {}
 
-        self.NER_tagset = set()
-        self.POS_tagset = set()
-        self.NER_tagset.add("O")
-        self.nertag_to_id = {}
-        self.postag_to_id = {}
+        self.nertag_to_id = dict()
+        self.postag_to_id = dict()
+        self.id_to_nertag = dict()
+        self.id_to_postag = dict()
+
 
     def add_and_get_index(self, word):
         if word in self.vocabulary:
@@ -600,7 +612,7 @@ class Vocabulary(object):
         else:
             length = len(self.vocabulary)
             self.vocabulary[word] = length
-            self.inverse_vocabulary[length] = word
+            self.id_to_vocab[length] = word
             return length
 
     def add_and_get_indices(self, words):
@@ -623,3 +635,27 @@ class Vocabulary(object):
 
     def pos_tag_size(self):
         return len(self.postag_to_id)
+
+    def add_and_get_indices_NER(self, words):
+        return [self.add_and_get_index_NER(word) for word in words]
+
+    def add_and_get_indices_POS(self, words):
+        return [self.add_and_get_index_POS(word) for word in words]
+
+    def add_and_get_index_NER(self, word):
+        if word in self.nertag_to_id:
+            return self.nertag_to_id[word]
+        else:
+            length = len(self.nertag_to_id)
+            self.nertag_to_id[word] = length
+            self.id_to_nertag[length] = word
+            return length
+
+    def add_and_get_index_POS(self, word):
+        if word in self.postag_to_id:
+            return self.postag_to_id[word]
+        else:
+            length = len(self.postag_to_id)
+            self.postag_to_id[word] = length
+            self.id_to_postag[length] = word
+            return length
