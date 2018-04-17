@@ -1,8 +1,8 @@
 #/usr/bin/python
-CUDA_VISIBLE_DEVICES=1 python -u  nocontext.py \
-	--train_path ../lor_codes/narrativeqa/out/small/small_train_docs.pickle \
-	--valid_path ../lor_codes/narrativeqa/out/small/small_valid_docs.pickle \
-	--test_path ../lor_codes/narrativeqa/out/small/small_test_docs.pickle \
+CUDA_VISIBLE_DEVICES=1 python -m pudb nocontext.py \
+	--train_path ../pickle/small_summaries.pickle \
+	--valid_path ../pickle/small_summaries.pickle \
+	--test_path ../pickle/small_summaries.pickle \
 	--eval_interval 100 \
         --model_path ./mrr_qa.md \
 	--learning_rate	0.001 \
