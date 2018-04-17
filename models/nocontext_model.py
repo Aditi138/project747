@@ -21,7 +21,7 @@ class NoContext(nn.Module):
         self.pos_embedding = nn.Embedding(pos_tag_size, pos_dim)
 
         #Simple Seq2Seq with Bahdanau attention
-        self.encoder = EncoderRNN(input_size, embed_size, hidden_size)
+        self.encoder = EncoderRNN(input_size, embed_size, hidden_size, n_layers=args.num_layers)
         self.answer_encoder = EncoderRNN(input_size, embed_size, hidden_size,n_layers=args.num_layers)
 
         # self.decoder = BahdanauAttnDecoderRNN(hidden_size, embed_size, input_size)

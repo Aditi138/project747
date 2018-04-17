@@ -77,8 +77,9 @@ def train_epochs(model, vocab):
 
     for epoch in range(args.num_epochs):
 
-        print("Creating batches ...")
-        train_batches = create_batches(train_documents, args.batch_length, args.job_size, vocab)
+        print("Creating train batches")
+        test_batches = create_batches(test_documents,args.batch_length,args.job_size, vocab)
+        train_batches = create_batches(test_documents, args.batch_length, args.job_size, vocab)
         print("Starting epoch {}".format(epoch))
 
         saved = False
@@ -206,7 +207,7 @@ if __name__ == "__main__":
 
 
     start = time()
-    train_documents = loader.load_documents( args.train_path, summary_path=None)
+    train_documents = loader.load_documents(args.train_path, summary_path=None)
     valid_documents = loader.load_documents(args.valid_path, summary_path=None)
     test_documents = loader.load_documents(args.test_path, summary_path=None)
 

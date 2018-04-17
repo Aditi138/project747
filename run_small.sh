@@ -1,6 +1,6 @@
 #/usr/bin/python
-CUDA_VISIBLE_DEVICES=1 python -m pudb nocontext.py \
-	--train_path ../pickle/small_train_docs.pickle \
+CUDA_VISIBLE_DEVICES=1 python main.py \
+	--train_path ../pickle/small_summaries.pickle \
 	--valid_path ../pickle/small_summaries.pickle \
 	--test_path ../pickle/small_summaries.pickle \
 	--eval_interval 100 \
