@@ -8,6 +8,8 @@ import torch
 from torch import optim
 from dataloaders.utility import variable
 import numpy as np
+from time import time
+
 
 def evaluate(model, batches):
 
@@ -202,11 +204,14 @@ if __name__ == "__main__":
 
     loader = DataLoader(args)
 
+
+    start = time()
     train_documents = loader.load_documents( args.train_path, summary_path=None)
     valid_documents = loader.load_documents(args.valid_path, summary_path=None)
     test_documents = loader.load_documents(args.test_path, summary_path=None)
 
-    loader.create_id_to_vocabulary()
+    end = time()
+    print(end-start)
 
     model = NoContext(args, loader.vocab)
     

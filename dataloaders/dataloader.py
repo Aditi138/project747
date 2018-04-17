@@ -56,6 +56,8 @@ def create_single_batch(batch_data):
     batch_candidate_answers_padded = []
     batch_candidate_answer_lengths = []
     batch_answer_indices = []
+    batch_candidates_ner = []
+    batch_candidates_pos = []
     batch_metrics = np.array([data_point.metrics for data_point in batch_data])
 
     for index, data_point in enumerate(batch_data):
@@ -521,7 +523,7 @@ class DataLoader():
         assert(len(ner_tags) == len(pos_tags))
         return ner_tags,pos_tags,tokens
 
-    def load_documents(self, path, NER_tagset,POS_tagset, summary_path=None):
+    def load_documents(self, path,   summary_path=None):
         data_points = []
         self.SOS_Token = self.vocab.get_index("<sos>")
         self.EOS_Token = self.vocab.get_index("<eos>")

@@ -26,6 +26,7 @@ class NoContext(nn.Module):
 
         query_embedded = self.embedding(batch_query.unsqueeze(0))
 
+
         encoder_output, encoder_hidden = self.encoder(query_embedded, batch_query_length)
         encoder_hidden = encoder_hidden.view(1, encoder_hidden.size(0) * encoder_hidden.size(2))
         query_expanded = encoder_hidden.expand(batch_len, encoder_hidden.size(0), encoder_hidden.size(1))
@@ -54,12 +55,14 @@ class NoContext(nn.Module):
         if self.args.use_cuda:
             batch_query = batch_query.cuda()
 
+        query_embedded = self.embedding(batch_query.unsqueeze(0))
 
-        encoder_output, encoder_hidden = self.encoder(batch_query.unsqueeze(0), batch_query_length)
-        encoder_hidden = encoder_hidden.view(1, encoder_hidden.size(0)* encoder_hidden.size(2))
+        encoder_output, encoder_hidden = self.encoder(query_embedded, batch_query_length)
+        encoder_hidden = encoder_hidden.view(1, encoder_hidden.size(0) * encoder_hidden.size(2))
         query_expanded = encoder_hidden.expand(batch_len, encoder_hidden.size(0), encoder_hidden.size(1))
 
-        answer_encoder_output, answer_encoder_hidden = self.encoder(batch_candidate, batch_candidate_lengths)
+        answer_embedded = self.embedding(batch_candidate)
+        answer_encoder_output, answer_encoder_hidden = self.answer_encoder(answer_embedded, batch_candidate_lengths)
         answer_encoder_hidden = answer_encoder_hidden.view(batch_len,
                                                            answer_encoder_hidden.size(0) * answer_encoder_hidden.size(
                                                                2))
