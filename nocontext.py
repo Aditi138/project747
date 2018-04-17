@@ -1,28 +1,15 @@
 import argparse
 import sys
 
-<<<<<<< HEAD:nocontext.py
 from dataloaders.dataloader import DataLoader, create_batches
 from models.nocontext_model import NoContext
-=======
-from dataloaders.dataloader import DataLoader, create_batches, view_batch
-from models.model import *
->>>>>>> master:main.py
 
 import torch
 from torch import optim
 from dataloaders.utility import variable
 import numpy as np
 
-<<<<<<< HEAD:nocontext.py
 def evaluate(model, batches):
-=======
-
-
-def evaluate(batches):
-    global model
-    global best_mrr
->>>>>>> master:main.py
 
     mrr_value = []
     model.train(False)
@@ -70,7 +57,7 @@ def evaluate(batches):
     return mean_rr
 
 
-def train_epochs(model):
+def train_epochs(model, vocab):
     clip_threshold = args.clip_threshold
     eval_interval = args.eval_interval
 
@@ -83,13 +70,13 @@ def train_epochs(model):
 
     patience = 30
 
-    valid_batches = create_batches(valid_documents,args.batch_length,args.job_size)
-    test_batches = create_batches(test_documents,args.batch_length,args.job_size)
+    valid_batches = create_batches(valid_documents,args.batch_length,args.job_size, vocab)
+    test_batches = create_batches(test_documents,args.batch_length,args.job_size, vocab)
 
     for epoch in range(args.num_epochs):
 
         print("Creating batches ...")
-        train_batches = create_batches(train_documents, args.batch_length, args.job_size,loader.vocab)
+        train_batches = create_batches(train_documents, args.batch_length, args.job_size, vocab)
         print("Starting epoch {}".format(epoch))
 
         saved = False
@@ -224,5 +211,5 @@ if __name__ == "__main__":
     if args.use_cuda:
         model = model.cuda()
 
-    train_epochs(model)
+    train_epochs(model, loader.vocab)
 
