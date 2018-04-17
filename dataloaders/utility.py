@@ -37,5 +37,6 @@ def pad_elmo(batch):
     padded_batch=[sequence + [[0]*50 for i in range(max_len - len(sequence))] for sequence in batch]
     return padded_batch
 
-
-
+def view_data_point(data_point, vocab):
+    print(" ".join([vocab.get_word(id) for id in data_point.question_tokens]))
+    print(" ".join([vocab.get_word(id) for id in data_point.candidates[data_point.answer_indices[0]]]))

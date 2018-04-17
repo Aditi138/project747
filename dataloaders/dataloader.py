@@ -14,12 +14,29 @@ import sys
 import spacy
 from nltk import word_tokenize
 from data import Document, Query, Data_Point
-from utility import start_tags, end_tags, start_tags_with_attributes, pad_seq
+from utility import start_tags, end_tags, start_tags_with_attributes, pad_seq, view_data_point
 import random
 import numpy as np
 from collections import defaultdict
 from test_metrics import Performance
 from multiprocessing import Pool
+global vocab
+
+def view_batch(batch,vocab):
+
+    queries = batch['queries']
+    q  = []
+    a = []
+    for question_tokens in queries:
+        q.append(" ".join([vocab.get_word(id) for id in question_tokens]) + "\n")
+    batch_candidates = batch["candidates"]
+    batch_answer_indices = batch['answer_indices']
+
+    for index,answer_tokens in enumerate(batch_candidates['answers']):
+        gold_answer_tokens = answer_tokens[batch_answer_indices[index]]
+        a.append(" ".join([vocab.get_word(id) for id in gold_answer_tokens]) + "\n")
+    for index in range(len(q)):
+        print(q[index] + " " + a[index] +"\n")
 
 
 def create_single_batch(batch_data):
@@ -39,6 +56,7 @@ def create_single_batch(batch_data):
     for index, data_point in enumerate(batch_data):
         # create a batch mask over candidates similar to the one over different questions
         candidates = data_point.candidates
+
         candidate_answer_lengths = [len(answer) for answer in candidates]
         max_candidate_length = max(candidate_answer_lengths)
         candidate_padded_answers = np.array([pad_seq(answer, max_candidate_length) for answer in candidates])
@@ -61,44 +79,49 @@ def create_single_batch(batch_data):
 
     return batch
 
-def create_batches(data, batch_size, job_size):
+def create_batches(data, batch_size, job_size,vocab):
+    vocab = vocab
     job_pool = Pool(job_size)
     end_index = 0
     # shuffle the actual data
     temp_data = list(data)
     random.shuffle(temp_data)
-    batches = []
 
-    question_lengths = [len(data_point.question_tokens) for data_point in data]
-    # within batch, sort data by length
-    sorted_data = zip(question_lengths, data)
-    sorted_data.sort(reverse=True)
 
-    question_lengths, data = zip(*sorted_data)
+
+    # question_lengths = [len(data_point.question_tokens) for data_point in temp_data]
+    # # within batch, sort data by length
+    # sorted_data = zip(question_lengths, temp_data)
+    # sorted_data.sort(reverse=True)
+
+    # question_lengths, temp_data = zip(*sorted_data)
 
     # Calculate number of batches
-    number_batches = len(data) // batch_size + \
-                     int((len(data) % batch_size) > 0)
+    number_batches = len(temp_data) // batch_size + \
+                     int((len(temp_data) % batch_size) > 0)
 
     # Multi-processing
     job_data = []
 
+
     for j in range(number_batches - 1):
         begin_index, end_index = j * batch_size, (j + 1) * batch_size
-        job_data.append(list(data[begin_index:end_index]))
+        job_data.append(list(temp_data[begin_index:end_index]))
     batches = job_pool.map(create_single_batch, job_data)
     job_pool.close()
     job_pool.join()
 
-    # end_index =0
+
     # for j in range(number_batches - 1):
     #     begin_index, end_index = j * batch_size, (j + 1) * batch_size
     #     batch_data = list(data[begin_index:end_index])
-    #     batch = self.create_single_batch(batch_data)
-    #     #self.view_batch(batch)
-    #     batches.append(batch)
+    #     batch = create_single_batch(batch_data,vocab)
+    #     view_batch(batch, vocab)
+        #self.view_batch(batch)
+       # batches.append(batch)
 
-    batch_data = list(data[end_index:])
+    #view_batch(batches[1], vocab)
+    batch_data = list(temp_data[end_index:])
     batches.append(create_single_batch(batch_data))
 
     print("Created batches of batch_size {0} and number {1}".format(batch_size, number_batches))
@@ -501,13 +524,7 @@ class DataLoader():
     def create_id_to_vocabulary(self):
         self.vocab.id_to_vocab = {v:k for k,v in self.vocab.vocabulary.items()}
 
-    def view_batch(self, batch):
-        queries= batch['queries']
-        for question_tokens in queries:
-            print(" ".join([self.vocab.get_word(id) for id in question_tokens]) + "\n")
-        answers = batch['answers']
-        for answer_tokens in answers:
-            print(" ".join([self.vocab.get_word(id) for id in answer_tokens]) + "\n")
+
 
 
 
