@@ -136,7 +136,7 @@ class DataLoader():
         self.vocab = Vocabulary()
         self.performance = Performance(args)
         self.args = args
-
+	self.nlp = spacy.load('en')
 
     # This function loads raw documents, summaries and queries, processes them, stores them in document class and finally saves to a pickle
     def process_data(self, input_folder, summary_path, qap_path, document_path, pickle_folder, small_number=-1, summary_only=False, interval=50):
@@ -488,9 +488,8 @@ class DataLoader():
         return NER_sent
 
     def getNER(self,string_data):
-        nlp = spacy.load('en')
         string_data = string_data.decode('utf-8')
-        doc = nlp(string_data)
+        doc = self.nlp(string_data)
 
         pos_tags = []
         ner_tags = []
