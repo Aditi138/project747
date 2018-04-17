@@ -186,6 +186,8 @@ if __name__ == "__main__":
     parser.add_argument("--num_epochs", type=int, default=10)
     parser.add_argument("--clip_threshold", type=int, default=10)
     parser.add_argument("--num_layers", type=int, default=3)
+    parser.add_argument("--ner_dim", type=int, default=32)
+    parser.add_argument("--pos_dim", type=int, default=32)
 
     parser.add_argument("--meteor_path", type=str, default=10)
 
@@ -206,7 +208,7 @@ if __name__ == "__main__":
 
     loader.create_id_to_vocabulary()
 
-    model = NoContext(args, loader.vocab.get_length())
+    model = NoContext(args, loader.vocab)
     
     if args.use_cuda:
         model = model.cuda()
