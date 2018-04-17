@@ -22,7 +22,11 @@ class NoContext(nn.Module):
 
         #Simple Seq2Seq with Bahdanau attention
         self.encoder = EncoderRNN(input_size, embed_size, hidden_size)
-        self.decoder = BahdanauAttnDecoderRNN(hidden_size, embed_size, input_size)
+        self.answer_encoder = EncoderRNN(input_size, embed_size, hidden_size,n_layers=args.num_layers)
+
+        # self.decoder = BahdanauAttnDecoderRNN(hidden_size, embed_size, input_size)
+
+    def forward(self,batch_query, batch_query_length, batch_candidate, batch_candidate_lengths,batch_candidate_unsort,gold_answer_index, negative_indices, batch_metrics, batch_len):
 
         query_embedded = self.embedding(batch_query.unsqueeze(0))
 
@@ -34,8 +38,7 @@ class NoContext(nn.Module):
         answer_embedded = self.embedding(batch_candidate)
         answer_encoder_output, answer_encoder_hidden = self.answer_encoder(answer_embedded, batch_candidate_lengths)
         answer_encoder_hidden = answer_encoder_hidden.view(batch_len, answer_encoder_hidden.size(0) * answer_encoder_hidden.size(2))
-
-
+        
         question_answer_dot = torch.bmm(query_expanded,answer_encoder_hidden.unsqueeze(1).transpose(1,2))
 
         #Unsort the candidates back to original
