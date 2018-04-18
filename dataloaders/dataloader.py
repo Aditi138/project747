@@ -25,18 +25,51 @@ global vocab
 def view_batch(batch,vocab):
 
     queries = batch['queries']
+    ner_queries = batch['q_ner']
     q  = []
     a = []
-    for question_tokens in queries:
+    q_ner = []
+    a_ner = []
+    for index,question_tokens in enumerate(queries):
         q.append(" ".join([vocab.get_word(id) for id in question_tokens]) + "\n")
+        q_ner.append(" ".join([vocab.id_to_nertag[id] for id in ner_queries[index]]) + "\n")
     batch_candidates = batch["candidates"]
     batch_answer_indices = batch['answer_indices']
 
     for index,answer_tokens in enumerate(batch_candidates['answers']):
         gold_answer_tokens = answer_tokens[batch_answer_indices[index]]
         a.append(" ".join([vocab.get_word(id) for id in gold_answer_tokens]) + "\n")
+        a_ner.append(" ".join([vocab.id_to_nertag[id] for id in batch_candidates['ner'][index][batch_answer_indices[index]]]) + "\n")
     for index in range(len(q)):
-        print(q[index] + " " + a[index] +"\n")
+        print(q[index] + " " +  q_ner[index] + " " + a[index] + " " + a_ner[index]+"\n")
+
+def make_bucket_batches(data, batch_size,vocab):
+    # Data are bucketed according to the length of the first item in the data_collections.
+    buckets = defaultdict(list)
+
+    for data_item in data:
+        src = data_item.candidates
+        buckets[len(src)].append(data_item)
+
+    batch_data = []
+    batches = []
+    # np.random.seed(2)
+    for src_len in buckets:
+        bucket = buckets[src_len]
+        np.random.shuffle(bucket)
+
+        num_batches = int(np.ceil(len(bucket) * 1.0 / batch_size))
+        for i in range(num_batches):
+            cur_batch_size = batch_size if i < num_batches - 1 else len(bucket) - batch_size * i
+            begin_index = i * batch_size
+            end_index = begin_index + cur_batch_size
+            batch_data  =list(bucket[begin_index:end_index])
+            batch = create_single_batch(batch_data)
+            view_batch(batch,vocab)
+            batches.append(batch)
+
+    np.random.shuffle(batches)
+    return batches
 
 def create_single_batch(batch_data):
 
@@ -63,24 +96,33 @@ def create_single_batch(batch_data):
     for index, data_point in enumerate(batch_data):
         # create a batch mask over candidates similar to the one over different questions
         candidates = data_point.candidates
+        candidates_ner = data_point.ner_for_candidates
+        candidates_pos = data_point.pos_for_candidates
 
         candidate_answer_lengths = [len(answer) for answer in candidates]
         max_candidate_length = max(candidate_answer_lengths)
         candidate_padded_answers = np.array([pad_seq(answer, max_candidate_length) for answer in candidates])
+        candidate_padded_answers_ner = np.array([pad_seq(answer, max_candidate_length) for answer in candidates_ner])
+        candidate_padded_answers_pos = np.array([pad_seq(answer, max_candidate_length) for answer in candidates_pos])
 
         batch_candidate_answers_padded.append(candidate_padded_answers)
         batch_candidate_answer_lengths.append(candidate_answer_lengths)
+        batch_candidates_ner.append(candidate_padded_answers_ner)
+        batch_candidates_pos.append(candidate_padded_answers_pos)
 
         batch_answer_indices.append(data_point.answer_indices[0])
 
     candidate_information["answers"] = batch_candidate_answers_padded
     candidate_information["anslengths"] = batch_candidate_answer_lengths
+    candidate_information["ner"] = batch_candidates_ner
+    candidate_information["pos"] = batch_candidates_pos
 
     batch = {}
     batch['queries'] = queries
+    batch['q_ner'] = queries_ner
+    batch['q_pos'] = queries_pos
     batch['answer_indices'] = batch_answer_indices
     batch['qlengths'] = batch_query_lengths
-    # batch['alengths'] = batch_answer_lengths
     batch["candidates"] = candidate_information
     batch["metrics"] = batch_metrics
 
@@ -550,10 +592,16 @@ class DataLoader():
 
 
             candidate_per_doc_per_answer = []
+            candidate_per_doc_per_answer_ner = []
+            candidate_per_doc_per_answer_pos = []
+
             i = 0
             while i < len(document.candidates):
                 candidate_per_doc_per_answer.append(document.candidates[i])
+                candidate_per_doc_per_answer_ner.append(document.ner_candidates[i])
+                candidate_per_doc_per_answer_pos.append(document.pos_candidates[i])
                 i+=2
+
             candidate_per_doc = list(candidate_per_doc_per_answer)
 
             for query in document.queries:
@@ -574,15 +622,15 @@ class DataLoader():
 
                 query.ner_tokens = self.vocab.add_and_get_indices_NER(query.ner_tokens)
                 query.pos_tokens = self.vocab.add_and_get_indices_POS(query.pos_tokens)
-                document.ner_candidates[query.answer_indices[0] / 2]  =  self.vocab.add_and_get_indices_NER(document.ner_candidates[query.answer_indices[0] / 2])
-                document.pos_candidates[query.answer_indices[0] / 2] = self.vocab.add_and_get_indices_POS(
-                    document.pos_candidates[query.answer_indices[0] / 2])
+                candidate_per_doc_per_answer_ner[query.answer_indices[0] / 2]  =  self.vocab.add_and_get_indices_NER(candidate_per_doc_per_answer_ner[query.answer_indices[0] / 2])
+                candidate_per_doc_per_answer_pos[query.answer_indices[0] / 2] = self.vocab.add_and_get_indices_POS(
+                    candidate_per_doc_per_answer_pos[query.answer_indices[0] / 2])
 
             for idx,query in enumerate(document.queries):
                 query.answer_indices[0]  = query.answer_indices[0] / 2
                 data_points.append(Data_Point
                                    (query.question_tokens, query.answer_indices, candidate_per_doc_per_answer,metrics_per_doc[idx],
-                                    query.ner_tokens, query.pos_tokens,document.ner_candidates,document.pos_candidates ))
+                                    query.ner_tokens, query.pos_tokens,candidate_per_doc_per_answer_ner,candidate_per_doc_per_answer_pos ))
 
         return data_points
 
@@ -601,6 +649,11 @@ class Vocabulary(object):
         self.vocabulary[unk] = 1
         self.vocabulary[sos] = 2
         self.vocabulary[eos] = 3
+
+        self.id_to_vocab[0] = pad_token
+        self.id_to_vocab[1] = unk
+        self.id_to_vocab[2] = sos
+        self.id_to_vocab[3] = eos
 
         self.nertag_to_id = dict()
         self.postag_to_id = dict()
@@ -639,10 +692,10 @@ class Vocabulary(object):
         return len(self.postag_to_id)
 
     def add_and_get_indices_NER(self, words):
-        return [self.add_and_get_index_NER(word) for word in words]
+        return [self.add_and_get_index_NER(str(word)) for word in words]
 
     def add_and_get_indices_POS(self, words):
-        return [self.add_and_get_index_POS(word) for word in words]
+        return [self.add_and_get_index_POS(str(word)) for word in words]
 
     def add_and_get_index_NER(self, word):
         if word in self.nertag_to_id:

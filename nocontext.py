@@ -1,12 +1,12 @@
 import argparse
 import sys
 
-from dataloaders.dataloader import DataLoader, create_batches
+from dataloaders.dataloader import DataLoader, create_batches,view_batch
 from models.nocontext_model import NoContext
 
 import torch
 from torch import optim
-from dataloaders.utility import variable
+from dataloaders.utility import variable,view_data_point
 import numpy as np
 from time import time
 
@@ -26,18 +26,24 @@ def evaluate(model, batches):
             # query tokens
             batch_query = variable(torch.LongTensor(query),volatile=True)
             batch_query_length = [batch['qlengths'][index]]
+            batch_query_ner = variable(torch.LongTensor(batch['q_ner'][index]))
+            batch_query_pos = variable(torch.LongTensor(batch['q_pos'][index]))
 
             #Sort the candidates by length
             batch_candidate_lengths = np.array(batch_candidates["anslengths"][index])
             candidate_sort = np.argsort(batch_candidate_lengths)[::-1].copy()
             batch_candidates_sorted = variable(torch.LongTensor(batch_candidates["answers"][index][candidate_sort,...]),volatile=True)
             batch_candidate_lengths_sorted = batch_candidate_lengths[candidate_sort]
+            batch_candidate_ner_sorted = variable(torch.LongTensor(batch_candidates['ner'][index][candidate_sort, ...]))
+            batch_candidate_pos_sorted = variable(
+                torch.LongTensor(batch_candidates['pos'][index][candidate_sort, ...]))
 
             batch_len = len(batch_candidate_lengths_sorted)
             batch_candidate_unsort = variable(torch.LongTensor(np.argsort(candidate_sort)), volatile=True)
             batch_metrics =  variable(torch.FloatTensor(batch['metrics'][index]),volatile=True)
-            indices = model.eval(batch_query,batch_query_length,
-                             batch_candidates_sorted, batch_candidate_lengths_sorted ,batch_candidate_unsort, batch_answer_indices[index],
+            indices = model.eval(batch_query, batch_query_ner, batch_query_pos,batch_query_length,
+                        batch_candidates_sorted, batch_candidate_ner_sorted, batch_candidate_pos_sorted,batch_candidate_lengths_sorted,
+                        batch_candidate_unsort, batch_answer_indices[index],
                                                          batch_metrics,batch_len)
 
             if args.use_cuda:
@@ -72,14 +78,14 @@ def train_epochs(model, vocab):
 
     patience = 30
 
+
     valid_batches = create_batches(valid_documents,args.batch_length,args.job_size, vocab)
     test_batches = create_batches(test_documents,args.batch_length,args.job_size, vocab)
 
     for epoch in range(args.num_epochs):
 
         print("Creating train batches")
-        test_batches = create_batches(test_documents,args.batch_length,args.job_size, vocab)
-        train_batches = create_batches(test_documents, args.batch_length, args.job_size, vocab)
+        train_batches = create_batches(train_documents, args.batch_length, args.job_size, vocab)
         print("Starting epoch {}".format(epoch))
 
         saved = False
@@ -107,6 +113,7 @@ def train_epochs(model, vocab):
                             print("Testing started")
                             evaluate(model, test_batches)
                             exit(0)
+
             batch = train_batches[iteration]
             #view_batch(batch,loader.vocab)
             batch_query_lengths = batch['qlengths']
@@ -119,12 +126,17 @@ def train_epochs(model, vocab):
                 # query tokens
                 batch_query = variable(torch.LongTensor(query))
                 batch_query_length = [batch['qlengths'][index]]
+                batch_query_ner = variable(torch.LongTensor(batch['q_ner'][index]))
+                batch_query_pos = variable(torch.LongTensor(batch['q_pos'][index]))
 
                 #Sort the candidates by length
                 batch_candidate_lengths = np.array(batch_candidates["anslengths"][index])
                 candidate_sort = np.argsort(batch_candidate_lengths)[::-1].copy()
                 batch_candidates_sorted = variable(torch.LongTensor(batch_candidates["answers"][index][candidate_sort,...]))
                 batch_candidate_lengths_sorted = batch_candidate_lengths[candidate_sort]
+                batch_candidate_ner_sorted = variable(torch.LongTensor(batch_candidates['ner'][index][candidate_sort,...]))
+                batch_candidate_pos_sorted = variable(
+                    torch.LongTensor(batch_candidates['pos'][index][candidate_sort, ...]))
 
                 batch_len = len(batch_candidate_lengths_sorted)
                 batch_candidate_unsort = variable(torch.LongTensor(np.argsort(candidate_sort)))
@@ -135,29 +147,25 @@ def train_epochs(model, vocab):
                 negative_indices.pop(batch_answer_indices[index])
                 negative_indices = variable(torch.LongTensor(negative_indices))
 
-                loss,second_best = model(batch_query,batch_query_length,
-                             batch_candidates_sorted, batch_candidate_lengths_sorted ,batch_candidate_unsort, gold_index, negative_indices,
-                                                         batch_metrics,batch_len)
+                loss,second_best = model(batch_query, batch_query_ner, batch_query_pos,batch_query_length,
+                        batch_candidates_sorted, batch_candidate_ner_sorted, batch_candidate_pos_sorted,batch_candidate_lengths_sorted,
+                        batch_candidate_unsort, gold_index, negative_indices,batch_metrics,batch_len)
                 losses[index] = loss
 
-                loss.backward()
-                torch.nn.utils.clip_grad_norm(model.parameters(), clip_threshold)
-                optimizer.step()
+                # loss.backward()
+                # torch.nn.utils.clip_grad_norm(model.parameters(), clip_threshold)
+                # optimizer.step()
 
 
-            # mean_loss = losses.mean(0)
-            # mean_loss.backward()
-            # optimizer.step()
-            # if args.use_cuda:
-            #     train_loss += mean_loss.data.cpu().numpy()[0] * batch_size
-            #     second_best = second_best.data.cpu().numpy()[0]
-            #
-            # else:
-            #     train_loss += mean_loss.data.numpy()[0] * batch_size
-            #     second_best = second_best.data.numpy()[0]
+            mean_loss = losses.mean(0)
+            mean_loss.backward()
+            optimizer.step()
+            if args.use_cuda:
+                train_loss += mean_loss.data.cpu().numpy()[0] * batch_size
 
+            else:
+                train_loss += mean_loss.data.numpy()[0] * batch_size
 
-                ## Todo: evaluate current train batch
             train_denom += batch_size
 
         if not saved:
