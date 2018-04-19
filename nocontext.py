@@ -9,6 +9,15 @@ from torch import optim
 from dataloaders.utility import variable,view_data_point
 import numpy as np
 from time import time
+import random
+
+def get_random_batch_from_training(batches, num):
+    small = []
+    for i in range(num):
+        index = random.randint(0, len(batches))
+        small.append(batches[index])
+    return small
+
 
 
 def evaluate(model, batches):
@@ -80,12 +89,16 @@ def train_epochs(model, vocab):
 
 
     valid_batches = create_batches(valid_documents,args.batch_length,args.job_size, vocab)
-    test_batches = create_batches(test_documents,args.batch_length,args.job_size, vocab)
+    train_batches = create_batches(train_documents, args.batch_length, args.job_size, vocab)
+    train_batch_for_validation = get_random_batch_from_training(train_batches, len(valid_batches))
+    #test_batches = create_batches(test_documents,args.batch_length,args.job_size, vocab)
 
     for epoch in range(args.num_epochs):
 
         print("Creating train batches")
         train_batches = create_batches(train_documents, args.batch_length, args.job_size, vocab)
+
+
         print("Starting epoch {}".format(epoch))
 
         saved = False
@@ -96,22 +109,22 @@ def train_epochs(model, vocab):
                 print("train loss: {}".format(train_loss / train_denom))
 
                 if iteration != 0:
-                    average_rr = evaluate(model, valid_batches)
+                    average_rr = evaluate(model, train_batch_for_validation)
                     validation_history.append(average_rr)
 
                     if (iteration + 1) % (eval_interval * 5) == 0:
                         if average_rr >= max(validation_history):
                             saved = True
-                            print("Saving best model seen so far at epoch number {0}".format(iteration))
+                            print("Saving best model seen so far itr  number {0}".format(iteration))
                             torch.save(model, args.model_path)
-                            print("Best on Validation: MRR:{0}".format(best_mrr))
+                            print("Best on Validation: MRR:{0}".format(average_rr))
                             bad_counter = 0
                         else:
                             bad_counter += 1
                         if bad_counter > patience:
                             print("Early Stopping")
                             print("Testing started")
-                            evaluate(model, test_batches)
+                            evaluate(model, train_batch_for_validation)
                             exit(0)
 
             batch = train_batches[iteration]
