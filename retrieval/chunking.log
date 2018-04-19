@@ -1,0 +1,723 @@
+Loaded summaries
+Loaded question answer pairs
+Loaded documents file
+../../narrativeqa/tmp/03690ff2154ebecb454ea267cec529358ab6923b.content
+Maximum sentence length before improvement: 170
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 17190
+Proportion (in %) of sentences roughly splits: 0.983
+maximum chunk size: 223
+minimum chunk size: 108
+Total Number of chunks: 1303
+
+
+../../narrativeqa/tmp/04d0a3d15a1e39a94524a3958e433a88ca01fdf9.content
+Maximum sentence length before improvement: 156
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 6572
+Proportion (in %) of sentences roughly splits: 2.617
+maximum chunk size: 225
+minimum chunk size: 177
+Total Number of chunks: 682
+
+
+../../narrativeqa/tmp/08c3429e9717bc663bc5f41cd3a2c701c222ed2f.content
+Maximum sentence length before improvement: 108
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 235
+Proportion (in %) of sentences roughly splits: 4.255
+maximum chunk size: 214
+minimum chunk size: 126
+Total Number of chunks: 24
+
+
+../../narrativeqa/tmp/0d0bc01441afbec48663e3b38827e1529a287765.content
+Maximum sentence length before improvement: 126
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 6485
+Proportion (in %) of sentences roughly splits: 1.820
+maximum chunk size: 225
+minimum chunk size: 43
+Total Number of chunks: 535
+
+
+../../narrativeqa/tmp/1225b1acc92c2554e91c09639f86c1d75f8e9161.content
+Maximum sentence length before improvement: 309
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 10193
+Proportion (in %) of sentences roughly splits: 2.904
+maximum chunk size: 223
+minimum chunk size: 158
+Total Number of chunks: 931
+
+
+../../narrativeqa/tmp/14ed79ad4d7dbda55c43a696dc1366a71605ac58.content
+Maximum sentence length before improvement: 43
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 49
+Minimum sentence length after improvement: 1
+Total Number of sentences: 3552
+Proportion (in %) of sentences roughly splits: 0.000
+maximum chunk size: 217
+minimum chunk size: 24
+Total Number of chunks: 162
+
+
+../../narrativeqa/tmp/150683ab8156bdc78ebd23a2ed7f7e265b780bd0.content
+Maximum sentence length before improvement: 148
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 3964
+Proportion (in %) of sentences roughly splits: 0.227
+maximum chunk size: 219
+minimum chunk size: 132
+Total Number of chunks: 203
+
+
+../../narrativeqa/tmp/1a4bf3d813fdfe2b40787c3ba6bf913b15d0170a.content
+Maximum sentence length before improvement: 75
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 2889
+Proportion (in %) of sentences roughly splits: 0.346
+maximum chunk size: 220
+minimum chunk size: 139
+Total Number of chunks: 180
+
+
+../../narrativeqa/tmp/24c8ed4f493ab62acff4da9bad5c6a1c07e4770d.content
+Maximum sentence length before improvement: 227
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 10779
+Proportion (in %) of sentences roughly splits: 6.318
+maximum chunk size: 225
+minimum chunk size: 126
+Total Number of chunks: 1256
+
+
+../../narrativeqa/tmp/295d5533ffd87d5ff68f51902e13559bac902085.content
+Maximum sentence length before improvement: 108
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 2451
+Proportion (in %) of sentences roughly splits: 3.305
+maximum chunk size: 221
+minimum chunk size: 179
+Total Number of chunks: 240
+
+
+../../narrativeqa/tmp/331adcaf22f837c92a3c9ec6cc28b5a5c9689373.content
+Maximum sentence length before improvement: 108
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 3392
+Proportion (in %) of sentences roughly splits: 3.950
+maximum chunk size: 224
+minimum chunk size: 158
+Total Number of chunks: 287
+
+
+../../narrativeqa/tmp/36cdfca4aa4ecf0692b4c17f8fdc5c22dcf4d2e5.content
+Maximum sentence length before improvement: 43
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 43
+Minimum sentence length after improvement: 1
+Total Number of sentences: 2673
+Proportion (in %) of sentences roughly splits: 0.000
+maximum chunk size: 211
+minimum chunk size: 96
+Total Number of chunks: 155
+
+
+../../narrativeqa/tmp/3c55bc1a4ea2c18df8939f9e849eef88150088dd.content
+Maximum sentence length before improvement: 245
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 6012
+Proportion (in %) of sentences roughly splits: 8.483
+maximum chunk size: 225
+minimum chunk size: 177
+Total Number of chunks: 701
+
+
+../../narrativeqa/tmp/3c9d16f6b7dc853083ec5820b989205ab9943fca.content
+Maximum sentence length before improvement: 125
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 10557
+Proportion (in %) of sentences roughly splits: 1.402
+maximum chunk size: 222
+minimum chunk size: 108
+Total Number of chunks: 787
+
+
+../../narrativeqa/tmp/3d248aa8bba34b3f5199c1aed1443b9fa3395d03.content
+Maximum sentence length before improvement: 53
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 2837
+Proportion (in %) of sentences roughly splits: 0.000
+maximum chunk size: 219
+minimum chunk size: 101
+Total Number of chunks: 148
+
+
+../../narrativeqa/tmp/403479540337f035a011f0ea84b4770e31e18207.content
+Maximum sentence length before improvement: 67
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 3130
+Proportion (in %) of sentences roughly splits: 0.064
+maximum chunk size: 216
+minimum chunk size: 122
+Total Number of chunks: 164
+
+
+../../narrativeqa/tmp/44340b5ad75b693029def097ee3836366776eda1.content
+Maximum sentence length before improvement: 146
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 8434
+Proportion (in %) of sentences roughly splits: 2.454
+maximum chunk size: 224
+minimum chunk size: 43
+Total Number of chunks: 839
+
+
+../../narrativeqa/tmp/5328457f649b51410906d4d23b915f5147bee4ed.content
+Maximum sentence length before improvement: 48
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 48
+Minimum sentence length after improvement: 1
+Total Number of sentences: 2486
+Proportion (in %) of sentences roughly splits: 0.000
+maximum chunk size: 218
+minimum chunk size: 65
+Total Number of chunks: 130
+
+
+../../narrativeqa/tmp/58184a6c7022822b91a6593d00dd12be8bce7f36.content
+Maximum sentence length before improvement: 172
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 6113
+Proportion (in %) of sentences roughly splits: 3.942
+maximum chunk size: 223
+minimum chunk size: 178
+Total Number of chunks: 504
+
+
+../../narrativeqa/tmp/5a3c3fa94456d41df5d8711b33687c39f2aa1ca8.content
+Maximum sentence length before improvement: 203
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 22343
+Proportion (in %) of sentences roughly splits: 2.027
+maximum chunk size: 225
+minimum chunk size: 176
+Total Number of chunks: 2030
+
+
+../../narrativeqa/tmp/5bac8c9c918869b5e59fab36c21fbd914f0e26a0.content
+Maximum sentence length before improvement: 108
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 3236
+Proportion (in %) of sentences roughly splits: 1.761
+maximum chunk size: 224
+minimum chunk size: 158
+Total Number of chunks: 256
+
+
+../../narrativeqa/tmp/6031da6fa93ad9cac1b6da6586010aab81c7b4da.content
+Maximum sentence length before improvement: 39
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 39
+Minimum sentence length after improvement: 1
+Total Number of sentences: 3198
+Proportion (in %) of sentences roughly splits: 0.000
+maximum chunk size: 210
+minimum chunk size: 95
+Total Number of chunks: 133
+
+
+../../narrativeqa/tmp/634abf83f11ee4449864e1c391b0456b3fdbdf64.content
+Maximum sentence length before improvement: 35
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 37
+Minimum sentence length after improvement: 1
+Total Number of sentences: 3073
+Proportion (in %) of sentences roughly splits: 0.000
+maximum chunk size: 211
+minimum chunk size: 88
+Total Number of chunks: 147
+
+
+../../narrativeqa/tmp/7c963cf6567bcfcf092c9bb3d72d09562ba6b794.content
+Maximum sentence length before improvement: 69
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 1973
+Proportion (in %) of sentences roughly splits: 0.203
+maximum chunk size: 214
+minimum chunk size: 80
+Total Number of chunks: 87
+
+
+../../narrativeqa/tmp/84248647b95fced93f041f931426523b7d25d226.content
+Maximum sentence length before improvement: 82
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 47
+Minimum sentence length after improvement: 1
+Total Number of sentences: 4464
+Proportion (in %) of sentences roughly splits: 0.000
+maximum chunk size: 218
+minimum chunk size: 183
+Total Number of chunks: 151
+
+
+../../narrativeqa/tmp/897c6dbe8ac017f03e773168f3172bca343731a2.content
+Maximum sentence length before improvement: 74
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 3023
+Proportion (in %) of sentences roughly splits: 0.066
+maximum chunk size: 209
+minimum chunk size: 189
+Total Number of chunks: 126
+
+
+../../narrativeqa/tmp/8ac0b889ea488a2592e625b5a6f82e02c7bfec04.content
+Maximum sentence length before improvement: 222
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 3432
+Proportion (in %) of sentences roughly splits: 2.797
+maximum chunk size: 223
+minimum chunk size: 43
+Total Number of chunks: 379
+
+
+../../narrativeqa/tmp/8b9da16420edd653ae5e0e2925dd3cade3a21ebc.content
+Maximum sentence length before improvement: 117
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 2216
+Proportion (in %) of sentences roughly splits: 0.271
+maximum chunk size: 216
+minimum chunk size: 58
+Total Number of chunks: 110
+
+
+../../narrativeqa/tmp/935775d945bc210b0928bffb6924e06e1ef9a9dd.content
+Maximum sentence length before improvement: 144
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 6304
+Proportion (in %) of sentences roughly splits: 0.063
+maximum chunk size: 220
+minimum chunk size: 25
+Total Number of chunks: 311
+
+
+../../narrativeqa/tmp/9561a72a7b909a62c43b5ff74e26103f7a03c4bc.content
+Maximum sentence length before improvement: 131
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 3829
+Proportion (in %) of sentences roughly splits: 0.914
+maximum chunk size: 223
+minimum chunk size: 43
+Total Number of chunks: 338
+
+
+../../narrativeqa/tmp/9bb9407d60ce0a2e7b57defe538f8578ea79493b.content
+Maximum sentence length before improvement: 145
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 2387
+Proportion (in %) of sentences roughly splits: 9.552
+maximum chunk size: 225
+minimum chunk size: 126
+Total Number of chunks: 222
+
+
+../../narrativeqa/tmp/9c05142dcf6d0705d4619800a741d7b337b21116.content
+Maximum sentence length before improvement: 108
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 4547
+Proportion (in %) of sentences roughly splits: 0.572
+maximum chunk size: 222
+minimum chunk size: 51
+Total Number of chunks: 388
+
+
+../../narrativeqa/tmp/9d573a78be4aaaeedabedb857d10f13c60662f34.content
+Maximum sentence length before improvement: 33
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 35
+Minimum sentence length after improvement: 1
+Total Number of sentences: 3731
+Proportion (in %) of sentences roughly splits: 0.000
+maximum chunk size: 211
+minimum chunk size: 102
+Total Number of chunks: 159
+
+
+../../narrativeqa/tmp/a291171000871c2588aacdbe03496c21fe9aec05.content
+Maximum sentence length before improvement: 85
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 2501
+Proportion (in %) of sentences roughly splits: 0.160
+maximum chunk size: 209
+minimum chunk size: 107
+Total Number of chunks: 112
+
+
+../../narrativeqa/tmp/a44a175d05d139a1cb1c9ddc6879ffcd66b0e2c4.content
+Maximum sentence length before improvement: 69
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 1368
+Proportion (in %) of sentences roughly splits: 0.292
+maximum chunk size: 221
+minimum chunk size: 105
+Total Number of chunks: 90
+
+
+../../narrativeqa/tmp/ab4aabe1ce1b1377b94331343d7c3bc4037f470b.content
+Maximum sentence length before improvement: 111
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 3738
+Proportion (in %) of sentences roughly splits: 0.107
+maximum chunk size: 216
+minimum chunk size: 175
+Total Number of chunks: 170
+
+
+../../narrativeqa/tmp/b08882a8306a6a4b1f405827ee19b4aca538c023.content
+Maximum sentence length before improvement: 63
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 3289
+Proportion (in %) of sentences roughly splits: 0.061
+maximum chunk size: 221
+minimum chunk size: 118
+Total Number of chunks: 160
+
+
+../../narrativeqa/tmp/b1b67dc8de94763e66312262449f6cd55956f1f0.content
+Maximum sentence length before improvement: 75
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 3770
+Proportion (in %) of sentences roughly splits: 0.053
+maximum chunk size: 221
+minimum chunk size: 155
+Total Number of chunks: 187
+
+
+../../narrativeqa/tmp/b9ca8b4458e48f3c1343a11539ea52a848fd87ea.content
+Maximum sentence length before improvement: 205
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 1718
+Proportion (in %) of sentences roughly splits: 1.281
+maximum chunk size: 218
+minimum chunk size: 73
+Total Number of chunks: 109
+
+
+../../narrativeqa/tmp/bfd50b1cf73709308ab4ad727d829c5fca23480c.content
+Maximum sentence length before improvement: 92
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 2500
+Proportion (in %) of sentences roughly splits: 0.160
+maximum chunk size: 214
+minimum chunk size: 20
+Total Number of chunks: 154
+
+
+../../narrativeqa/tmp/c231d777e69681b32aff6a29bcb70932bc60c0a9.content
+Maximum sentence length before improvement: 81
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 2620
+Proportion (in %) of sentences roughly splits: 0.305
+maximum chunk size: 213
+minimum chunk size: 109
+Total Number of chunks: 118
+
+
+../../narrativeqa/tmp/c65f47d3de4510d418357b1f133d3171f0bc4eca.content
+Maximum sentence length before improvement: 59
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 2079
+Proportion (in %) of sentences roughly splits: 0.096
+maximum chunk size: 209
+minimum chunk size: 49
+Total Number of chunks: 105
+
+
+../../narrativeqa/tmp/c8e25c068b7c8a00ba00096e73ce7ea893c69aba.content
+Maximum sentence length before improvement: 135
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 4458
+Proportion (in %) of sentences roughly splits: 6.483
+maximum chunk size: 225
+minimum chunk size: 128
+Total Number of chunks: 426
+
+
+../../narrativeqa/tmp/cc49ee763ad73ea914a925f7dddf3687b77a69c9.content
+Maximum sentence length before improvement: 53
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 2349
+Proportion (in %) of sentences roughly splits: 0.000
+maximum chunk size: 219
+minimum chunk size: 114
+Total Number of chunks: 123
+
+
+../../narrativeqa/tmp/cc8608ad66db28cabde4fb1b409aff6bce5f13de.content
+Maximum sentence length before improvement: 205
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 9479
+Proportion (in %) of sentences roughly splits: 5.391
+maximum chunk size: 225
+minimum chunk size: 108
+Total Number of chunks: 1025
+
+
+../../narrativeqa/tmp/d15686cf4482b52351e990ccd991fefda8d2f6dc.content
+Maximum sentence length before improvement: 42
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 44
+Minimum sentence length after improvement: 1
+Total Number of sentences: 2565
+Proportion (in %) of sentences roughly splits: 0.000
+maximum chunk size: 216
+minimum chunk size: 186
+Total Number of chunks: 142
+
+
+../../narrativeqa/tmp/d5a2d9f1311e0398ed061e6d3281c3135020027e.content
+Maximum sentence length before improvement: 147
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 5558
+Proportion (in %) of sentences roughly splits: 2.987
+maximum chunk size: 225
+minimum chunk size: 43
+Total Number of chunks: 471
+
+
+../../narrativeqa/tmp/d72079271c94d49a4dd02b36e0e6291de2c7c305.content
+Maximum sentence length before improvement: 170
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 11083
+Proportion (in %) of sentences roughly splits: 4.105
+maximum chunk size: 224
+minimum chunk size: 176
+Total Number of chunks: 1005
+
+
+../../narrativeqa/tmp/da92db374a011f526873e2c6734a2dd54f197fa5.content
+Maximum sentence length before improvement: 130
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 20552
+Proportion (in %) of sentences roughly splits: 1.319
+maximum chunk size: 225
+minimum chunk size: 176
+Total Number of chunks: 1875
+
+
+../../narrativeqa/tmp/db50738d7cae3992d86212a129d743ba0838e65b.content
+Maximum sentence length before improvement: 128
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 957
+Proportion (in %) of sentences roughly splits: 9.300
+maximum chunk size: 223
+minimum chunk size: 43
+Total Number of chunks: 108
+
+
+../../narrativeqa/tmp/db73eb0ea1e1218639971e6b7c2d9e600dc36383.content
+Maximum sentence length before improvement: 108
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 2253
+Proportion (in %) of sentences roughly splits: 0.533
+maximum chunk size: 223
+minimum chunk size: 43
+Total Number of chunks: 164
+
+
+../../narrativeqa/tmp/dfc26addcd9cd2cf53ed6804445d8bc60668d316.content
+Maximum sentence length before improvement: 57
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 48
+Minimum sentence length after improvement: 1
+Total Number of sentences: 3133
+Proportion (in %) of sentences roughly splits: 0.000
+maximum chunk size: 210
+minimum chunk size: 92
+Total Number of chunks: 161
+
+
+../../narrativeqa/tmp/e9ff026e90e2506a4e2710fac9cfb0df33248fa4.content
+Maximum sentence length before improvement: 108
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 4963
+Proportion (in %) of sentences roughly splits: 0.967
+maximum chunk size: 221
+minimum chunk size: 43
+Total Number of chunks: 375
+
+
+../../narrativeqa/tmp/ecdd7d239978d8bdf03d163b4fb3a5e97518b715.content
+Maximum sentence length before improvement: 168
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 5781
+Proportion (in %) of sentences roughly splits: 6.314
+maximum chunk size: 224
+minimum chunk size: 126
+Total Number of chunks: 613
+
+
+../../narrativeqa/tmp/ee3ba75510af0a8836993c57cb6809b676edad63.content
+Maximum sentence length before improvement: 93
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 3544
+Proportion (in %) of sentences roughly splits: 0.056
+maximum chunk size: 215
+minimum chunk size: 75
+Total Number of chunks: 197
+
+
+../../narrativeqa/tmp/ef0c3a9a9806e7192ee459ff4ce56ccfa21b3487.content
+Maximum sentence length before improvement: 41
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 41
+Minimum sentence length after improvement: 2
+Total Number of sentences: 2389
+Proportion (in %) of sentences roughly splits: 0.000
+maximum chunk size: 218
+minimum chunk size: 186
+Total Number of chunks: 106
+
+
+../../narrativeqa/tmp/ef722cf82033c8e66197209f06a9cb9754be78d9.content
+Maximum sentence length before improvement: 52
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 2694
+Proportion (in %) of sentences roughly splits: 0.000
+maximum chunk size: 213
+minimum chunk size: 183
+Total Number of chunks: 143
+
+
+../../narrativeqa/tmp/f2454588fd5606c7a4dedfeddfbfe1cdb580754b.content
+Maximum sentence length before improvement: 60
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 2398
+Proportion (in %) of sentences roughly splits: 0.250
+maximum chunk size: 214
+minimum chunk size: 140
+Total Number of chunks: 123
+
+
+../../narrativeqa/tmp/f914d107471567d657d0ac815863dfd079c198db.content
+Maximum sentence length before improvement: 38
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 40
+Minimum sentence length after improvement: 1
+Total Number of sentences: 3179
+Proportion (in %) of sentences roughly splits: 0.000
+maximum chunk size: 210
+minimum chunk size: 183
+Total Number of chunks: 129
+
+
+../../narrativeqa/tmp/fc0c25c8cb5550d17315329cd72451f21e0e12a9.content
+Maximum sentence length before improvement: 158
+Minimum sentence length before improvement: 1
+Maximum sentence length after improvement: 50
+Minimum sentence length after improvement: 1
+Total Number of sentences: 8458
+Proportion (in %) of sentences roughly splits: 2.956
+maximum chunk size: 224
+minimum chunk size: 176
+Total Number of chunks: 810
+
+
