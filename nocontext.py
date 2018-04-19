@@ -115,9 +115,9 @@ def train_epochs(model, vocab):
                     if (iteration + 1) % (eval_interval * 5) == 0:
                         if average_rr >= max(validation_history):
                             saved = True
-                            print("Saving best model seen so far at epoch number {0}".format(iteration))
+                            print("Saving best model seen so far itr  number {0}".format(iteration))
                             torch.save(model, args.model_path)
-                            print("Best on Validation: MRR:{0}".format(best_mrr))
+                            print("Best on Validation: MRR:{0}".format(average_rr))
                             bad_counter = 0
                         else:
                             bad_counter += 1
