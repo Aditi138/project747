@@ -31,7 +31,7 @@ class Performance():
 		self.all_candidates = [[c] for c in self.joint_candidates]
 
 		self.compute_bleu()
-		self.rouge = self.compute_rouge()
+		# self.rouge = self.compute_rouge()
 		#self.meteor = self.compute_meteor()
 
 		self.meteor = 0.0
