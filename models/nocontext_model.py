@@ -3,6 +3,7 @@ import torch
 from torch import nn
 
 
+
 class NoContext(nn.Module):
     def __init__(self, args, vocab):
         super(NoContext, self).__init__()
@@ -58,11 +59,11 @@ class NoContext(nn.Module):
         gold_features = torch.index_select(question_answer_dot_unsort,0,index=gold_answer_index)
         negative_features = torch.index_select(question_answer_dot_unsort,0,index=negative_indices)
 
-        negative_metrics = torch.index_select(batch_metrics,0,index=negative_indices)
-        negative_features = negative_features.squeeze(2) + negative_metrics.unsqueeze(1)
+        #negative_metrics = torch.index_select(batch_metrics,0,index=negative_indices)
+        #negative_features = negative_features.squeeze(2) + negative_metrics.unsqueeze(1)
         max_negative_feature, max_negative_index = torch.max(negative_features, 0)
 
-        loss = max_negative_feature - gold_features
+        loss = torch.clamp(1 - gold_features + max_negative_feature, 0)
         return loss, max_negative_index
 
     def eval(self,batch_query, batch_query_ner, batch_query_pos,batch_query_length, batch_candidate, batch_candidate_ner_sorted, batch_candidate_pos_sorted,

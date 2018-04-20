@@ -78,7 +78,8 @@ def train_epochs(model, vocab):
     clip_threshold = args.clip_threshold
     eval_interval = args.eval_interval
 
-    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+    #optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = optim.SGD(model.parameters(), lr= args.learning_rate, momentum=0.9)
     train_loss = 0
     train_denom = 0
     validation_history = []
@@ -89,9 +90,9 @@ def train_epochs(model, vocab):
 
 
     valid_batches = create_batches(valid_documents,args.batch_length,args.job_size, vocab)
-    train_batches = create_batches(train_documents, args.batch_length, args.job_size, vocab)
-    train_batch_for_validation = get_random_batch_from_training(train_batches, len(valid_batches))
-    #test_batches = create_batches(test_documents,args.batch_length,args.job_size, vocab)
+    #train_batches = create_batches(train_documents, args.batch_length, args.job_size, vocab)
+    #train_batch_for_validation = get_random_batch_from_training(train_batches, len(valid_batches))
+    test_batches = create_batches(test_documents,args.batch_length,args.job_size, vocab)
 
     for epoch in range(args.num_epochs):
 
@@ -109,7 +110,7 @@ def train_epochs(model, vocab):
                 print("train loss: {}".format(train_loss / train_denom))
 
                 if iteration != 0:
-                    average_rr = evaluate(model, train_batch_for_validation)
+                    average_rr = evaluate(model, valid_batches)
                     validation_history.append(average_rr)
 
                     if (iteration + 1) % (eval_interval * 5) == 0:
@@ -124,7 +125,7 @@ def train_epochs(model, vocab):
                         if bad_counter > patience:
                             print("Early Stopping")
                             print("Testing started")
-                            evaluate(model, train_batch_for_validation)
+                            evaluate(model, test_batches)
                             exit(0)
 
             batch = train_batches[iteration]
