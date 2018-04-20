@@ -1,6 +1,8 @@
 from seq2seq_attn import EncoderRNN, BahdanauAttnDecoderRNN, Attn
 import torch
-from torch import nn
+from torch import nn, LongTensor
+from torch.autograd import Variable
+
 
 
 
@@ -26,6 +28,8 @@ class NoContext(nn.Module):
         #Simple Seq2Seq with Bahdanau attention
         self.encoder = EncoderRNN(input_size, embed_rep, hidden_size, n_layers=args.num_layers)
         self.answer_encoder = EncoderRNN(input_size, embed_rep, hidden_size,n_layers=args.num_layers)
+
+        self.loss_layer=torch.nn.CrossEntropyLoss()
 
         # self.decoder = BahdanauAttnDecoderRNN(hidden_size, embed_size, input_size)
 
@@ -54,17 +58,13 @@ class NoContext(nn.Module):
         question_answer_dot = torch.bmm(query_expanded,answer_encoder_hidden.unsqueeze(1).transpose(1,2))
 
         #Unsort the candidates back to original
-        question_answer_dot_unsort = torch.index_select(question_answer_dot, 0, batch_candidate_unsort)
+        question_answer_dot_unsort = torch.index_select(question_answer_dot, 0, batch_candidate_unsort).squeeze(2)
 
-        gold_features = torch.index_select(question_answer_dot_unsort,0,index=gold_answer_index)
-        negative_features = torch.index_select(question_answer_dot_unsort,0,index=negative_indices)
+        gold_answer_index=Variable(torch.eye(batch_len)[gold_answer_index.data].type(LongTensor))
 
-        #negative_metrics = torch.index_select(batch_metrics,0,index=negative_indices)
-        #negative_features = negative_features.squeeze(2) + negative_metrics.unsqueeze(1)
-        max_negative_feature, max_negative_index = torch.max(negative_features, 0)
+        loss=self.loss_layer(question_answer_dot_unsort, gold_answer_index)
 
-        loss = torch.clamp(1 - gold_features + max_negative_feature, 0)
-        return loss, max_negative_index
+        return loss, 0
 
     def eval(self,batch_query, batch_query_ner, batch_query_pos,batch_query_length, batch_candidate, batch_candidate_ner_sorted, batch_candidate_pos_sorted,
              batch_candidate_lengths,batch_candidate_unsort,gold_answer_index,batch_metrics, batch_len):
