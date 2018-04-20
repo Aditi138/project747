@@ -89,10 +89,10 @@ def train_epochs(model, vocab):
 
 	patience = 30
 
-	# valid_batches = create_batches(valid_documents, args.batch_length, args.job_size, vocab)
+	valid_batches = create_batches(valid_documents, args.batch_length, args.job_size, vocab)
 	train_batches = create_batches(train_documents, args.batch_length, args.job_size, vocab)
-	train_batch_for_validation = get_random_batch_from_training(train_batches, args.batch_length)
-	# test_batches = create_batches(test_documents,args.batch_length,args.job_size, vocab)
+	# train_batch_for_validation = get_random_batch_from_training(train_batches, args.batch_length)
+	test_batches = create_batches(test_documents,args.batch_length,args.job_size, vocab)
 
 	for epoch in range(args.num_epochs):
 
@@ -115,7 +115,7 @@ def train_epochs(model, vocab):
 					if (iteration + 1) % (eval_interval * 5) == 0:
 						if average_rr >= max(validation_history):
 							saved = True
-							print("Saving best model seen so far itr  number {0}".format(iteration))
+							print("Saving best model seen so far itr number {0}".format(iteration))
 							torch.save(model, args.model_path)
 							print("Best on Validation: MRR:{0}".format(average_rr))
 							bad_counter = 0
@@ -190,7 +190,6 @@ def train_epochs(model, vocab):
 
 			train_denom += batch_size
 
-			print("Finished iteration {0} in epoch {1}".format(iteration, epoch))
 
 		if not saved:
 			print("Saving model after epoch {0}".format(epoch))
