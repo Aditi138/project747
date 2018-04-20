@@ -42,6 +42,7 @@ class Query:
 
 class Data_Point:
     question_tokens = []
+    context_tokens = []
     candidates = []
     answer_indices = []
     metrics=[]
@@ -49,8 +50,11 @@ class Data_Point:
     pos_for_candidates = []
     ner_for_question = []
     pos_for_question = []
-    def __init__(self, question_tokens,answer_indices, candidates,metrics, ner_for_question,pos_for_question,ner_for_candidates,pos_for_candidates):
+    def __init__(self, question_tokens,answer_indices, candidates,metrics,
+                 ner_for_question,pos_for_question,ner_for_candidates,pos_for_candidates,
+                 context_tokens):
         self.question_tokens = question_tokens
+        self.context_tokens = context_tokens
         self.answer_indices =answer_indices
         self.candidates = candidates
         self.metrics = metrics

@@ -79,6 +79,10 @@ def create_single_batch(batch_data):
     queries = np.array([pad_seq(data_point.question_tokens, maximum_query_length)
                         for data_point in batch_data])
 
+    batch_context_lengths = np.array([len(data_point.context_tokens) for data_point in batch_data])
+    maximum_context_length = max(batch_context_lengths)
+    contexts = np.array([pad_seq(data_point.context_tokens, maximum_context_length) for data_point in batch_data])
+
     queries_ner = np.array([pad_seq(data_point.ner_for_question, maximum_query_length)
                         for data_point in batch_data])
 
@@ -119,10 +123,12 @@ def create_single_batch(batch_data):
 
     batch = {}
     batch['queries'] = queries
+    batch['contexts'] = contexts
     batch['q_ner'] = queries_ner
     batch['q_pos'] = queries_pos
     batch['answer_indices'] = batch_answer_indices
     batch['qlengths'] = batch_query_lengths
+    batch['clengths'] = batch_context_lengths
     batch["candidates"] = candidate_information
     batch["metrics"] = batch_metrics
 
@@ -590,6 +596,7 @@ class DataLoader():
 
             metrics_per_doc= []
 
+            document_tokens = self.vocab.add_and_get_indices(document.document_tokens)
 
             candidate_per_doc_per_answer = []
             candidate_per_doc_per_answer_ner = []
@@ -630,7 +637,8 @@ class DataLoader():
                 query.answer_indices[0]  = query.answer_indices[0] / 2
                 data_points.append(Data_Point
                                    (query.question_tokens, query.answer_indices, candidate_per_doc_per_answer,metrics_per_doc[idx],
-                                    query.ner_tokens, query.pos_tokens,candidate_per_doc_per_answer_ner,candidate_per_doc_per_answer_pos ))
+                                    query.ner_tokens, query.pos_tokens,candidate_per_doc_per_answer_ner,candidate_per_doc_per_answer_pos,
+                                    document_tokens))
 
         return data_points
 
