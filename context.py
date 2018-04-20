@@ -239,8 +239,8 @@ if __name__ == "__main__":
 
 	start = time()
 	train_documents = loader.load_documents(args.train_path, summary_path=args.summary_path)
-	# valid_documents = loader.load_documents(args.valid_path, summary_path=None)
-	# test_documents = loader.load_documents(args.test_path, summary_path=None)
+	valid_documents = loader.load_documents(args.valid_path, summary_path=None)
+	test_documents = loader.load_documents(args.test_path, summary_path=None)
 
 	end = time()
 	print(end - start)
