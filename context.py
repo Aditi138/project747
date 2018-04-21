@@ -95,8 +95,8 @@ def train_epochs(model, vocab):
 	for epoch in range(args.num_epochs):
 
 		print("Creating train batches")
-		train_batches = create_batches(train_documents, args.batch_length, args.job_size, vocab)
-
+		#train_batches = create_batches(train_documents, args.batch_length, args.job_size, vocab)
+		train_batches = valid_batches
 		print("Starting epoch {}".format(epoch))
 
 		saved = False
@@ -136,7 +136,7 @@ def train_epochs(model, vocab):
 				# query tokens
 				batch_query = variable(torch.LongTensor(query))
 				batch_query_length = np.array([batch['qlengths'][index]])
-				batch_question_mask = variable(torch.LongTensor([batch['q_mask'][index]]))
+				batch_question_mask = variable(torch.FloatTensor(batch['q_mask'][index]))
 
 				# batch_query_ner = variable(torch.LongTensor(batch['q_ner'][index]))
 				# batch_query_pos = variable(torch.LongTensor(batch['q_pos'][index]))
@@ -150,7 +150,7 @@ def train_epochs(model, vocab):
 					torch.LongTensor(batch_candidates["answers"][index][candidate_sort, ...]))
 				batch_candidate_lengths_sorted = batch_candidate_lengths[candidate_sort]
 				batch_candidate_unsort = variable(torch.LongTensor(np.argsort(candidate_sort)))
-				batch_candidate_masks_sorted = variable(torch.LongTensor(batch_candidate_mask[candidate_sort]))
+				batch_candidate_masks_sorted = variable(torch.FloatTensor(batch_candidate_mask[candidate_sort]))
 
 				# batch_candidate_ner_sorted = variable(
 				# 	torch.LongTensor(batch_candidates['ner'][index][candidate_sort, ...]))
@@ -164,7 +164,7 @@ def train_epochs(model, vocab):
 				# context tokens
 				batch_context = variable(torch.LongTensor(batch['contexts'][index]))
 				batch_context_length = np.array([batch['clengths'][index]])
-				batch_context_mask = np.array([batch['context_mask'][index]])
+				batch_context_mask =variable(torch.FloatTensor(batch['context_mask'][index]))
 
 				gold_index = variable(torch.LongTensor([batch_answer_indices[index]]))
 				negative_indices = [idx for idx in range(batch_len)]
@@ -217,8 +217,8 @@ if __name__ == "__main__":
 	parser.add_argument("--pretrain_path", type=str, default=None, help="Path to the pre-trained word embeddings")
 
 	# Model parameters
-	parser.add_argument("--hidden_size", type=int, default=100)
-	parser.add_argument("--embed_size", type=int, default=100)
+	parser.add_argument("--hidden_size", type=int, default=15)
+	parser.add_argument("--embed_size", type=int, default=10)
 	parser.add_argument("--cuda", action="store_true", default=True)
 	parser.add_argument("--batch_length", type=int, default=10)
 	parser.add_argument("--eval_interval", type=int, default=2)
