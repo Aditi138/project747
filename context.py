@@ -34,15 +34,18 @@ def evaluate(model, batches):
 			# query tokens
 			batch_query = variable(torch.LongTensor(query), volatile=True)
 			batch_query_length = [batch['qlengths'][index]]
+			batch_question_mask = variable(torch.FloatTensor(batch['q_mask'][index]))
 			# batch_query_ner = variable(torch.LongTensor(batch['q_ner'][index]))
 			# batch_query_pos = variable(torch.LongTensor(batch['q_pos'][index]))
 
 			# Sort the candidates by length
 			batch_candidate_lengths = np.array(batch_candidates["anslengths"][index])
+			batch_candidate_mask = np.array(batch_candidates['mask'][index])
 			candidate_sort = np.argsort(batch_candidate_lengths)[::-1].copy()
 			batch_candidates_sorted = variable(
 				torch.LongTensor(batch_candidates["answers"][index][candidate_sort, ...]), volatile=True)
 			batch_candidate_lengths_sorted = batch_candidate_lengths[candidate_sort]
+			batch_candidate_masks_sorted = variable(torch.FloatTensor(batch_candidate_mask[candidate_sort]))
 			# batch_candidate_ner_sorted = variable(torch.LongTensor(batch_candidates['ner'][index][candidate_sort, ...]))
 			# batch_candidate_pos_sorted = variable(
 			# 	torch.LongTensor(batch_candidates['pos'][index][candidate_sort, ...]))
@@ -50,13 +53,15 @@ def evaluate(model, batches):
 			# context tokens
 			batch_context = variable(torch.LongTensor(batch['contexts'][index]))
 			batch_context_length = np.array([batch['clengths'][index]])
+			batch_context_mask = variable(torch.FloatTensor(batch['context_mask'][index]))
+
 
 			batch_len = len(batch_candidate_lengths_sorted)
 			batch_candidate_unsort = variable(torch.LongTensor(np.argsort(candidate_sort)), volatile=True)
-			batch_metrics = variable(torch.FloatTensor(batch['metrics'][index]), volatile=True)
-			indices = model.eval(batch_query, batch_query_length,
-								 batch_context, batch_context_length,
-								 batch_candidates_sorted, batch_candidate_lengths_sorted, batch_candidate_unsort)
+
+			indices = model.eval(batch_query, batch_query_length,batch_question_mask,
+								 batch_context, batch_context_length,batch_context_mask,
+								 batch_candidates_sorted, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,batch_candidate_unsort)
 
 			if args.use_cuda:
 				indices = indices.data.cpu()
