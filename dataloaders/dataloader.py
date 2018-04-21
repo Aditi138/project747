@@ -571,7 +571,7 @@ class DataLoader():
         assert(len(ner_tags) == len(pos_tags))
         return ner_tags,pos_tags,tokens
 
-    def load_documents(self, path,   summary_path=None):
+    def load_documents(self, path, summary_path=None):
         data_points = []
         self.SOS_Token = self.vocab.get_index("<sos>")
         self.EOS_Token = self.vocab.get_index("<eos>")
@@ -579,7 +579,7 @@ class DataLoader():
 
         anonymize_summary = False
         with open(path, "r") as fin:
-            documents = pickle.load(fin)
+            documents = pickle.load(fin)[:25]
 
         if summary_path is not None:
             with open(summary_path, "r") as fin:
