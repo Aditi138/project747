@@ -20,7 +20,7 @@ class BiDAF(nn.Module):
         that uses categorical cross-entropy loss.
         """
 		if mask is None:
-			result = torch.nn.functional.softmax(vector, dim=-1)
+			result = F.softmax(vector, dim=-1)
 		else:
 			# To limit numerical errors from large vector elements outside the mask, we zero these out.
 			result = torch.nn.functional.softmax(vector * mask, dim=-1)
@@ -54,10 +54,10 @@ class BiDAF(nn.Module):
 		## shape of ctx_C: (N, T, 2d) and ctx_Q : # (N, J, 2d)
 		## make both matrices of shape (N, T, J, 2d) to compute S
 
-		expanded_U = U.unsqueeze(2).expand((U.size(0),U.size(1),H.size(1),U.size(2))) # (N, T, J, 2d)
-		expanded_H = H.unsqueeze(1).expand((H.size(0), U.size(1), H.size(1), H.size(2)))  # (N, T, J, 2d)
+		expanded_U = U.unsqueeze(1).expand((U.size(0),H.size(1),U.size(1),U.size(2))) # (N, T, J, 2d)
+		expanded_H = H.unsqueeze(2).expand((H.size(0), H.size(1), U.size(1), H.size(2)))  # (N, T, J, 2d)
 
-		S = (expanded_U * expanded_H).sum(dim=-1)
+		S = (expanded_H * expanded_U).sum(dim=-1)
 
 		#HU = torch.mul(expanded_H, expanded_U) # (N, T, J, 4d)
 		#cat_data = torch.cat((expanded_H, expanded_U, HU), 3) # (N, T, J, 6d)
@@ -67,13 +67,14 @@ class BiDAF(nn.Module):
 		## softmax along J's dimension
 		## (N, T, 2d) = (N, T, J) X (N, J, 2d)
 
+
 		#Query aware context representation.
 		c2q = torch.bmm(self.masked_softmax(S, U_mask), U)
 
 
 		#Context aware query representation
 		## compute ~h and expand to ~H
-		masked_similarity = self.replace_masked_values(c2q,
+		masked_similarity = self.replace_masked_values(S,
 													   U_mask.unsqueeze(1),
 													   -1e7)
 		b = self.masked_softmax(torch.max(masked_similarity, dim=-1)[0].squeeze(-1), H_mask)
@@ -84,7 +85,7 @@ class BiDAF(nn.Module):
 
 		## (N, 1, 2d) => (N, T, 2d)
 		#tiled_q2c = q2c.repeat(1,T,1)
-		tiled_q2c = q2c.unsquueze(1).expand(batch_size, T, q2c.size(-1))
+		tiled_q2c = q2c.unsqueeze(1).expand(batch_size, T, q2c.size(-1))
 
 		## G : concatenate H, ~U, H.~U and H.~H
 		# (N,T,2d): (N,T,2d) : (N,T,2d) => (N,T,6d)

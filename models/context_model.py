@@ -56,6 +56,8 @@ class ContextMRR(nn.Module):
 
 		## BiDAF 1 to get ~U, ~h and G (8d) between context and query
 		# (N, T, 8d) , (N, T ,2d) , (N, 1, 2d)
+		batch_query_mask = batch_query_mask.unsqueeze(0)
+		batch_context_mask = batch_context_mask.unsqueeze(0)
 		context_attention_encoded, query_aware_context_encoded, context_aware_query_encoded = self.attention_flow_layer1(query_encoded, context_encoded,batch_query_mask,batch_context_mask)
 
 		## modelling layer 1
@@ -95,9 +97,9 @@ class ContextMRR(nn.Module):
 		return loss, max_negative_index
 
 
-	def eval(self, batch_query, batch_query_length,
-			 batch_context, batch_context_length,
-			 batch_candidates_sorted, batch_candidate_lengths_sorted, batch_candidate_unsort):
+	def eval(self,batch_query, batch_query_length,batch_query_mask,
+				batch_context, batch_context_length,batch_context_mask,
+			 batch_candidates_sorted, batch_candidate_lengths_sorted,batch_candidate_masks_sorted, batch_candidate_unsort):
 		## Embed query and context
 		# (N, J, d)
 		query_embedded = self.word_embedding_layer(batch_query.unsqueeze(0))
@@ -113,7 +115,7 @@ class ContextMRR(nn.Module):
 		## BiDAF 1 to get ~U, ~h and G (8d) between context and query
 		# (N, T, 8d) , (N, T ,2d) , (N, 1, 2d)
 		context_attention_encoded, query_aware_context_encoded, context_aware_query_encoded = self.attention_flow_layer1(
-			query_encoded, context_encoded)
+			query_encoded, context_encoded,batch_query_mask,batch_context_mask)
 
 		## modelling layer 1
 		# (N, T, 8d) => (N, T, 2d)
@@ -129,12 +131,12 @@ class ContextMRR(nn.Module):
 		batch_candidates_encoded, _ = self.contextual_embedding_layer(batch_candidates_embedded,
 																	  batch_candidate_lengths_sorted)
 		answer_attention_encoded, context_aware_answer_encoded, answer_aware_context_encoded = self.attention_flow_layer2(
-			batch_context_modeled, batch_candidates_encoded)
+			batch_context_modeled, batch_candidates_encoded,batch_context_mask,batch_candidate_masks_sorted)
 
 		## modelling layer 2
 		# (N1, K, 8d) => (N1, K, 2d)
 		answer_modeled, (answer_hidden_state, answer_cell_state) = self.modeling_layer2(answer_attention_encoded,
-																						batch_candidate_lengths_sorted)
+																						batch_candidate_lengths_sorted,)
 
 		## output layer : concatenate hidden dimension of the final answer model layer and run through an MLP : (N1, 2d) => (N1, d)
 		# (N1, 2d) => (N1, 1)
