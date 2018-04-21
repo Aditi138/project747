@@ -101,8 +101,7 @@ def train_epochs(model, vocab):
 	for epoch in range(args.num_epochs):
 
 		print("Creating train batches")
-		#train_batches = create_batches(train_documents, args.batch_length, args.job_size, vocab)
-		train_batches = valid_batches
+		train_batches = create_batches(train_documents, args.batch_length, args.job_size, vocab)
 		print("Starting epoch {}".format(epoch))
 
 		saved = False
@@ -177,6 +176,8 @@ def train_epochs(model, vocab):
 				negative_indices.pop(batch_answer_indices[index])
 				negative_indices = variable(torch.LongTensor(negative_indices))
 
+
+
 				loss, second_best = model(batch_query, batch_query_length,batch_question_mask,
 									batch_context, batch_context_length, batch_context_mask,
 									batch_candidates_sorted, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,
@@ -224,10 +225,10 @@ if __name__ == "__main__":
 	parser.add_argument("--max_documents", type=int, default=0, help="If greater than 0, load at most this many documents")
 
 	# Model parameters
-	parser.add_argument("--hidden_size", type=int, default=15)
-	parser.add_argument("--embed_size", type=int, default=10)
+	parser.add_argument("--hidden_size", type=int, default=128)
+	parser.add_argument("--embed_size", type=int, default=128)
 	parser.add_argument("--cuda", action="store_true", default=True)
-	parser.add_argument("--batch_length", type=int, default=10)
+	parser.add_argument("--batch_length", type=int, default=1)
 	parser.add_argument("--eval_interval", type=int, default=2)
 	parser.add_argument("--learning_rate", type=float, default=0.0001)
 	parser.add_argument("--num_epochs", type=int, default=10)

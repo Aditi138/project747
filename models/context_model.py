@@ -114,6 +114,9 @@ class ContextMRR(nn.Module):
 
 		## BiDAF 1 to get ~U, ~h and G (8d) between context and query
 		# (N, T, 8d) , (N, T ,2d) , (N, 1, 2d)
+		batch_query_mask = batch_query_mask.unsqueeze(0)
+		batch_context_mask = batch_context_mask.unsqueeze(0)
+
 		context_attention_encoded, query_aware_context_encoded, context_aware_query_encoded = self.attention_flow_layer1(
 			query_encoded, context_encoded,batch_query_mask,batch_context_mask)
 
