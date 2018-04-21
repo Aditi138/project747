@@ -13,7 +13,7 @@ except:
 import sys
 import spacy
 from nltk import word_tokenize
-from data import Document, Query, Data_Point
+from data import Document, Query, Data_Point, Span_Data_Point
 from utility import start_tags, end_tags, start_tags_with_attributes, pad_seq, view_data_point
 import random
 import numpy as np
@@ -585,6 +585,72 @@ class DataLoader():
 
         assert(len(ner_tags) == len(pos_tags))
         return ner_tags,pos_tags,tokens
+
+    def is_span(self, sublist, masterlist):
+        lowercased_sublist = [w.lower() for w in sublist]
+        lowercased_masterlist = [w.lower() for w in masterlist]
+        indices = [-1,-1]
+        l = len(lowercased_sublist)
+        L = len(lowercased_masterlist)
+        flag = 0
+        for e, token in enumerate(lowercased_masterlist):
+            if lowercased_sublist[0] == token and e + l <= L:
+                ## check complete sequence
+                flag = 1
+                for i in range(l):
+                    if lowercased_sublist[i] != lowercased_masterlist[e+i]:
+                        flag = 0
+                        break
+                if flag == 1:
+                    indices[0] = e
+                    indices[1] = e + l - 1
+                    ## return first match
+                    return indices
+        return indices
+
+    def load_documents_with_answer_spans(self, path, summary_path=None, max_documents=0):
+        data_points = []
+
+        anonymize_summary = False
+        with open(path, "r") as fin:
+            if max_documents > 0:
+                documents = pickle.load(fin)[:max_documents]
+            else:
+                documents = pickle.load(fin)
+
+        if summary_path is not None:
+            with open(summary_path, "r") as fin:
+                summary_documents = pickle.load(fin)
+            anonymize_summary = True
+            assert len(summary_documents) == len(documents)
+
+        for index,document in enumerate(documents):
+
+            # self.replace_entities(document.entity_dictionary, document.other_dictionary,document.document_tokens)
+            # document.document_tokens = self.vocab.add_and_get_indices(document.document_tokens)
+            # if anonymize_summary:
+            #     self.replace_entities(document.entity_dictionary, document.other_dictionary, summary_documents[index].document_tokens)
+            document_tokens = self.vocab.add_and_get_indices(document.document_tokens)
+
+            answers_per_doc = []
+            # candidate_per_doc_per_answer_ner = []
+            # candidate_per_doc_per_answer_pos = []
+            i = 0
+            while i < len(document.candidates):
+                answers_per_doc.append(document.candidates[i])
+                # candidate_per_doc_per_answer_ner.append(document.ner_candidates[i])
+                # candidate_per_doc_per_answer_pos.append(document.pos_candidates[i])
+                i+=2
+
+            for idx,query in enumerate(document.queries):
+                query.question_tokens = self.vocab.add_and_get_indices(query.question_tokens)
+                ## if answer is an exact span of the context, add span indices
+                span_indices = self.is_span(answers_per_doc[idx], document.document_tokens)
+                answer_tokens = self.vocab.add_and_get_indices(answers_per_doc[idx])
+                if span_indices[0] != -1 and span_indices[1] != -1:
+                    data_points.append(Span_Data_Point(query.question_tokens, document_tokens, span_indices, answer_tokens))
+
+        return data_points
 
     def load_documents(self, path, summary_path=None, max_documents=0):
         data_points = []
