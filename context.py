@@ -136,7 +136,7 @@ def train_epochs(model, vocab):
 				# query tokens
 				batch_query = variable(torch.LongTensor(query))
 				batch_query_length = np.array([batch['qlengths'][index]])
-				batch_question_mask = np.array([batch['q_mask'][index]])
+				batch_question_mask = variable(torch.LongTensor([batch['q_mask'][index]]))
 
 				# batch_query_ner = variable(torch.LongTensor(batch['q_ner'][index]))
 				# batch_query_pos = variable(torch.LongTensor(batch['q_pos'][index]))
