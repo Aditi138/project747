@@ -37,8 +37,8 @@ class Performance():
 		self.meteor = 0.0
 		self.sum_bleu1 += self.bleu1
 		self.sum_bleu4 += self.bleu4
-		self.sum_rouge += self.rouge
-		self.sum_meteor += self.meteor
+		#self.sum_rouge += self.rouge
+		#self.sum_meteor += self.meteor
 		self.examples += 1
 
 

@@ -37,9 +37,9 @@ class ContextMRR(nn.Module):
 		self.output_layer = OutputLayer(output_layer_inputdim, hidden_size)
 
 
-	def forward(self, batch_query, batch_query_length,
-				batch_context, batch_context_length,
-				batch_candidates_sorted, batch_candidate_lengths_sorted, batch_candidate_unsort,
+	def forward(self, batch_query, batch_query_length,batch_query_mask,
+				batch_context, batch_context_length,batch_context_mask,
+				batch_candidates_sorted, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,batch_candidate_unsort,
 				gold_index, negative_indices, batch_metrics):
 
 		## Embed query and context
@@ -56,7 +56,7 @@ class ContextMRR(nn.Module):
 
 		## BiDAF 1 to get ~U, ~h and G (8d) between context and query
 		# (N, T, 8d) , (N, T ,2d) , (N, 1, 2d)
-		context_attention_encoded, query_aware_context_encoded, context_aware_query_encoded = self.attention_flow_layer1(query_encoded, context_encoded)
+		context_attention_encoded, query_aware_context_encoded, context_aware_query_encoded = self.attention_flow_layer1(query_encoded, context_encoded,batch_query_mask,batch_context_mask)
 
 		## modelling layer 1
 		# (N, T, 8d) => (N, T, 2d)
@@ -70,7 +70,7 @@ class ContextMRR(nn.Module):
 		batch_candidates_embedded = self.word_embedding_layer(batch_candidates_sorted)
 		# (N1, K, 2d)
 		batch_candidates_encoded,_ = self.contextual_embedding_layer(batch_candidates_embedded, batch_candidate_lengths_sorted)
-		answer_attention_encoded, context_aware_answer_encoded, answer_aware_context_encoded = self.attention_flow_layer2(batch_context_modeled, batch_candidates_encoded)
+		answer_attention_encoded, context_aware_answer_encoded, answer_aware_context_encoded = self.attention_flow_layer2(batch_context_modeled, batch_candidates_encoded, batch_context_mask,batch_candidate_masks_sorted)
 
 		## modelling layer 2
 		# (N1, K, 8d) => (N1, K, 2d)
@@ -86,11 +86,12 @@ class ContextMRR(nn.Module):
 		gold_features = torch.index_select(answer_scores_unsorted, 0, index=gold_index)
 		negative_features = torch.index_select(answer_scores_unsorted, 0, index=negative_indices)
 
-		negative_metrics = torch.index_select(batch_metrics, 0, index=negative_indices)
-		negative_features = negative_features + negative_metrics.unsqueeze(1)
+		#negative_metrics = torch.index_select(batch_metrics, 0, index=negative_indices)
+		#negative_features = negative_features + negative_metrics.unsqueeze(1)
 		max_negative_feature, max_negative_index = torch.max(negative_features, 0)
 
-		loss = max_negative_feature - gold_features
+		#HingeLoss
+		loss = torch.clamp(1 - gold_features + max_negative_feature, 0)
 		return loss, max_negative_index
 
 

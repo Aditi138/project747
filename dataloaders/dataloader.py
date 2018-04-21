@@ -75,6 +75,8 @@ def create_single_batch(batch_data):
 
     batch_query_lengths = np.array([len(data_point.question_tokens) for data_point in batch_data])
     maximum_query_length = max(batch_query_lengths)
+    query_length_mask = np.array([[int(x < batch_query_lengths[i])
+                                   for x in range(maximum_query_length)] for i in range(len(batch_data))])
 
     queries = np.array([pad_seq(data_point.question_tokens, maximum_query_length)
                         for data_point in batch_data])
@@ -82,6 +84,10 @@ def create_single_batch(batch_data):
     batch_context_lengths = np.array([len(data_point.context_tokens) for data_point in batch_data])
     maximum_context_length = max(batch_context_lengths)
     contexts = np.array([pad_seq(data_point.context_tokens, maximum_context_length) for data_point in batch_data])
+    batch_context_mask = np.array([[int(x < batch_context_lengths[i])
+                                   for x in range(maximum_context_length)] for i in range(len(batch_data))])
+
+
 
     queries_ner = np.array([pad_seq(data_point.ner_for_question, maximum_query_length)
                         for data_point in batch_data])
@@ -89,12 +95,14 @@ def create_single_batch(batch_data):
     queries_pos = np.array([pad_seq(data_point.pos_for_question, maximum_query_length)
                             for data_point in batch_data])
 
+
     candidate_information = {}
     batch_candidate_answers_padded = []
     batch_candidate_answer_lengths = []
     batch_answer_indices = []
     batch_candidates_ner = []
     batch_candidates_pos = []
+    batch_candidate_answer_length_mask = []
     batch_metrics = np.array([data_point.metrics for data_point in batch_data])
 
     for index, data_point in enumerate(batch_data):
@@ -108,11 +116,15 @@ def create_single_batch(batch_data):
         candidate_padded_answers = np.array([pad_seq(answer, max_candidate_length) for answer in candidates])
         candidate_padded_answers_ner = np.array([pad_seq(answer, max_candidate_length) for answer in candidates_ner])
         candidate_padded_answers_pos = np.array([pad_seq(answer, max_candidate_length) for answer in candidates_pos])
+        candidate_answer_length_mask = np.array([[int(x < candidate_answer_lengths[i])
+                                                  for x in range(max_candidate_length)] for i in
+                                                 range(len(candidates))])
 
         batch_candidate_answers_padded.append(candidate_padded_answers)
         batch_candidate_answer_lengths.append(candidate_answer_lengths)
         batch_candidates_ner.append(candidate_padded_answers_ner)
         batch_candidates_pos.append(candidate_padded_answers_pos)
+        batch_candidate_answer_length_mask.append(candidate_answer_length_mask)
 
         batch_answer_indices.append(data_point.answer_indices[0])
 
@@ -120,11 +132,14 @@ def create_single_batch(batch_data):
     candidate_information["anslengths"] = batch_candidate_answer_lengths
     candidate_information["ner"] = batch_candidates_ner
     candidate_information["pos"] = batch_candidates_pos
+    candidate_information["mask"] = batch_candidate_answer_length_mask
 
     batch = {}
     batch['queries'] = queries
     batch['contexts'] = contexts
+    batch['context_mask'] = batch_context_mask
     batch['q_ner'] = queries_ner
+    batch['q_mask'] = query_length_mask
     batch['q_pos'] = queries_pos
     batch['answer_indices'] = batch_answer_indices
     batch['qlengths'] = batch_query_lengths

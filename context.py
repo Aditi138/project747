@@ -90,8 +90,6 @@ def train_epochs(model, vocab):
 	patience = 30
 
 	valid_batches = create_batches(valid_documents, args.batch_length, args.job_size, vocab)[:200]
-	train_batches = create_batches(train_documents, args.batch_length, args.job_size, vocab)
-	# train_batch_for_validation = get_random_batch_from_training(train_batches, args.batch_length)
 	test_batches = create_batches(test_documents,args.batch_length,args.job_size, vocab)
 
 	for epoch in range(args.num_epochs):
@@ -138,16 +136,21 @@ def train_epochs(model, vocab):
 				# query tokens
 				batch_query = variable(torch.LongTensor(query))
 				batch_query_length = np.array([batch['qlengths'][index]])
+				batch_question_mask = np.array([batch['q_mask'][index]])
+
 				# batch_query_ner = variable(torch.LongTensor(batch['q_ner'][index]))
 				# batch_query_pos = variable(torch.LongTensor(batch['q_pos'][index]))
 
 				# Sort the candidates by length (only required if using an RNN)
 				batch_candidate_lengths = np.array(batch_candidates["anslengths"][index])
+				batch_candidate_mask = np.array(batch_candidates['mask'][index])
 				candidate_sort = np.argsort(batch_candidate_lengths)[::-1].copy()
+
 				batch_candidates_sorted = variable(
 					torch.LongTensor(batch_candidates["answers"][index][candidate_sort, ...]))
 				batch_candidate_lengths_sorted = batch_candidate_lengths[candidate_sort]
 				batch_candidate_unsort = variable(torch.LongTensor(np.argsort(candidate_sort)))
+				batch_candidate_masks_sorted = variable(torch.LongTensor(batch_candidate_mask[candidate_sort]))
 
 				# batch_candidate_ner_sorted = variable(
 				# 	torch.LongTensor(batch_candidates['ner'][index][candidate_sort, ...]))
@@ -161,15 +164,17 @@ def train_epochs(model, vocab):
 				# context tokens
 				batch_context = variable(torch.LongTensor(batch['contexts'][index]))
 				batch_context_length = np.array([batch['clengths'][index]])
+				batch_context_mask = np.array([batch['context_mask'][index]])
 
 				gold_index = variable(torch.LongTensor([batch_answer_indices[index]]))
 				negative_indices = [idx for idx in range(batch_len)]
 				negative_indices.pop(batch_answer_indices[index])
 				negative_indices = variable(torch.LongTensor(negative_indices))
 
-				loss, second_best = model(batch_query, batch_query_length,
-									batch_context, batch_context_length,
-									batch_candidates_sorted, batch_candidate_lengths_sorted, batch_candidate_unsort,
+				loss, second_best = model(batch_query, batch_query_length,batch_question_mask,
+									batch_context, batch_context_length, batch_context_mask,
+									batch_candidates_sorted, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,
+										  batch_candidate_unsort,
 									gold_index, negative_indices, batch_metrics
 									)
 
