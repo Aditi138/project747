@@ -10,6 +10,7 @@ from dataloaders.utility import variable, view_data_point
 import numpy as np
 from time import time
 import random
+import cProfile
 
 
 def get_random_batch_from_training(batches, num):
@@ -210,6 +211,7 @@ if __name__ == "__main__":
 	parser.add_argument("--model_path", type=str, default=None)
 	parser.add_argument("--job_size", type=int, default=5)
 	parser.add_argument("--pretrain_path", type=str, default=None, help="Path to the pre-trained word embeddings")
+	parser.add_argument("--max_documents", type=int, default=0, help="If greater than 0, load at most this many documents")
 
 	# Model parameters
 	parser.add_argument("--hidden_size", type=int, default=100)
@@ -225,6 +227,7 @@ if __name__ == "__main__":
 	parser.add_argument("--pos_dim", type=int, default=32)
 
 	parser.add_argument("--meteor_path", type=str, default=10)
+	parser.add_argument("--profile", action="store_true")
 
 	args = parser.parse_args()
 
@@ -238,9 +241,9 @@ if __name__ == "__main__":
 	loader = DataLoader(args)
 
 	start = time()
-	train_documents = loader.load_documents(args.train_path, summary_path=args.summary_path)
-	valid_documents = loader.load_documents(args.valid_path, summary_path=None)
-	test_documents = loader.load_documents(args.test_path, summary_path=None)
+	train_documents = loader.load_documents(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
+	valid_documents = loader.load_documents(args.valid_path, summary_path=None, max_documents=args.max_documents)
+	test_documents = loader.load_documents(args.test_path, summary_path=None, max_documents=args.max_documents)
 
 	end = time()
 	print(end - start)
@@ -250,4 +253,5 @@ if __name__ == "__main__":
 	if args.use_cuda:
 		model = model.cuda()
 
+	
 	train_epochs(model, loader.vocab)
