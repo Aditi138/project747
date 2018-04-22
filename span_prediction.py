@@ -53,7 +53,7 @@ def evaluate(model, batches):
 		start_correct, end_correct, span_correct = model.eval(batch_query, batch_query_length, batch_question_mask,
 															   batch_context, batch_context_length, batch_context_mask,
 															   batch_start_indices, batch_end_indices)
-
+		count += batch_size
 		all_start_correct += start_correct
 		all_end_correct += end_correct
 		all_span_correct += span_correct

@@ -417,8 +417,7 @@ class Accuracy:
 
 		# Some sanity checks.
 		num_classes = predictions.size(-1)
-		print(gold_labels.dim())
-		print(predictions.dim())
+
 
 		if gold_labels.dim() != predictions.dim() - 1:
 			raise Exception("gold_labels must have dimension == predictions.size() - 1 but "

@@ -110,7 +110,7 @@ def create_single_batch(batch_data):
 
     batch['qlengths'] = batch_query_lengths
     batch['clengths'] = batch_context_lengths
-   
+
 
 
     return batch
