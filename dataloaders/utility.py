@@ -40,3 +40,7 @@ def pad_elmo(batch):
 def view_data_point(data_point, vocab):
     print(" ".join([vocab.get_word(id) for id in data_point.question_tokens]))
     print(" ".join([vocab.get_word(id) for id in data_point.candidates[data_point.answer_indices[0]]]))
+
+def get_trainable_parameters(model):
+    parameters = ifilter(lambda p: p.requires_grad, model.parameters())
+    return parameters
