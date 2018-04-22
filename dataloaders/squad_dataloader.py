@@ -1,19 +1,140 @@
 import json
 import os
+from nltk.tokenize import word_tokenize
+from data import Span_Data_Point
+from nltk.stem import PorterStemmer as NltkPorterStemmer
+from collections import Counter, defaultdict
 import spacy
+import pickle
+import argparse
 
 class SquadDataloader():
 	def __init__(self, args):
-		pass
+		self.stemmer = NltkPorterStemmer()
+		self.nlp =  spacy.load('en')
 
-	def load_documents(self, path, summary_path=None, max_documents=0):
-		self.squad = json.load(path)['data']
-		for article in self.squad:
-			for paragraph in article['paragraphs']:
-				# each question is an example
-				for qa in paragraph['qas']:
-					question = qa['question']
-					answers = (a['text'] for a in qa['answers'])
-					context = paragraph['context']
+	def tokenize(self, text):
+		# tokens = [self.stemmer.stem(token) for token in word_tokenize(text.lower())]
+		return [t for t in self.nlp(text) if not t.is_space]
+
+	def char_span_to_token_span(self, token_offsets, character_span):
+		"""
+		Converts a character span from a passage into the corresponding token span in the tokenized
+		version of the passage.  If you pass in a character span that does not correspond to complete
+		tokens in the tokenized version, we'll do our best, but the behavior is officially undefined.
+		We return an error flag in this case, and have some debug logging so you can figure out the
+		cause of this issue (in SQuAD, these are mostly either tokenization problems or annotation
+		problems; there's a fair amount of both).
+		The basic outline of this method is to find the token span that has the same offsets as the
+		input character span.  If the tokenizer tokenized the passage correctly and has matching
+		offsets, this is easy.  We try to be a little smart about cases where they don't match exactly,
+		but mostly just find the closest thing we can.
+		The returned ``(begin, end)`` indices are `inclusive` for both ``begin`` and ``end``.
+		So, for example, ``(2, 2)`` is the one word span beginning at token index 2, ``(3, 4)`` is the
+		two-word span beginning at token index 3, and so on.
+		Returns
+		-------
+		token_span : ``Tuple[int, int]``
+			`Inclusive` span start and end token indices that match as closely as possible to the input
+			character spans.
+		error : ``bool``
+			Whether the token spans match the input character spans exactly.  If this is ``False``, it
+			means there was an error in either the tokenization or the annotated character span.
+		"""
+		# We have token offsets into the passage from the tokenizer; we _should_ be able to just find
+		# the tokens that have the same offsets as our span.
+		error = False
+		start_index = 0
+		while start_index < len(token_offsets) and token_offsets[start_index][0] < character_span[0]:
+			start_index += 1
+		# start_index should now be pointing at the span start index.
+		if token_offsets[start_index][0] > character_span[0]:
+			# In this case, a tokenization or labeling issue made us go too far - the character span
+			# we're looking for actually starts in the previous token.  We'll back up one.
+			pass
+			# print("Bad labelling or tokenization - start offset doesn't match")
+			start_index -= 1
+		if token_offsets[start_index][0] != character_span[0]:
+			error = True
+		end_index = start_index
+		while end_index < len(token_offsets) and token_offsets[end_index][1] < character_span[1]:
+			end_index += 1
+		if end_index == start_index and token_offsets[end_index][1] > character_span[1]:
+			# Looks like there was a token that should have been split, like "1854-1855", where the
+			# answer is "1854".  We can't do much in this case, except keep the answer as the whole
+			# token.
+			pass
+			# print("Bad tokenization - end offset doesn't match")
+		elif token_offsets[end_index][1] > character_span[1]:
+			# This is a case where the given answer span is more than one token, and the last token is
+			# cut off for some reason, like "split with Luckett and Rober", when the original passage
+			# said "split with Luckett and Roberson".  In this case, we'll just keep the end index
+			# where it is, and assume the intent was to mark the whole token.
+			pass
+			# print("Bad labelling or tokenization - end offset doesn't match")
+		if token_offsets[end_index][1] != character_span[1]:
+			error = True
+		return (start_index, end_index), error
+
+	def load_docuements(self, path, summary_path=None, max_documents=0):
+		with open(path, "r") as fin:
+			if max_documents > 0:
+				data_points = pickle.load(fin)[:max_documents]
+			else:
+				data_points = pickle.load(fin)
+		return data_points
+
+	def pickle_data(self, path, output_path):
+		data_points = []
+
+		with open(path) as data_file:
+			dataset = json.load(data_file)['data']
+		article_count = 1
+		for article in dataset:
+			print(article_count)
+			article_count += 1
+			for paragraph_json in article['paragraphs']:
+				paragraph = paragraph_json["context"]
+				tokenized_paragraph = self.tokenize(paragraph)
+
+				for question_answer in paragraph_json['qas']:
+					question_text = question_answer["question"].strip().replace("\n", "")
+					question_tokens = self.tokenize(question_text)
+					answer_texts = [answer['text'] for answer in question_answer['answers']]
+					span_starts = [answer['answer_start'] for answer in question_answer['answers']]
+					span_ends = [start + len(answer) for start, answer in zip(span_starts, answer_texts)]
+					token_spans = []
+					passage_offsets = [(token.idx, token.idx + len(token.text)) for token in tokenized_paragraph]
+					char_spans = zip(span_starts, span_ends)
+					for char_span_start, char_span_end in char_spans:
+						(span_start, span_end), error = self.char_span_to_token_span(passage_offsets,
+																					 (char_span_start, char_span_end))
+						## not logging errors
+						token_spans.append((span_start, span_end))
+					candidate_answers = Counter()
+					for span_start, span_end in token_spans:
+						candidate_answers[(span_start, span_end)] += 1
+					span_start, span_end = candidate_answers.most_common(1)[0][0]
+
+					## convert into normal format
+					question_tokens = [token.text for token in question_tokens]
+					copy_tokenized_paragraph = [token.text for token in tokenized_paragraph]
+					data_points.append(
+						Span_Data_Point(question_tokens, copy_tokenized_paragraph, [span_start, span_end]))
+		with open(output_path, "wb") as fout:
+			pickle.dump(data_points, fout)
 
 
+if __name__ == '__main__':
+	parser = argparse.ArgumentParser()
+
+	parser.add_argument("--train_path", type=str, default="../../squad/train-v1.1.json")
+	parser.add_argument("--train_output_path", type=str, default="../../squad/train-v1.1.pickle")
+	parser.add_argument("--valid_path", type=str, default="../../squad/dev-v1.1.json")
+	parser.add_argument("--valid_output_path", type=str, default="../../squad/dev-v1.1.pickle")
+	parser.add_argument("--test_path", type=str, default=None)
+	args = parser.parse_args()
+
+	squad_dataloader = SquadDataloader(args)
+	squad_dataloader.pickle_data(args.train_path, args.train_output_path)
+	squad_dataloader.pickle_data(args.valid_path, args.valid_output_path)
