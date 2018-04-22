@@ -93,10 +93,6 @@ def create_single_batch(batch_data):
     batch_context_mask = np.array([[int(x < batch_context_lengths[i])
                                    for x in range(maximum_context_length)] for i in range(len(batch_data))])
 
-    batch_answer_lengths = np.array([len(data_point.answer_tokens) for data_point in batch_data])
-    maximum_answer_length = max(batch_answer_lengths)
-    answer_tokens = np.array([pad_seq(data_point.answer_tokens, maximum_answer_length)
-                        for data_point in batch_data])
 
     start_span_indices = [data_point.span_indices[0] for data_point in batch_data]
     end_span_indices = [data_point.span_indices[1] for data_point in batch_data]
@@ -114,7 +110,7 @@ def create_single_batch(batch_data):
 
     batch['qlengths'] = batch_query_lengths
     batch['clengths'] = batch_context_lengths
-    batch["answers"] = answer_tokens
+
 
 
     return batch
