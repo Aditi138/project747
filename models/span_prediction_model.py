@@ -115,6 +115,10 @@ class ContextMRR(nn.Module):
 		self._span_end_accuracy = Accuracy()
 		self._span_accuracy = BooleanAccuracy()
 
+		self._span_start_accuracy_valid = Accuracy()
+		self._span_end_accuracy_valid = Accuracy()
+		self._span_accuracy_valid = BooleanAccuracy()
+
 
 	def forward(self, batch_query, batch_query_length,batch_query_mask,
 				      batch_context, batch_context_length, batch_context_mask,
@@ -312,10 +316,10 @@ class ContextMRR(nn.Module):
 		# Compute the loss for training.
 		if span_start is not None:
 
-			self._span_start_accuracy.accuracy(span_start_logits, span_start.squeeze(-1))
-			self._span_end_accuracy.accuracy(span_end_logits, span_end.squeeze(-1))
-			self._span_accuracy.accuracy(best_span, torch.stack([span_start, span_end], -1))
-			return self._span_start_accuracy.correct_count, self._span_end_accuracy.correct_count, self._span_accuracy._correct_count
+			self._span_start_accuracy_valid.accuracy(span_start_logits, span_start.squeeze(-1))
+			self._span_end_accuracy_valid.accuracy(span_end_logits, span_end.squeeze(-1))
+			self._span_accuracy_valid.accuracy(best_span, torch.stack([span_start, span_end], -1))
+			return self._span_start_accuracy_valid.correct_count, self._span_end_accuracy_valid.correct_count, self._span_accuracy_valid._correct_count
 
 
 
