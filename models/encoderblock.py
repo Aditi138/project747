@@ -22,8 +22,8 @@ class PositionEncoding(nn.Module):
         self.position_encoding.weight.data = position_weights
         self.position_encoding.weight.requires_grad = False
 
-    def forward(self, input_batch):
-        output = self.position_encoding(input_batch)
+    def forward(self, batch_positions):
+        output = self.position_encoding(batch_positions)
         return output
 
 class LayerNormalization(nn.Module):
@@ -63,15 +63,15 @@ class ScaledDotProductAttention(nn.Module):
     def __init__(self, input_dim):
         super(ScaledDotProductAttention, self).__init__()
         self.temper = np.power(input_dim, 0.5)
-        self.softmax = nn.Softmax
+        self.softmax = nn.Softmax()
+        self.one_scalar = nn.Parameter(torch.ones(1))
 
-    def forward(self, queries, keys, values, attn_mask=None):
+    def forward(self, queries, keys, values, mask):
 
         attn = torch.bmm(queries, keys.transpose(1, 2)) / self.temper
 
-        if attn_mask is not None:
-            attn.data.masked_fill_(attn_mask, -float('inf'))
-
+        inverted_mask = - mask + self.one_scalar
+        attn.data.masked_fill_(inverted_mask, -float('inf'))
         attn = self.softmax(attn)
         output = torch.bmm(attn, values)
 
@@ -148,13 +148,13 @@ class EncoderBlock(nn.Module):
         self.convolution_layers = nn.ModuleList([SeparableConvolution(input_dim, kernel_size) for _ in range(n_conv)])
         self.attention_layer = SelfAttention(attention_heads, input_dim)
 
-    def forward(self, input):
-        pos_encoded = self.position_encoding(input)
+    def forward(self, input_batch, input_positions, mask):
+        pos_encoded = self.position_encoding(input_positions)
         conv_output = pos_encoded
         for convolution_layer in self.convolution_layers:
-            conv_output = convolution_layer(conv_output)
+            conv_output = convolution_layer(conv_output, mask)
         
-        attended_output = self.attention_layer(conv_output)
+        attended_output = self.attention_layer(conv_output, mask)
         output = self.feedforward_layer(attended_output)
 
         return output
