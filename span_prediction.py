@@ -54,9 +54,10 @@ def evaluate(model, batches):
 															   batch_context, batch_context_length, batch_context_mask,
 															   batch_start_indices, batch_end_indices)
 
-		all_start_correct += start_correct
-		all_end_correct += end_correct
-		all_span_correct += span_correct
+		all_start_correct = start_correct
+		all_end_correct = end_correct
+		all_span_correct = span_correct
+		count += batch_size
 
 	all_start_correct = (all_start_correct * 1.0)/ count
 	all_end_correct = (all_end_correct * 1.0) / count
@@ -100,6 +101,10 @@ def train_epochs(model, vocab):
 					validation_history.append(span)
 
 					if (iteration + 1) % (eval_interval * 5) == 0:
+						print("Train Accuracy: start_index = {0}, end_index = {1}, span = {2}".format(
+							all_start_correct * 1.0 / train_denom, all_end_correct * 1.0 / train_denom,
+							all_span_correct * 1.0 / train_denom))
+						print("Validation Accuracy: Start:{0} End:{1} Span:{2}".format(start, end, span))
 						if span >= max(validation_history):
 							saved = True
 							print("Saving best model seen so far itr number {0}".format(iteration))
@@ -137,9 +142,9 @@ def train_epochs(model, vocab):
 				      batch_context, batch_context_length, batch_context_mask,
 						 batch_start_indices, batch_end_indices)
 
-			all_start_correct += start_correct
-			all_end_correct += end_correct
-			all_span_correct += span_correct
+			all_start_correct = start_correct
+			all_end_correct = end_correct
+			all_span_correct = span_correct
 			
 			loss = loss / batch_size
 			loss.backward()
@@ -157,7 +162,7 @@ def train_epochs(model, vocab):
 			print("Saving model after epoch {0}".format(epoch))
 			torch.save(model, args.model_path + ".dummy")
 
-		print("Train Accuracy: start_index = {0}, end_index = {1}, span = {2}".format(all_start_correct*1.0 / train_denom, all_end_correct*1.0 / train_denom, all_span_correct*1.0 / train_denom))
+
 
 	print("All epochs done")
 
