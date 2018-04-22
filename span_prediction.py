@@ -2,6 +2,7 @@ import argparse
 import sys
 
 from dataloaders.dataloader import DataLoader, create_batches, view_batch, make_bucket_batches
+from dataloaders.squad_dataloader import SquadDataloader
 from models.span_prediction_model import ContextMRR
 
 import torch
@@ -202,12 +203,12 @@ if __name__ == "__main__":
 	else:
 		vars(args)['use_cuda'] = False
 
-	loader = DataLoader(args)
+	loader = SquadDataloader(args)
 
 	start = time()
-	train_documents = loader.load_documents_with_answer_spans(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
-	valid_documents = loader.load_documents_with_answer_spans(args.valid_path, summary_path=None, max_documents=args.max_documents)
-	test_documents = loader.load_documents_with_answer_spans(args.test_path, summary_path=None, max_documents=args.max_documents)
+	train_documents = loader.load_docuements(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
+	valid_documents = loader.load_docuements(args.valid_path, summary_path=None, max_documents=args.max_documents)
+
 
 	end = time()
 	print(end - start)
