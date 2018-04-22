@@ -1,17 +1,19 @@
 import json
 import os
 from nltk.tokenize import word_tokenize
-from data import Span_Data_Point, Data_Point
+from data import Data_Point
 from nltk.stem import PorterStemmer as NltkPorterStemmer
 from collections import Counter, defaultdict
 import spacy
 import pickle
 import argparse
 import random
+from test_metrics import Performance
 
 class SquadDataloader():
 	def __init__(self, args):
 		self.vocab = Vocabulary()
+		self.performance = Performance(args)
 		self.stemmer = NltkPorterStemmer()
 		self.nlp =  spacy.load('en')
 
@@ -116,11 +118,12 @@ class SquadDataloader():
 				candidate_per_question.append(data_point.context_tokens[start_index:start_index + correct_answer_length])
 				anonymized_candidates_per_question.append(c_tokens[start_index:start_index + correct_answer_length])
 			## correct answer:
-			candidate_per_question = correct_answer + candidate_per_question
+			candidate_per_question = [correct_answer] + candidate_per_question
+			anonymized_candidates_per_question = [anonymized_correct_answer] + anonymized_candidates_per_question
 			metrics = []
 
 			for candidate in candidate_per_question:
-				self.performance.computeMetrics(candidate, correct_answer)
+				self.performance.computeMetrics(candidate, [correct_answer])
 				metrics.append(1.0-self.performance.bleu1)
 
 			final_data_points.append(Data_Point(q_tokens, [0], anonymized_candidates_per_question, metrics, [], [], [], [] ,c_tokens))

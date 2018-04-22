@@ -2,6 +2,7 @@ import argparse
 import sys
 
 from dataloaders.dataloader import DataLoader, create_batches, view_batch
+from dataloaders.squad_dataloader import SquadDataloader
 from models.context_model import ContextMRR
 
 import torch
@@ -115,7 +116,9 @@ def train_epochs(model, vocab):
 					average_rr = evaluate(model, valid_batches)
 					validation_history.append(average_rr)
 
+
 					if (iteration + 1) % (eval_interval * 5) == 0:
+						print("Validation MRR:{0}".format(average_rr))
 						if average_rr >= max(validation_history):
 							saved = True
 							print("Saving best model seen so far itr number {0}".format(iteration))
@@ -239,6 +242,7 @@ if __name__ == "__main__":
 
 	parser.add_argument("--meteor_path", type=str, default=10)
 	parser.add_argument("--profile", action="store_true")
+	parser.add_argument("--squad", action="store_true")
 
 	args = parser.parse_args()
 
@@ -249,12 +253,22 @@ if __name__ == "__main__":
 	else:
 		vars(args)['use_cuda'] = False
 
-	loader = DataLoader(args)
 
 	start = time()
-	train_documents = loader.load_documents(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
-	valid_documents = loader.load_documents(args.valid_path, summary_path=None, max_documents=args.max_documents)
-	test_documents = loader.load_documents(args.test_path, summary_path=None, max_documents=args.max_documents)
+	if args.squad:
+		loader = SquadDataloader(args)
+		train_documents = loader.load_documents_with_candidates(args.train_path)
+		valid_documents = loader.load_documents_with_candidates(args.valid_path)
+		test_documents = loader.load_documents_with_candidates(args.valid_path)
+	else:
+		loader = DataLoader(args)
+		train_documents = loader.load_documents(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
+		valid_documents = loader.load_documents(args.valid_path, summary_path=None, max_documents=args.max_documents)
+		test_documents = loader.load_documents(args.test_path, summary_path=None, max_documents=args.max_documents)
+
+	end = time()
+	print(end - start)
+
 
 	end = time()
 	print(end - start)
