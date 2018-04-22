@@ -459,7 +459,7 @@ class Accuracy:
 		self.total_count = 0.0
 
 class BooleanAccuracy():
-    """
+	"""
     Just checks batch-equality of two tensors and computes an accuracy metric based on that.  This
     is similar to :class:`CategoricalAccuracy`, if you've already done a ``.max()`` on your
     predictions.  If you have categorical output, though, you should typically just use
@@ -467,9 +467,9 @@ class BooleanAccuracy():
     some kind of constrained inference and don't have a prediction tensor that matches the API of
     :class:`CategoricalAccuracy`, which assumes a final dimension of size ``num_classes``.
     """
-    def __init__(self):
-        self._correct_count = 0.
-        self._total_count = 0.
+	def __init__(self):
+		self._correct_count = 0.
+		self._total_count = 0.
 		
 	def unwrap_to_tensors(*tensors):
 		"""
@@ -480,10 +480,10 @@ class BooleanAccuracy():
 	    """
 		return (x.data.cpu() if isinstance(x, torch.autograd.Variable) else x for x in tensors)
 		
-    def accuracy(self,
+	def accuracy(self,
                  predictions,
                  gold_labels):
-        """
+		"""
         Parameters
         ----------
         predictions : ``torch.Tensor``, required.
@@ -492,33 +492,25 @@ class BooleanAccuracy():
             A tensor of the same shape as ``predictions``.
         mask: ``torch.Tensor``, optional (default = None).
             A tensor of the same shape as ``predictions``.
-        """
-        # Get the data from the Variables.
-        _,predictions, gold_labels = self.unwrap_to_tensors(predictions, gold_labels)
-
-
-        batch_size = predictions.size(0)
-        predictions = predictions.view(batch_size, -1)
-        gold_labels = gold_labels.view(batch_size, -1)
+        """	
+		# Get the data from the Variables.
+		_,predictions, gold_labels = self.unwrap_to_tensors(predictions, gold_labels)
+		batch_size = predictions.size(0)
+		predictions = predictions.view(batch_size, -1)
+		gold_labels = gold_labels.view(batch_size, -1)
 
         # The .prod() here is functioning as a logical and.
-        correct = predictions.eq(gold_labels).prod(dim=1).float()
-        count = torch.ones(gold_labels.size(0))
-        self._correct_count += correct.sum()
-        self._total_count += count.sum()
+		correct = predictions.eq(gold_labels).prod(dim=1).float()
+		count = torch.ones(gold_labels.size(0))
+		self._correct_count += correct.sum()
+		self._total_count += count.sum()
 
-    def get_metric(self, reset= False):
-        """
-        Returns
-        -------
-        The accumulated accuracy.
-        """
-        accuracy = float(self._correct_count) / float(self._total_count)
-        if reset:
-            self.reset()
-        return accuracy
+	def get_metric(self, reset= False):
+		accuracy = float(self._correct_count) / float(self._total_count)
+		if reset:
+			self.reset()
+		return accuracy
 
-
-    def reset(self):
-        self._correct_count = 0.0
-        self._total_count = 0.0
+	def reset(self):
+		self._correct_count = 0.0
+		self._total_count = 0.0
