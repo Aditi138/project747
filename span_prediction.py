@@ -3,7 +3,7 @@ import sys
 
 from dataloaders.dataloader import create_batches, view_batch, make_bucket_batches
 from dataloaders.squad_dataloader import SquadDataloader
-from models.span_prediction_model import ContextMRR
+from models.span_prediction_model import ContextMRR, Accuracy, BooleanAccuracy
 
 import torch
 from torch import optim
@@ -29,6 +29,10 @@ def evaluate(model, batches):
 	count = 0.0
 
 	model.train(False)
+
+	model._span_start_accuracy_valis = Accuracy()
+	model._span_end_accuracy_valid = Accuracy()
+	model._span_accuracy_valid = BooleanAccuracy()
 
 	for iteration in range(len(batches)):
 
@@ -88,6 +92,10 @@ def train_epochs(model, vocab):
 		print("Creating train batches")
 		train_batches = make_bucket_batches(train_documents, args.batch_length, vocab)
 		print("Starting epoch {}".format(epoch))
+
+		model._span_start_accuracy = Accuracy()
+		model._span_end_accuracy = Accuracy()
+		model._span_accuracy = BooleanAccuracy()
 
 		saved = False
 		for iteration in range(len(train_batches)):
