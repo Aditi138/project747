@@ -79,7 +79,7 @@ class SquadDataloader():
 
 	def load_docuements(self, path, summary_path=None, max_documents=0):
 		final_data_points = []
-		with open(path, "r") as fin:
+		with open(path, "rb") as fin:
 			if max_documents > 0:
 				data_points = pickle.load(fin)[:max_documents]
 			else:

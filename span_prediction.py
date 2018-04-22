@@ -1,7 +1,7 @@
 import argparse
 import sys
 
-from dataloaders.dataloader import DataLoader, create_batches, view_batch, make_bucket_batches
+from dataloaders.dataloader import create_batches, view_batch, make_bucket_batches
 from dataloaders.squad_dataloader import SquadDataloader
 from models.span_prediction_model import ContextMRR
 
