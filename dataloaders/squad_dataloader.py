@@ -112,9 +112,10 @@ class SquadDataloader():
 			context_length = len(c_tokens)
 			for i in range(19):
 				## random span of same length as answer, but not correct span
-				start_index = random.randint(0, context_length-correct_answer_length+1)
+				start_index = random.randint(0, context_length-correct_answer_length)
 				while start_index == correct_start:
-					start_index = random.randint(0, context_length-correct_answer_length+1)
+					start_index = random.randint(0, context_length-correct_answer_length)
+				candidate = data_point.context_tokens[start_index:start_index + correct_answer_length]
 				candidate_per_question.append(data_point.context_tokens[start_index:start_index + correct_answer_length])
 				anonymized_candidates_per_question.append(c_tokens[start_index:start_index + correct_answer_length])
 			## correct answer:

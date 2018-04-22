@@ -77,9 +77,10 @@ class BiDAF(nn.Module):
 		masked_similarity = self.replace_masked_values(S,
 													   U_mask.unsqueeze(1),
 													   -1e7)
-		b = self.masked_softmax(torch.max(masked_similarity, dim=-1)[0].squeeze(-1), H_mask)
+		b = self.masked_softmax(torch.max(masked_similarity, dim=-1)[0], H_mask)
 
 		## (N, 1, 2d) = (N,1,T) * (N, T, 2d)
+		b_expanded = b.unsqueeze(1)
 		q2c = torch.bmm(b.unsqueeze(1), H).squeeze(1)
 
 
