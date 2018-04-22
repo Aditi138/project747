@@ -82,7 +82,7 @@ def train_epochs(model, vocab):
 	all_end_correct = 0.0
 	all_span_correct  = 0.0
 
-	patience = 10
+	patience = 30
 
 	valid_batches = make_bucket_batches(valid_documents, args.batch_length, vocab)[:200]
 
