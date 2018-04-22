@@ -10,6 +10,7 @@ import argparse
 
 class SquadDataloader():
 	def __init__(self, args):
+		self.vocab = Vocabulary()
 		self.stemmer = NltkPorterStemmer()
 		self.nlp =  spacy.load('en')
 
@@ -77,12 +78,17 @@ class SquadDataloader():
 		return (start_index, end_index), error
 
 	def load_docuements(self, path, summary_path=None, max_documents=0):
+		final_data_points = []
 		with open(path, "r") as fin:
 			if max_documents > 0:
 				data_points = pickle.load(fin)[:max_documents]
 			else:
 				data_points = pickle.load(fin)
-		return data_points
+		for data_point in data_points:
+			q_tokens = self.vocab.add_and_get_indices(data_point.question_tokens)
+			c_tokens = self.vocab.add_and_get_indices(data_point.context_tokens)
+			final_data_points.append(Span_Data_Point(q_tokens, c_tokens, data_point.span_indices))
+		return final_data_points
 
 	def pickle_data(self, path, output_path):
 		data_points = []
@@ -125,6 +131,84 @@ class SquadDataloader():
 			pickle.dump(data_points, fout)
 
 
+class Vocabulary(object):
+    def __init__(self, pad_token='pad', unk='unk', sos='<sos>',eos='<eos>' ):
+
+        self.vocabulary = dict()
+        self.id_to_vocab = dict()
+        self.pad_token = pad_token
+        self.unk = unk
+        self.vocabulary[pad_token] = 0
+        self.vocabulary[unk] = 1
+        self.vocabulary[sos] = 2
+        self.vocabulary[eos] = 3
+
+        self.id_to_vocab[0] = pad_token
+        self.id_to_vocab[1] = unk
+        self.id_to_vocab[2] = sos
+        self.id_to_vocab[3] = eos
+
+        self.nertag_to_id = dict()
+        self.postag_to_id = dict()
+        self.id_to_nertag = dict()
+        self.id_to_postag = dict()
+
+
+    def add_and_get_index(self, word):
+        if word in self.vocabulary:
+            return self.vocabulary[word]
+        else:
+            length = len(self.vocabulary)
+            self.vocabulary[word] = length
+            self.id_to_vocab[length] = word
+            return length
+
+    def add_and_get_indices(self, words):
+        return [self.add_and_get_index(word) for word in words]
+
+    def get_index(self, word):
+        return self.vocabulary.get(word, self.vocabulary[self.unk])
+
+    def get_length(self):
+        return len(self.vocabulary)
+
+    def get_word(self,index):
+        if index < len(self.id_to_vocab):
+            return self.id_to_vocab[index]
+        else:
+            return ""
+
+    def ner_tag_size(self):
+        return len(self.nertag_to_id)
+
+    def pos_tag_size(self):
+        return len(self.postag_to_id)
+
+    def add_and_get_indices_NER(self, words):
+        return [self.add_and_get_index_NER(str(word)) for word in words]
+
+    def add_and_get_indices_POS(self, words):
+        return [self.add_and_get_index_POS(str(word)) for word in words]
+
+    def add_and_get_index_NER(self, word):
+        if word in self.nertag_to_id:
+            return self.nertag_to_id[word]
+        else:
+            length = len(self.nertag_to_id)
+            self.nertag_to_id[word] = length
+            self.id_to_nertag[length] = word
+            return length
+
+    def add_and_get_index_POS(self, word):
+        if word in self.postag_to_id:
+            return self.postag_to_id[word]
+        else:
+            length = len(self.postag_to_id)
+            self.postag_to_id[word] = length
+            self.id_to_postag[length] = word
+            return length
+
+
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 
@@ -136,5 +220,6 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 
 	squad_dataloader = SquadDataloader(args)
-	squad_dataloader.pickle_data(args.train_path, args.train_output_path)
-	squad_dataloader.pickle_data(args.valid_path, args.valid_output_path)
+	# squad_dataloader.pickle_data(args.train_path, args.train_output_path)
+	# squad_dataloader.pickle_data(args.valid_path, args.valid_output_path)
+	data_points = squad_dataloader.load_docuements(args.train_output_path)
