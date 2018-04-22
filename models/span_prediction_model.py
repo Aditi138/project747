@@ -417,8 +417,6 @@ class Accuracy:
 
 		# Some sanity checks.
 		num_classes = predictions.size(-1)
-		print(gold_labels.dim())
-		print(predictions.dim())
 
 		if gold_labels.dim() != predictions.dim() - 1:
 			raise Exception("gold_labels must have dimension == predictions.size() - 1 but "
@@ -470,15 +468,15 @@ class BooleanAccuracy():
     def __init__(self):
         self._correct_count = 0.
         self._total_count = 0.
-		
-	def unwrap_to_tensors(*tensors):
-		"""
+
+    def unwrap_to_tensors(*tensors):
+        """
 	    If you actually passed in Variables to a Metric instead of Tensors, there will be
 	    a huge memory leak, because it will prevent garbage collection for the computation
 	    graph. This method ensures that you're using tensors directly and that they are on
 	    the CPU.
 	    """
-		return (x.data.cpu() if isinstance(x, torch.autograd.Variable) else x for x in tensors)
+        return (x.data.cpu() if isinstance(x, torch.autograd.Variable) else x for x in tensors)
 		
     def accuracy(self,
                  predictions,
