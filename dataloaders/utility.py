@@ -1,6 +1,6 @@
 import torch
 from torch.autograd import Variable
-
+from itertools import ifilter
 
 PAD_token = 0
 SOS_token = 1

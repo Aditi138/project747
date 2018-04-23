@@ -45,13 +45,14 @@ class LayerNormalization(nn.Module):
 class SeparableConvolution(nn.Module):
     def __init__(self, input_dim, kernel_size):
         super(SeparableConvolution, self).__init__()
-        self.depthwise = nn.Conv1d(input_dim, input_dim, kernel_size, groups=input_dim, padding=(kernel_size - 1)/2)
+        self.depthwise = nn.Conv1d(input_dim, input_dim, kernel_size, groups=input_dim, padding=(kernel_size - 1)//2)
         self.pointwise = nn.Conv1d(input_dim, input_dim, 1)
         self.layer_norm = LayerNormalization(input_dim)
 
     def forward(self, input_batch, mask):
-        depth_output = self.depthwise(input_batch)
-        pointwise_output = self.pointwise(depth_output)
+        transposed_input = input_batch.transpose(1,2)
+        depth_output = self.depthwise(transposed_input)
+        pointwise_output = self.pointwise(depth_output).transpose(1,2)
         highway_output = pointwise_output + input_batch
         norm_output = self.layer_norm(highway_output)
         masked_output = norm_output * mask
@@ -64,13 +65,13 @@ class ScaledDotProductAttention(nn.Module):
         super(ScaledDotProductAttention, self).__init__()
         self.temper = np.power(input_dim, 0.5)
         self.softmax = nn.Softmax()
-        self.one_scalar = nn.Parameter(torch.ones(1))
+        self.one_scalar = torch.ones(1)
 
     def forward(self, queries, keys, values, mask):
 
         attn = torch.bmm(queries, keys.transpose(1, 2)) / self.temper
 
-        inverted_mask = - mask + self.one_scalar
+        inverted_mask = (- mask.data + self.one_scalar).byte()
         attn.data.masked_fill_(inverted_mask, -float('inf'))
         attn = self.softmax(attn)
         output = torch.bmm(attn, values)
@@ -82,7 +83,7 @@ class SelfAttention(nn.Module):
         super(SelfAttention, self).__init__()
         self.number_heads = number_heads
         self.input_dim = input_dim
-        self.head_dim = input_dim / number_heads
+        self.head_dim = input_dim // number_heads
 
         self.query_projection = nn.Parameter(torch.FloatTensor(number_heads, input_dim, self.head_dim))
         self.key_projection = nn.Parameter(torch.FloatTensor(number_heads, input_dim, self.head_dim))
@@ -97,7 +98,7 @@ class SelfAttention(nn.Module):
         nn.init.xavier_normal(self.key_projection)
         nn.init.xavier_normal(self.value_projection)
 
-    def forward(self, input_batch, attn_mask=None):
+    def forward(self, input_batch, mask):
 
         head_dim = self.head_dim
         number_heads = self.number_heads
@@ -107,12 +108,12 @@ class SelfAttention(nn.Module):
         transformed_batch = input_batch.repeat(number_heads, 1, 1).view(number_heads, -1, input_dim) # number_heads x (b_size*len_q) x input_dim
         
         # treat the result as a (number_heads * mb_size) size batch
-        queries = torch.bmm(transformed_batch, self.query_projection).view(-1, input_dim, head_dim)
-        keys = torch.bmm(transformed_batch, self.key_projection).view(-1, input_dim, head_dim)   
-        values = torch.bmm(transformed_batch, self.value_projection).view(-1, input_dim, head_dim)  
+        queries = torch.bmm(transformed_batch, self.query_projection).view(-1, seq_len, head_dim)
+        keys = torch.bmm(transformed_batch, self.key_projection).view(-1, seq_len, head_dim)   
+        values = torch.bmm(transformed_batch, self.value_projection).view(-1, seq_len, head_dim)  
 
         # perform attention, result size = (number_heads * b_size) x input_dim
-        outputs, attns = self.attention(queries, keys, values, attn_mask=attn_mask.repeat(number_heads, 1, 1))
+        outputs, attns = self.attention(queries, keys, values, mask)
 
         # back to original size batch, result size = b_size x seq len x input_dim
         outputs = torch.cat(torch.split(outputs, batch_size, dim=0), dim=-1) 
@@ -147,10 +148,11 @@ class EncoderBlock(nn.Module):
         self.position_encoding = PositionEncoding(max_positions, input_dim)
         self.convolution_layers = nn.ModuleList([SeparableConvolution(input_dim, kernel_size) for _ in range(n_conv)])
         self.attention_layer = SelfAttention(attention_heads, input_dim)
+        self.feedforward_layer = FeedForward(input_dim, 2 * input_dim)
 
     def forward(self, input_batch, input_positions, mask):
         pos_encoded = self.position_encoding(input_positions)
-        conv_output = pos_encoded
+        conv_output = pos_encoded        
         for convolution_layer in self.convolution_layers:
             conv_output = convolution_layer(conv_output, mask)
         

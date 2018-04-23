@@ -6,7 +6,7 @@ from models.context_model import ContextMRR
 
 import torch
 from torch import optim
-from dataloaders.utility import variable, view_data_point
+from dataloaders.utility import variable, view_data_point, get_trainable_parameters
 import numpy as np
 from time import time
 import random
@@ -85,8 +85,7 @@ def evaluate(model, batches):
 def train_epochs(model, vocab):
 	clip_threshold = args.clip_threshold
 	eval_interval = args.eval_interval
-
-	optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+	optimizer = optim.Adam(get_trainable_parameters(model), lr=args.learning_rate)
 	train_loss = 0
 	train_denom = 0
 	validation_history = []
@@ -176,13 +175,16 @@ def train_epochs(model, vocab):
 				negative_indices.pop(batch_answer_indices[index])
 				negative_indices = variable(torch.LongTensor(negative_indices))
 
+				query_positions = variable(torch.arange(batch_query_length[0]).unsqueeze(0).long())
+				context_positions = variable(torch.arange(batch_context_length[0]).unsqueeze(0).long())
+
 
 
 				loss, second_best = model(batch_query, batch_query_length,batch_question_mask,
 									batch_context, batch_context_length, batch_context_mask,
 									batch_candidates_sorted, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,
 										  batch_candidate_unsort,
-									gold_index, negative_indices, batch_metrics
+									gold_index, negative_indices, batch_metrics, query_positions, context_positions
 									)
 
 				losses[index] = loss
