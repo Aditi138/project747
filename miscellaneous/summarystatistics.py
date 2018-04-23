@@ -14,8 +14,8 @@ with codecs.open(summary_path, "r", encoding='utf-8', errors='replace') as fin:
         if first:
             first=False
             continue
-        summary_tokens = line[2]
-        summaries.append(summary_tokens)
+        summary_text = line[2]
+        summaries.append(summary_text.split())
 print("Loaded summaries")
 
 summary_lengths=[len(summary) for summary in summaries]
