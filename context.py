@@ -145,24 +145,8 @@ def train_epochs(model, vocab):
 				# batch_query_ner = variable(torch.LongTensor(batch['q_ner'][index]))
 				# batch_query_pos = variable(torch.LongTensor(batch['q_pos'][index]))
 
-				# Sort the candidates by length (only required if using an RNN)
-				batch_candidate_lengths = np.array(batch_candidates["anslengths"][index])
 				batch_candidate_mask = np.array(batch_candidates['mask'][index])
-				candidate_sort = np.argsort(batch_candidate_lengths)[::-1].copy()
-
-				batch_candidates_sorted = variable(
-					torch.LongTensor(batch_candidates["answers"][index][candidate_sort, ...]))
-				batch_candidate_lengths_sorted = batch_candidate_lengths[candidate_sort]
-				batch_candidate_unsort = variable(torch.LongTensor(np.argsort(candidate_sort)))
-				batch_candidate_masks_sorted = variable(torch.FloatTensor(batch_candidate_mask[candidate_sort]))
-
-				# batch_candidate_ner_sorted = variable(
-				# 	torch.LongTensor(batch_candidates['ner'][index][candidate_sort, ...]))
-				# batch_candidate_pos_sorted = variable(
-				# 	torch.LongTensor(batch_candidates['pos'][index][candidate_sort, ...]))
-
-
-				batch_len = len(batch_candidate_lengths)
+				batch_candidate_lengths =variable(torch.LongTensor(batch_candidates["anslengths"][index]))
 				batch_metrics = variable(torch.FloatTensor(batch['metrics'][index]))
 
 				# context tokens
@@ -171,21 +155,16 @@ def train_epochs(model, vocab):
 				batch_context_mask =variable(torch.FloatTensor(batch['context_mask'][index]))
 
 				gold_index = variable(torch.LongTensor([batch_answer_indices[index]]))
-				negative_indices = [idx for idx in range(batch_len)]
+				negative_indices = [idx for idx in range(len(batch_candidate_lengths))]
 				negative_indices.pop(batch_answer_indices[index])
 				negative_indices = variable(torch.LongTensor(negative_indices))
 
-				query_positions = variable(torch.arange(batch_query_length[0]).unsqueeze(0).long())
-				context_positions = variable(torch.arange(batch_context_length[0]).unsqueeze(0).long())
 
 
 
 				loss, second_best = model(batch_query, batch_query_length,batch_question_mask,
-									batch_context, batch_context_length, batch_context_mask,
-									batch_candidates_sorted, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,
-										  batch_candidate_unsort,
-									gold_index, negative_indices, batch_metrics, query_positions, context_positions
-									)
+									batch_context, batch_context_length, batch_context_mask, batch_candidates, batch_candidate_mask, batch_candidate_lengths,
+									gold_index, negative_indices, batch_metrics)
 
 				losses[index] = loss
 
