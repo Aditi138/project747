@@ -22,8 +22,9 @@ class PositionEncoding(nn.Module):
         self.position_encoding.weight.data = position_weights
         self.position_encoding.weight.requires_grad = False
 
-    def forward(self, batch_positions):
-        output = self.position_encoding(batch_positions)
+    def forward(self, batch):
+        batch_positions = torch.arange(batch.size(1)).long()
+        output = self.position_encoding(batch_positions).unsqueeze(0)
         return output
 
 class LayerNormalization(nn.Module):
@@ -150,8 +151,8 @@ class EncoderBlock(nn.Module):
         self.attention_layer = SelfAttention(attention_heads, input_dim)
         self.feedforward_layer = FeedForward(input_dim, 2 * input_dim)
 
-    def forward(self, input_batch, input_positions, mask):
-        pos_encoded = self.position_encoding(input_positions)
+    def forward(self, input_batch, mask):
+        pos_encoded = self.position_encoding(input_batch)
         conv_output = pos_encoded        
         for convolution_layer in self.convolution_layers:
             conv_output = convolution_layer(conv_output, mask)

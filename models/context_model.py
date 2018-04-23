@@ -21,28 +21,27 @@ class ContextMRR(nn.Module):
         self.contextual_embedding_layer = EncoderBlock(10000, hidden_size, 7, 4, 8)
 
         # bidirectional attention flow between question and context
-        self.attention_flow_layer1 = BiDAF(2*hidden_size)
+        self.attention_flow_layer1 = BiDAF(hidden_size)
 
         # modelling layer for question and context : this layer also converts the 8 dimensional input intp two dimensioanl output
-        modeling_layer_inputdim = 8 * hidden_size
+        modeling_layer_inputdim = 4 * hidden_size
         self.modeling_layer1 = RecurrentContext(modeling_layer_inputdim, hidden_size)
 
         # bidirectional attention flow between [q+c] and answer
-        self.attention_flow_layer2 = BiDAF(2*hidden_size)
+        self.attention_flow_layer2 = BiDAF(hidden_size)
 
         # modeling layer
-        modeling_layer_inputdim = 8*hidden_size
+        modeling_layer_inputdim = 4*hidden_size
         self.modeling_layer2 = RecurrentContext(modeling_layer_inputdim, hidden_size)
 
         # output layer
         # current implementation: run an mlp on the concatenated hidden states of the answer modeling layer
-        output_layer_inputdim = 2*hidden_size
+        output_layer_inputdim = hidden_size
         self.output_layer = OutputLayer(output_layer_inputdim, hidden_size)
 
     def forward(self, batch_query, batch_query_length, batch_query_mask,
-                batch_context, batch_context_length, batch_context_mask,
-                batch_candidates_sorted, batch_candidate_lengths_sorted, batch_candidate_masks_sorted, batch_candidate_unsort,
-                gold_index, negative_indices, batch_metrics, query_positions, context_positions):
+                batch_context, batch_context_length, batch_context_mask, batch_candidates, batch_candidate_masks, batch_candidate_lengths,
+                gold_index, negative_indices, batch_metrics):
 
         # Embed query and context
         # (N, J, d)
@@ -56,10 +55,10 @@ class ContextMRR(nn.Module):
         # Encode query and context
         # (N, J, 2d)
         # query_encoded, _ = self.contextual_embedding_layer(query_embedded, batch_query_length)
-        query_encoded = self.contextual_embedding_layer(query_embedded, query_positions, batch_query_mask.unsqueeze(2))
+        query_encoded = self.contextual_embedding_layer(query_embedded, batch_query_mask.unsqueeze(2))
         # (N, T, 2d)
         # context_encoded, _ = self.contextual_embedding_layer(context_embedded, batch_context_length)
-        context_encoded = self.contextual_embedding_layer(context_embedded, context_positions, batch_context_mask.unsqueeze(2))
+        context_encoded = self.contextual_embedding_layer(context_embedded, batch_context_mask.unsqueeze(2))
 
         # BiDAF 1 to get ~U, ~h and G (8d) between context and query
         # (N, T, 8d) , (N, T ,2d) , (N, 1, 2d)
@@ -72,21 +71,21 @@ class ContextMRR(nn.Module):
         context_modeled, _ = self.modeling_layer1(context_attention_encoded, batch_context_length)
 
         # BiDAF for answers
-        batch_size = batch_candidates_sorted.size(0)
+        batch_size = batch_candidates.size(0)
         # N=1 so (N, T, 2d) => (N1, T, 2d)
         batch_context_modeled = context_modeled.repeat(batch_size, 1, 1)
         # (N1, K, d)
-        batch_candidates_embedded = self.word_embedding_layer(batch_candidates_sorted)
+        batch_candidates_embedded = self.word_embedding_layer(batch_candidates)
         # (N1, K, 2d)
         batch_candidates_encoded, _ = self.contextual_embedding_layer(
-            batch_candidates_embedded, batch_candidate_lengths_sorted)
+            batch_candidates_embedded, batch_candidate_mask)
         answer_attention_encoded, context_aware_answer_encoded, answer_aware_context_encoded = self.attention_flow_layer2(
-            batch_context_modeled, batch_candidates_encoded, batch_context_mask, batch_candidate_masks_sorted)
+            batch_context_modeled, batch_candidates_encoded, batch_context_mask, batch_candidate_masks)
 
         # modelling layer 2
         # (N1, K, 8d) => (N1, K, 2d)
         answer_modeled, (answer_hidden_state, answer_cell_state) = self.modeling_layer2(
-            answer_attention_encoded, batch_candidate_lengths_sorted)
+            answer_attention_encoded, batch_candidate_lengths)
 
         # output layer : concatenate hidden dimension of the final answer model layer and run through an MLP : (N1, 2d) => (N1, d)
         # (N1, 2d) => (N1, 1)
@@ -94,9 +93,8 @@ class ContextMRR(nn.Module):
         answer_scores = self.output_layer(answer_concat_hidden)
 
         # unsort the answer scores
-        answer_scores_unsorted = torch.index_select(answer_scores, 0, batch_candidate_unsort)
-        gold_features = torch.index_select(answer_scores_unsorted, 0, index=gold_index)
-        negative_features = torch.index_select(answer_scores_unsorted, 0, index=negative_indices)
+        gold_features = torch.index_select(answer_scores, 0, index=gold_index)
+        negative_features = torch.index_select(answer_scores, 0, index=negative_indices)
 
         #negative_metrics = torch.index_select(batch_metrics, 0, index=negative_indices)
         #negative_features = negative_features + negative_metrics.unsqueeze(1)
