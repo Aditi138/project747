@@ -13,7 +13,7 @@ except:
 import sys
 import spacy
 from nltk import word_tokenize
-from data import Document, Query, Data_Point
+from data import Document, Query, Data_Point,Sentence_Splitting
 from utility import start_tags, end_tags, start_tags_with_attributes, pad_seq, view_data_point
 import random
 import numpy as np
@@ -205,6 +205,7 @@ class DataLoader():
         self.vocab = Vocabulary()
         self.performance = Performance(args)
         self.args = args
+        self.pretrain_embedding = None
         self.nlp = spacy.load('en')
 
     # This function loads raw documents, summaries and queries, processes them, stores them in document class and finally saves to a pickle
@@ -255,9 +256,8 @@ class DataLoader():
                     continue
                 id = line[0]
                 summary_tokens = line[2]
-                doc = self.nlp(summary_tokens.decode('utf-8'))
-                tokens =[t.text for t in doc]
-                summaries[id] = tokens
+                ner_summary, pos_summary, tokens = self.getNER(line[2])
+                summaries[id] = (tokens, ner_summary, pos_summary)
         print("Loaded summaries")
         qaps = {}
 
@@ -349,7 +349,8 @@ class DataLoader():
 
         for doc_id in documents:
             set, kind, _, _ = documents[doc_id]
-            summary = Document(doc_id, set, kind, summaries[doc_id], qaps[doc_id],{},{}, candidates_per_doc[doc_id],ner_candidates_per_doc[doc_id], pos_candidates_per_doc[doc_id])
+            tokens, ner_summary, pos_summary  = summaries[doc_id]
+            summary = Document(doc_id, set, kind, tokens, qaps[doc_id],{},{}, candidates_per_doc[doc_id],ner_candidates_per_doc[doc_id], pos_candidates_per_doc[doc_id], ner_summary, pos_summary)
 
             # When constructing small data set, just add to one pile and save when we have a sufficient number
             if small_number > 0:
@@ -657,6 +658,52 @@ class DataLoader():
                                    (query.question_tokens, query.answer_indices, candidate_per_doc_per_answer,metrics_per_doc[idx],
                                     query.ner_tokens, query.pos_tokens,candidate_per_doc_per_answer_ner,candidate_per_doc_per_answer_pos,
                                     document_tokens))
+
+        return data_points
+
+    def load_documents_split_sentences(self, path, summary_path=None, max_documents=0):
+
+        self.SOS_Token = self.vocab.get_index("<sos>")
+        self.EOS_Token = self.vocab.get_index("<eos>")
+
+        with open(path, "r") as fin:
+            if max_documents > 0:
+                documents = pickle.load(fin)[:max_documents]
+            else:
+                documents = pickle.load(fin)
+
+        data_points = []
+
+        for index,document in enumerate(documents):
+
+            document_tokens_combined = " ".join(document.document_tokens)
+            doc = self.nlp(document_tokens_combined.decode('utf-8'))
+            sentences = list(doc.sents)
+            sentences_split_tokenwise = [[token.string.strip() for token in s] for s in sentences]
+            sentences_replaced_by_id = []
+            ner_sentences_replaced_by_id = self.vocab.add_and_get_indices_NER(document.ner_tokens[e])
+            pos_sentences_replaced_by_id = self.vocab.add_and_get_indices_POS(document.pos_tokens[e])
+
+            ner_sentence_wise = []
+            pos_sentence_wise = []
+            e = 0
+            sentence_boundaries = []
+            previous_size = 0
+
+            for e in range(len(sentences_split_tokenwise)):
+                sentence_boundaries.append(previous_size)
+                length = len(sentences_split_tokenwise[e])
+                sentences_replaced_by_id.append(self.vocab.add_and_get_indices(sentences_split_tokenwise[e]))
+                ner_sentence_wise.append(ner_sentences_replaced_by_id[previous_size:length])
+                pos_sentence_wise.append(pos_sentences_replaced_by_id[previous_size:length])
+                previous_size = length
+
+
+            for query in document.queries:
+                query.question_tokens = self.vocab.add_and_get_indices(query.question_tokens)
+                query.ner_tokens = self.vocab.add_and_get_indices_NER(query.ner_tokens)
+                query.pos_tokens = self.vocab.add_and_get_indices_POS(query.pos_tokens)
+                data_points.append(Sentence_Splitting(sentences_replaced_by_id, sentence_boundaries,query.question_tokens, query.ner_tokens,query.pos_tokens, ner_sentence_wise, pos_sentence_wise ))
 
         return data_points
 
