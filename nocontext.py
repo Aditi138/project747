@@ -6,7 +6,7 @@ from models.nocontext_model import NoContext
 
 import torch
 from torch import optim
-from dataloaders.utility import variable,view_data_point
+from dataloaders.utility import variable,view_data_point,get_pretrained_emb
 import numpy as np
 from time import time
 import random
@@ -78,8 +78,7 @@ def train_epochs(model, vocab):
     clip_threshold = args.clip_threshold
     eval_interval = args.eval_interval
 
-    #optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
-    optimizer = optim.SGD(model.parameters(), lr= args.learning_rate, momentum=0.9)
+    optimizer = optim.Adam(model.parameters(), lr= args.learning_rate)
     train_loss = 0
     train_denom = 0
     validation_history = []
@@ -117,7 +116,8 @@ def train_epochs(model, vocab):
                         if average_rr >= max(validation_history):
                             saved = True
                             print("Saving best model seen so far itr  number {0}".format(iteration))
-                            torch.save(model, args.model_path)
+                            # torch.save(model, args.model_path)
+                            torch.save(model.state_dict(), args.model_path)
                             print("Best on Validation: MRR:{0}".format(average_rr))
                             bad_counter = 0
                         else:
@@ -161,19 +161,18 @@ def train_epochs(model, vocab):
                 negative_indices.pop(batch_answer_indices[index])
                 negative_indices = variable(torch.LongTensor(negative_indices))
 
-                loss,second_best = model(batch_query, batch_query_ner, batch_query_pos,batch_query_length,
+                loss = model(batch_query, batch_query_ner, batch_query_pos,batch_query_length,
                         batch_candidates_sorted, batch_candidate_ner_sorted, batch_candidate_pos_sorted,batch_candidate_lengths_sorted,
                         batch_candidate_unsort, gold_index, negative_indices,batch_metrics,batch_len)
                 losses[index] = loss
 
-                # loss.backward()
-                # torch.nn.utils.clip_grad_norm(model.parameters(), clip_threshold)
-                # optimizer.step()
-
 
             mean_loss = losses.mean(0)
             mean_loss.backward()
+            torch.nn.utils.clip_grad_norm(model.parameters(), clip_threshold)
             optimizer.step()
+
+
             if args.use_cuda:
                 train_loss += mean_loss.data.cpu().numpy()[0] * batch_size
 
@@ -197,7 +196,7 @@ if __name__ == "__main__":
     parser.add_argument("--train_path", type=str, default="/../narrativeqa/out/summary/train.pickle")
     parser.add_argument("--valid_path", type=str, default=None)
     parser.add_argument("--test_path", type=str, default=None)
-    parser.add_argument("--model_path", type=str, default=None)
+    parser.add_argument("--model_path", type=str, default="../best.md")
     parser.add_argument("--job_size", type=int, default=5)
     parser.add_argument("--pretrain_path", type=str, default=None, help="Path to the pre-trained word embeddings")
 
@@ -205,15 +204,15 @@ if __name__ == "__main__":
     parser.add_argument("--hidden_size", type=int, default=100)
     parser.add_argument("--embed_size", type=int, default=100)
     parser.add_argument("--cuda", action="store_true", default=True)
-    parser.add_argument("--batch_length", type=int, default=10)
+    parser.add_argument("--batch_length", type=int, default=1)
     parser.add_argument("--eval_interval", type=int, default=10)
-    parser.add_argument("--learning_rate", type=float, default=0.0001)
+    parser.add_argument("--learning_rate", type=float, default=0.001)
     parser.add_argument("--num_epochs", type=int, default=10)
     parser.add_argument("--clip_threshold", type=int, default=10)
-    parser.add_argument("--num_layers", type=int, default=3)
+    parser.add_argument("--num_layers", type=int, default=1)
     parser.add_argument("--ner_dim", type=int, default=32)
     parser.add_argument("--pos_dim", type=int, default=32)
-
+    parser.add_argument("--dropout", type=float,default=0.5)
     parser.add_argument("--meteor_path", type=str, default=10)
 
     args = parser.parse_args()
@@ -236,7 +235,13 @@ if __name__ == "__main__":
     end = time()
     print(end-start)
 
-    model = NoContext(args, loader.vocab)
+
+    #Get pre_trained embeddings
+    if args.pretrain_path is not None:
+        word_embedding = get_pretrained_emb(args.pretrain_path, loader.vocab.vocabulary, args.embed_size)
+        loader.pretrain_embedding = word_embedding
+
+    model = NoContext(args, loader)
     
     if args.use_cuda:
         model = model.cuda()
