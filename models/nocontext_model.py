@@ -35,7 +35,7 @@ class NoContext(nn.Module):
         #Simple Seq2Seq with Bahdanau attention
         self.encoder = EncoderRNN(input_size, embed_rep, hidden_size, n_layers=args.num_layers,dropout=args.dropout)
         self.answer_encoder = EncoderRNN(input_size, embed_rep, hidden_size,n_layers=args.num_layers)
-        #self.loss = torch.nn.CrossEntropyLoss()
+        self.loss = torch.nn.CrossEntropyLoss()
 
 
     def forward(self,batch_query, batch_query_ner, batch_query_pos,batch_query_length, batch_candidate, batch_candidate_ner_sorted, batch_candidate_pos_sorted,
@@ -68,11 +68,11 @@ class NoContext(nn.Module):
 
 
         #Take a softmax
-        #loss = self.loss(question_answer_dot_unsort.transpose(0,1),gold_answer_index)
-        gold_features = torch.index_select(question_answer_dot_unsort, 0, index=gold_answer_index)
-        negative_features = torch.index_select(question_answer_dot_unsort, 0, index=negative_indices)
-        max_negative_feature, max_negative_index = torch.max(negative_features, 0)
-        loss  = torch.clamp(max_negative_feature - gold_features + torch.autograd.Variable(torch.FloatTensor([1])), 0)
+        loss = self.loss(question_answer_dot_unsort.transpose(0,1),gold_answer_index)
+        #gold_features = torch.index_select(question_answer_dot_unsort, 0, index=gold_answer_index)
+        #negative_features = torch.index_select(question_answer_dot_unsort, 0, index=negative_indices)
+        #max_negative_feature, max_negative_index = torch.max(negative_features, 0)
+        #loss  = torch.clamp(max_negative_feature - gold_features + 1, 0)
 
         sorted, indices = torch.sort(F.log_softmax(question_answer_dot_unsort,dim=0), dim=0, descending=True)
         return loss, indices
