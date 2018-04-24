@@ -24,7 +24,7 @@ class PositionEncoding(nn.Module):
 
     def forward(self, batch):
         batch_positions = torch.arange(batch.size(1)).long()
-        output = self.position_encoding(batch_positions).unsqueeze(0)
+        output = self.position_encoding(batch_positions).expand(batch.size(0), -1, -1)
         return output
 
 class LayerNormalization(nn.Module):
@@ -62,22 +62,25 @@ class SeparableConvolution(nn.Module):
 class ScaledDotProductAttention(nn.Module):
     ''' Scaled Dot-Product Attention '''
 
-    def __init__(self, input_dim):
+    def __init__(self, input_dim, number_heads):
         super(ScaledDotProductAttention, self).__init__()
         self.temper = np.power(input_dim, 0.5)
         self.softmax = nn.Softmax()
         self.one_scalar = torch.ones(1)
+        self.number_heads = number_heads
 
     def forward(self, queries, keys, values, mask):
 
         attn = torch.bmm(queries, keys.transpose(1, 2)) / self.temper
+        size = attn.size()
+        repeated_mask = mask.repeat(self.number_heads, 1, size[2])
+        inverted_mask = (- repeated_mask.data + self.one_scalar).byte()
 
-        inverted_mask = (- mask.data + self.one_scalar).byte()
         attn.data.masked_fill_(inverted_mask, -float('inf'))
-        attn = self.softmax(attn)
+        attn = self.softmax(attn.view(size[0]*size[1], size[2])).view(size[0], size[1], size[2])
         output = torch.bmm(attn, values)
 
-        return output, attn
+        return output
 
 class SelfAttention(nn.Module):
     def __init__(self, number_heads, input_dim):
@@ -90,7 +93,7 @@ class SelfAttention(nn.Module):
         self.key_projection = nn.Parameter(torch.FloatTensor(number_heads, input_dim, self.head_dim))
         self.value_projection = nn.Parameter(torch.FloatTensor(number_heads, input_dim, self.head_dim))
 
-        self.attention = ScaledDotProductAttention(input_dim)
+        self.attention = ScaledDotProductAttention(input_dim, number_heads)
         self.linear_projection = nn.Linear(input_dim, input_dim)
 
         self.layer_norm = LayerNormalization(input_dim)
@@ -114,16 +117,18 @@ class SelfAttention(nn.Module):
         values = torch.bmm(transformed_batch, self.value_projection).view(-1, seq_len, head_dim)  
 
         # perform attention, result size = (number_heads * b_size) x input_dim
-        outputs, attns = self.attention(queries, keys, values, mask)
+        outputs = self.attention(queries, keys, values, mask)
+
 
         # back to original size batch, result size = b_size x seq len x input_dim
         outputs = torch.cat(torch.split(outputs, batch_size, dim=0), dim=-1) 
 
         # project back to residual size
         outputs = self.linear_projection(outputs)
-        highway_outputs = outputs + input_batch
+        masked_outputs = outputs * mask
+        highway_outputs = masked_outputs + input_batch
         norm_outputs = self.layer_norm(highway_outputs)
-
+        
         return norm_outputs
 
 

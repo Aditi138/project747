@@ -145,7 +145,8 @@ def train_epochs(model, vocab):
 				# batch_query_ner = variable(torch.LongTensor(batch['q_ner'][index]))
 				# batch_query_pos = variable(torch.LongTensor(batch['q_pos'][index]))
 
-				batch_candidate_mask = np.array(batch_candidates['mask'][index])
+				query_candidates=variable(torch.LongTensor(batch_candidates["answers"][index]))
+				batch_candidate_mask = variable(torch.FloatTensor(batch_candidates['mask'][index]))
 				batch_candidate_lengths =variable(torch.LongTensor(batch_candidates["anslengths"][index]))
 				batch_metrics = variable(torch.FloatTensor(batch['metrics'][index]))
 
@@ -163,7 +164,7 @@ def train_epochs(model, vocab):
 
 
 				loss, second_best = model(batch_query, batch_query_length,batch_question_mask,
-									batch_context, batch_context_length, batch_context_mask, batch_candidates, batch_candidate_mask, batch_candidate_lengths,
+									batch_context, batch_context_length, batch_context_mask, query_candidates, batch_candidate_mask, batch_candidate_lengths,
 									gold_index, negative_indices, batch_metrics)
 
 				losses[index] = loss

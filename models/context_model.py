@@ -25,13 +25,13 @@ class ContextMRR(nn.Module):
 
         # modelling layer for question and context : this layer also converts the 8 dimensional input intp two dimensioanl output
         modeling_layer_inputdim = 4 * hidden_size
-        self.modeling_layer1 = RecurrentContext(modeling_layer_inputdim, hidden_size)
+        self.modeling_layer1 = RecurrentContext(modeling_layer_inputdim, hidden_size/2)
 
         # bidirectional attention flow between [q+c] and answer
         self.attention_flow_layer2 = BiDAF(hidden_size)
 
         # modeling layer
-        modeling_layer_inputdim = 4*hidden_size
+        modeling_layer_inputdim =  4*hidden_size
         self.modeling_layer2 = RecurrentContext(modeling_layer_inputdim, hidden_size)
 
         # output layer
@@ -77,8 +77,8 @@ class ContextMRR(nn.Module):
         # (N1, K, d)
         batch_candidates_embedded = self.word_embedding_layer(batch_candidates)
         # (N1, K, 2d)
-        batch_candidates_encoded, _ = self.contextual_embedding_layer(
-            batch_candidates_embedded, batch_candidate_mask)
+        batch_candidates_encoded = self.contextual_embedding_layer(
+            batch_candidates_embedded, batch_candidate_masks.unsqueeze(2))
         answer_attention_encoded, context_aware_answer_encoded, answer_aware_context_encoded = self.attention_flow_layer2(
             batch_context_modeled, batch_candidates_encoded, batch_context_mask, batch_candidate_masks)
 
