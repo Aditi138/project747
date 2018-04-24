@@ -3,7 +3,7 @@ import sys
 
 from dataloaders.dataloader import create_batches, view_batch, make_bucket_batches
 from dataloaders.squad_dataloader import SquadDataloader
-from models.span_prediction_model import ContextMRR, Accuracy, BooleanAccuracy
+from models.span_prediction_model import Accuracy, BooleanAccuracy, SpanMRR, SpanScorer
 
 import torch
 from torch import optim
@@ -68,6 +68,161 @@ def evaluate(model, batches):
 	all_span_correct = (all_span_correct * 1.0) / count
 	return all_start_correct, all_end_correct, all_span_correct
 
+
+def evaluate_with_candidate_spans(model, batches):
+	mrr_value = []
+	model.train(False)
+
+	for iteration in range(len(batches)):
+		batch = batches[iteration]
+		batch_candidates = batch["candidates"]
+		batch_answer_indices = batch['answer_indices']
+
+		for index, query in enumerate(batch['queries']):
+			# query tokens
+			batch_query = variable(torch.LongTensor(query), volatile=True)
+			batch_query_length = np.array([batch['qlengths'][index]])
+			batch_question_mask = variable(torch.FloatTensor(batch['q_mask'][index]))
+
+			# context tokens
+			batch_context = variable(torch.LongTensor(batch['contexts'][index]))
+			batch_context_length = np.array([batch['clengths'][index]])
+			batch_context_mask = variable(torch.FloatTensor(batch['context_mask'][index]))
+
+			## batch_candidates
+			batch_start_indices = variable(torch.LongTensor([span[0] for span in batch['candidates'][index]]))
+			batch_end_indices = variable(torch.LongTensor([span[1] for span in batch['candidates'][index]]))
+			batch_len = len(batch_start_indices)
+
+			indices = model.eval(batch_query, batch_query_length,batch_question_mask,
+								 batch_context, batch_context_length,batch_context_mask,
+								 batch_start_indices, batch_end_indices, batch_len)
+
+			if args.use_cuda:
+				indices = indices.data.cpu()
+			else:
+				indices = indices.data
+			position_gold_sorted = (indices == batch_answer_indices[index]).nonzero().numpy()[0][0]
+			index = position_gold_sorted + 1
+			mrr_value.append(1.0 / (index))
+	mean_rr = np.mean(mrr_value)
+	print("MRR :{0}".format(mean_rr))
+	model.train(True)
+	return mean_rr
+
+def train_mrr(index, indices, batch_answer_indices):
+	if args.use_cuda:
+		indices = indices.data.cpu()
+	else:
+		indices = indices.data
+	position_gold_sorted = (indices == batch_answer_indices[index]).nonzero().numpy()[0][0]
+	index = position_gold_sorted + 1
+	return (1.0 / (index))
+
+def train_epochs_with_candidate_spans(model, vocab):
+	clip_threshold = args.clip_threshold
+	eval_interval = args.eval_interval
+
+	optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, betas=(0.9, 0.9))
+	train_loss = 0
+	train_denom = 0
+	validation_history = []
+	bad_counter = 0
+
+	patience = 10
+	## last true argument makes it collect multiple candidate spans
+	valid_batches = make_bucket_batches(valid_documents, args.batch_length, vocab, True)
+	mrr_value = []
+	for epoch in range(args.num_epochs):
+
+		print("Creating train batches")
+		train_batches = make_bucket_batches(train_documents, args.batch_length, vocab, True)
+		print("Starting epoch {}".format(epoch))
+
+		saved = False
+		for iteration in range(len(train_batches)):
+			optimizer.zero_grad()
+			if (iteration + 1) % eval_interval == 0:
+				print("iteration {}".format(iteration + 1))
+				print("train loss: {}".format(train_loss / train_denom))
+				if iteration != 0:
+					## last true argument makes it collect multiple candidate spans
+					average_rr = evaluate_with_candidate_spans(model, valid_batches)
+					validation_history.append(average_rr)
+					train_average_rr = np.mean(mrr_value)
+					if (iteration + 1) % (eval_interval * 5) == 0:
+						print("Validation MRR:{0}".format(average_rr))
+						print("Train MRR:{0}".format(train_average_rr))
+						mrr_value = []
+						if average_rr >= max(validation_history):
+							saved = True
+							print("Saving best model seen so far itr number {0}".format(iteration))
+							torch.save(model, args.model_path)
+							print("Best on Validation: MRR:{0}".format(average_rr))
+							bad_counter = 0
+						else:
+							bad_counter += 1
+						if bad_counter > patience:
+							print("Early Stopping")
+							print("Testing started")
+							evaluate_with_candidate_spans(model, valid_batches)
+							exit(0)
+
+			batch = train_batches[iteration]
+			# view_batch(batch,loader.vocab)
+			batch_candidates = batch["candidates"]
+			batch_answer_indices = batch['answer_indices']
+			batch_size = len(batch_candidates)
+			batch_query_lengths = batch['qlengths']
+			losses = variable(torch.zeros(batch_size))
+			for index, query in enumerate(batch['queries']):
+
+				## queries
+				batch_query = variable(torch.LongTensor(query))
+				batch_query_length = np.array([batch['qlengths'][index]])
+				batch_question_mask = variable(torch.FloatTensor(batch['q_mask'][index]))
+
+				## context
+				batch_context = variable(torch.LongTensor(batch['contexts'][index]))
+				batch_context_length = np.array([batch['clengths'][index]])
+				batch_context_mask = variable(torch.FloatTensor(batch['context_mask'][index]))
+
+				## metrics
+				batch_metrics = variable(torch.FloatTensor(batch['metrics'][index]))
+
+
+				## batch_candidates
+				batch_start_indices = variable(torch.LongTensor([span[0] for span in batch['candidates'][index]]))
+				batch_end_indices = variable(torch.LongTensor([span[1] for span in batch['candidates'][index]]))
+				batch_len = len(batch_start_indices)
+
+				## gold (all 0 for squad)
+				gold_index = variable(torch.LongTensor([batch_answer_indices[index]]))
+
+				loss, indices = model(batch_query, batch_query_length,
+								   batch_question_mask,
+								   batch_context, batch_context_length,
+								   batch_context_mask,
+								   batch_start_indices, batch_end_indices, gold_index, batch_metrics, batch_len)
+				losses[index] = loss
+				mrr_value.append(train_mrr(index, indices, batch_answer_indices))
+
+			mean_loss = losses.mean(0)
+			mean_loss.backward()
+			optimizer.step()
+			if args.use_cuda:
+				train_loss += mean_loss.data.cpu().numpy()[0] * batch_size
+			else:
+				train_loss += mean_loss.data.numpy()[0] * batch_size
+			train_denom += batch_size
+
+		if not saved:
+			print("Saving model after epoch {0}".format(epoch))
+			torch.save(model, args.model_path + ".dummy")
+
+	print("All epochs done")
+
+
 def train_epochs(model, vocab):
 	clip_threshold = args.clip_threshold
 	eval_interval = args.eval_interval
@@ -83,8 +238,7 @@ def train_epochs(model, vocab):
 	all_span_correct  = 0.0
 
 	patience = 10
-
-	valid_batches = make_bucket_batches(valid_documents, args.batch_length, vocab)[:200]
+	valid_batches = make_bucket_batches(valid_documents, args.batch_length, vocab)
 
 
 	for epoch in range(args.num_epochs):
@@ -174,7 +328,6 @@ def train_epochs(model, vocab):
 
 	print("All epochs done")
 
-
 if __name__ == "__main__":
 	reload(sys)
 	sys.setdefaultencoding('utf8')
@@ -193,7 +346,7 @@ if __name__ == "__main__":
 	parser.add_argument("--hidden_size", type=int, default=100)
 	parser.add_argument("--embed_size", type=int, default=100)
 	parser.add_argument("--cuda", action="store_true", default=True)
-	parser.add_argument("--batch_length", type=int, default=40)
+	parser.add_argument("--batch_length", type=int, default=1)
 	parser.add_argument("--eval_interval", type=int, default=2)
 	parser.add_argument("--learning_rate", type=float, default=0.0001)
 	parser.add_argument("--num_epochs", type=int, default=20)
@@ -219,17 +372,30 @@ if __name__ == "__main__":
 	loader = SquadDataloader(args)
 
 	start = time()
+	## normal bidaf over squad for one correct answer
+	'''
 	train_documents = loader.load_docuements(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
 	valid_documents = loader.load_docuements(args.valid_path, summary_path=None, max_documents=args.max_documents)
-
+	'''
+	## normal bidaf over squad for multiple correct answers and softmax loss function
+	train_documents= loader.load_documents_with_candidate_spans(args.train_path)
+	valid_documents = loader.load_documents_with_candidate_spans(args.valid_path)
 
 	end = time()
 	print(end - start)
 
-	model = ContextMRR(args, loader.vocab)
+	## normal bidaf over squad for one correct span
+	'''
+	model = SpanScorer(args, loader.vocab)
+	'''
+	model = SpanMRR(args, loader.vocab)
+
 
 	if args.use_cuda:
 		model = model.cuda()
 
-	
+	## normal bidaf over squad for one correct answer
+	'''
 	train_epochs(model, loader.vocab)
+	'''
+	train_epochs_with_candidate_spans(model, loader.vocab)

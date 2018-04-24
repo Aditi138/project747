@@ -7,12 +7,14 @@ from collections import Counter, defaultdict
 import spacy
 import pickle
 import argparse
+from test_metrics import Performance
 import random
 
 class SquadDataloader():
 	def __init__(self, args):
 		self.vocab = Vocabulary()
 		self.stemmer = NltkPorterStemmer()
+		self.performance = Performance(args)
 		self.nlp =  spacy.load('en')
 
 	def tokenize(self, text):
@@ -124,6 +126,45 @@ class SquadDataloader():
 				metrics.append(1.0-self.performance.bleu1)
 
 			final_data_points.append(Data_Point(q_tokens, [0], anonymized_candidates_per_question, metrics, [], [], [], [] ,c_tokens))
+		return final_data_points
+
+	def load_documents_with_candidate_spans(self, path, summary_path=None, max_documents=0):
+		final_data_points = []
+		with open(path, "rb") as fin:
+			if max_documents > 0:
+				data_points = pickle.load(fin)[:max_documents]
+			else:
+				data_points = pickle.load(fin)
+		for data_point in data_points:
+			q_tokens = self.vocab.add_and_get_indices(data_point.question_tokens)
+			c_tokens = self.vocab.add_and_get_indices(data_point.context_tokens)
+			candidate_per_question = []
+			anonymized_candidates_per_question = []
+			correct_answer = data_point.context_tokens[data_point.span_indices[0]:data_point.span_indices[1] + 1]
+			anonymized_correct_answer = c_tokens[data_point.span_indices[0]:data_point.span_indices[1] + 1]
+			correct_start = data_point.span_indices[0]
+			correct_answer_length = data_point.span_indices[1] - data_point.span_indices[0] + 1
+			context_length = len(c_tokens)
+			for i in range(19):
+				## random span of same length as answer, but not correct span
+				start_index = random.randint(0, context_length - correct_answer_length)
+				while start_index == correct_start:
+					start_index = random.randint(0, context_length - correct_answer_length)
+				candidate = data_point.context_tokens[start_index:start_index + correct_answer_length]
+				candidate_per_question.append(
+					data_point.context_tokens[start_index:start_index + correct_answer_length])
+				anonymized_candidates_per_question.append([start_index,start_index + correct_answer_length-1])
+			## correct answer:
+			candidate_per_question = [correct_answer] + candidate_per_question
+			anonymized_candidates_per_question =  anonymized_candidates_per_question + [[data_point.span_indices[0],data_point.span_indices[1]]]
+			metrics = []
+
+			for candidate in candidate_per_question:
+				self.performance.computeMetrics(candidate, [correct_answer])
+				metrics.append(1.0 - self.performance.bleu1)
+
+			final_data_points.append(
+				Data_Point(q_tokens, [19], anonymized_candidates_per_question, metrics, [], [], [], [], c_tokens))
 		return final_data_points
 
 	def pickle_data(self, path, output_path):
