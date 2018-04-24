@@ -146,21 +146,14 @@ class SpanMRR(nn.Module):
 		span_end_input = self._dropout(torch.cat([context_attention_encoded, encoded_span_end], dim=-1))
 		span_end_logits = self._span_end_predictor(span_end_input).squeeze(-1)
 
-		## loss computation 1
+		## loss computation 1 (Softmax over the passage and uniform normalization)
 		## log_softmax(exp(logsoftmax(logit score start) + logsoftmax(logit score end))
-		# span_start_logprobs = masked_log_softmax(span_start_logits, batch_context_mask)
-		# span_end_logprobs = masked_log_softmax(span_end_logits, batch_context_mask)
-		# span_start_scores = torch.index_select(span_start_logprobs, 1, span_starts)
-		# span_end_scores = torch.index_select(span_end_logprobs, 1, span_ends)
-		# total_scores = torch.exp(span_start_scores + span_end_scores)
-		# loss = F.cross_entropy(total_scores, gold_index)
-
-		## loss_computation 2 (S, n)
-		span_start_logprobs = masked_softmax(span_start_logits, batch_context_mask)
-		span_end_logprobs = masked_softmax(span_end_logits, batch_context_mask)
+		span_start_logprobs = masked_log_softmax(span_start_logits, batch_context_mask)
+		span_end_logprobs = masked_log_softmax(span_end_logits, batch_context_mask)
 		span_start_scores = torch.index_select(span_start_logprobs, 1, span_starts)
 		span_end_scores = torch.index_select(span_end_logprobs, 1, span_ends)
 		total_scores = span_start_scores + span_end_scores
+		# total_scores = total_scores.squeeze(0)
 		loss = F.cross_entropy(total_scores, gold_index)
 		sorted, indices = torch.sort(total_scores.squeeze(0), dim=0, descending=True)
 		return loss, indices
