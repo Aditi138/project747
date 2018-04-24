@@ -127,8 +127,8 @@ def train_epochs(model, vocab):
                         if average_rr >= max(validation_history):
                             saved = True
                             print("Saving best model seen so far itr  number {0}".format(iteration))
-                            # torch.save(model, args.model_path)
-                            torch.save(model.state_dict(), args.model_path)
+                            torch.save(model, args.model_path)
+                            #torch.save(model.state_dict(), args.model_path)
                             print("Best on Validation: MRR:{0}".format(average_rr))
                             bad_counter = 0
                         else:
@@ -145,7 +145,7 @@ def train_epochs(model, vocab):
             batch_candidates = batch["candidates"]
             batch_answer_indices = batch['answer_indices']
             batch_size = len(batch_query_lengths)
-            losses = variable(torch.zeros(batch_size))
+            loss_total = variable(torch.zeros(batch_size))
 
             for index,query in enumerate(batch['queries']):
 
@@ -176,12 +176,12 @@ def train_epochs(model, vocab):
                 loss,indices = model(batch_query, batch_query_ner, batch_query_pos,batch_query_length,
                         batch_candidates_sorted, batch_candidate_ner_sorted, batch_candidate_pos_sorted,batch_candidate_lengths_sorted,
                         batch_candidate_unsort, gold_index, negative_indices,batch_metrics,batch_len)
-                losses[index] = loss
+                loss_total[index] = loss
 
                 mrr_value.append(computeMRR(indices, batch_answer_indices, index))
 
 
-            mean_loss = losses.mean(0)
+            mean_loss = torch.mean(loss_total,0)
             mean_loss.backward()
             torch.nn.utils.clip_grad_norm(model.parameters(), clip_threshold)
             optimizer.step()
@@ -220,7 +220,7 @@ if __name__ == "__main__":
     parser.add_argument("--hidden_size", type=int, default=100)
     parser.add_argument("--embed_size", type=int, default=100)
     parser.add_argument("--cuda", action="store_true", default=True)
-    parser.add_argument("--batch_length", type=int, default=1)
+    parser.add_argument("--batch_length", type=int, default=10)
     parser.add_argument("--eval_interval", type=int, default=10)
     parser.add_argument("--learning_rate", type=float, default=0.001)
     parser.add_argument("--num_epochs", type=int, default=10)
