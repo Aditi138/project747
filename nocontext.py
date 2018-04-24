@@ -11,6 +11,20 @@ import numpy as np
 from time import time
 import random
 
+def computeMRR(indices, batch_answer_indices, index):
+    if args.use_cuda:
+        indices = indices.data.cpu()
+
+    else:
+        indices = indices.data
+
+    position_gold_sorted = (indices == batch_answer_indices[index]).nonzero().numpy()[0][0]
+
+    index = position_gold_sorted + 1
+
+    return (1.0 / (index))
+
+
 def get_random_batch_from_training(batches, num):
     small = []
     for i in range(num):
@@ -55,17 +69,7 @@ def evaluate(model, batches):
                         batch_candidate_unsort, batch_answer_indices[index],
                                                          batch_metrics,batch_len)
 
-            if args.use_cuda:
-                indices = indices.data.cpu()
-
-            else:
-                indices = indices.data
-
-            position_gold_sorted = (indices ==  batch_answer_indices[index]).nonzero().numpy()[0][0]
-
-            index= position_gold_sorted + 1
-
-            mrr_value.append(1.0 / (index))
+            mrr_value.append(computeMRR(indices, batch_answer_indices, index))
 
 
     mean_rr = np.mean(mrr_value)
@@ -92,6 +96,7 @@ def train_epochs(model, vocab):
     #train_batches = create_batches(train_documents, args.batch_length, args.job_size, vocab)
     #train_batch_for_validation = get_random_batch_from_training(train_batches, len(valid_batches))
     test_batches = create_batches(test_documents,args.batch_length,args.job_size, vocab)
+    mrr_value = []
 
     for epoch in range(args.num_epochs):
 
@@ -111,6 +116,12 @@ def train_epochs(model, vocab):
                 if iteration != 0:
                     average_rr = evaluate(model, valid_batches)
                     validation_history.append(average_rr)
+
+                    mean_rr = np.mean(mrr_value)
+                    print("Training MRR :{0}".format(mean_rr))
+                    mrr_value = []
+
+                    print("Validation: MRR:{0}".format(average_rr))
 
                     if (iteration + 1) % (eval_interval * 5) == 0:
                         if average_rr >= max(validation_history):
@@ -135,6 +146,7 @@ def train_epochs(model, vocab):
             batch_answer_indices = batch['answer_indices']
             batch_size = len(batch_query_lengths)
             losses = variable(torch.zeros(batch_size))
+
             for index,query in enumerate(batch['queries']):
 
                 # query tokens
@@ -161,16 +173,20 @@ def train_epochs(model, vocab):
                 negative_indices.pop(batch_answer_indices[index])
                 negative_indices = variable(torch.LongTensor(negative_indices))
 
-                loss = model(batch_query, batch_query_ner, batch_query_pos,batch_query_length,
+                loss,indices = model(batch_query, batch_query_ner, batch_query_pos,batch_query_length,
                         batch_candidates_sorted, batch_candidate_ner_sorted, batch_candidate_pos_sorted,batch_candidate_lengths_sorted,
                         batch_candidate_unsort, gold_index, negative_indices,batch_metrics,batch_len)
                 losses[index] = loss
+
+                mrr_value.append(computeMRR(indices, batch_answer_indices, index))
 
 
             mean_loss = losses.mean(0)
             mean_loss.backward()
             torch.nn.utils.clip_grad_norm(model.parameters(), clip_threshold)
             optimizer.step()
+
+
 
 
             if args.use_cuda:

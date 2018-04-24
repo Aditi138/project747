@@ -69,7 +69,9 @@ class NoContext(nn.Module):
 
         #Take a softmax
         loss = self.loss(question_answer_dot_unsort.transpose(0,1),gold_answer_index)
-        return loss
+
+        sorted, indices = torch.sort(F.log_softmax(question_answer_dot_unsort,dim=0), dim=0, descending=True)
+        return loss, indices
 
         # gold_features = torch.index_select(question_answer_dot_unsort,0,index=gold_answer_index)
         # negative_features = torch.index_select(question_answer_dot_unsort,0,index=negative_indices)
@@ -108,7 +110,7 @@ class NoContext(nn.Module):
 
         #Unsort the candidates back to original
         question_answer_dot_unsort = torch.index_select(question_answer_dot, 0, batch_candidate_unsort)
-        log_softmax = F.log_softmax(question_answer_dot_unsort)
+        log_softmax = F.log_softmax(question_answer_dot_unsort,dim=0)
 
         sorted, indices = torch.sort(log_softmax,dim=0, descending=True)
         return indices
