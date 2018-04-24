@@ -80,7 +80,7 @@ def train_epochs(model, vocab):
 	all_start_correct = 0.0
 	all_end_correct = 0.0
 	all_span_correct  = 0.0
-
+	coutn = 0
 	patience = 10
 
 	valid_batches = make_bucket_batches(valid_documents, args.batch_length, vocab)
@@ -94,7 +94,7 @@ def train_epochs(model, vocab):
 		model._span_start_accuracy = Accuracy()
 		model._span_end_accuracy = Accuracy()
 		model._span_accuracy = BooleanAccuracy()
-
+		count = 0
 		saved = False
 		for iteration in range(len(train_batches)):
 			optimizer.zero_grad()
@@ -108,8 +108,8 @@ def train_epochs(model, vocab):
 
 					if (iteration + 1) % (eval_interval * 5) == 0:
 						print("Train Accuracy: start_index = {0}, end_index = {1}, span = {2}".format(
-							all_start_correct * 1.0 / train_denom, all_end_correct * 1.0 / train_denom,
-							all_span_correct * 1.0 / train_denom))
+							all_start_correct * 1.0 / count, all_end_correct * 1.0 /count,
+							all_span_correct * 1.0 / count))
 						print("Validation Accuracy: Start:{0} End:{1} Span:{2}".format(start, end, span))
 						if span >= max(validation_history):
 							saved = True
@@ -163,6 +163,7 @@ def train_epochs(model, vocab):
 				train_loss += loss.data.numpy()[0] * batch_size
 
 			train_denom += batch_size
+			count += batch_size
 
 		if not saved:
 			print("Saving model after epoch {0}".format(epoch))
