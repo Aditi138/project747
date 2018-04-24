@@ -65,7 +65,7 @@ def make_bucket_batches(data, batch_size,vocab):
             end_index = begin_index + cur_batch_size
             batch_data  =list(bucket[begin_index:end_index])
             batch = create_single_batch(batch_data)
-            view_batch(batch,vocab)
+            #view_batch(batch,vocab)
             batches.append(batch)
 
     np.random.shuffle(batches)
@@ -615,7 +615,7 @@ class DataLoader():
 
             metrics_per_doc= []
 
-            document_tokens = self.vocab.add_and_get_indices(document.document_tokens)
+            #document_tokens = self.vocab.add_and_get_indices(document.document_tokens)
 
             candidate_per_doc_per_answer = []
             candidate_per_doc_per_answer_ner = []
@@ -657,7 +657,7 @@ class DataLoader():
                 data_points.append(Data_Point
                                    (query.question_tokens, query.answer_indices, candidate_per_doc_per_answer,metrics_per_doc[idx],
                                     query.ner_tokens, query.pos_tokens,candidate_per_doc_per_answer_ner,candidate_per_doc_per_answer_pos,
-                                    document_tokens))
+                                    []))
 
         return data_points
 
