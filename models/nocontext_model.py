@@ -25,7 +25,7 @@ class NoContext(nn.Module):
         ner_tag_size = loader.vocab.ner_tag_size()
         pos_tag_size = loader.vocab.pos_tag_size()
         self.args = args
-        self.loader = loader
+        # self.loader = loader
         #Embedding layer
         self.embedding = LookupEncoder(input_size, embed_size,loader.pretrain_embedding)
         #self.ner_embedding = nn.Embedding(ner_tag_size, ner_dim)
