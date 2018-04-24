@@ -13,7 +13,7 @@ except:
 import sys
 import spacy
 from nltk import word_tokenize
-from data import Document, Query, Data_Point,Sentence_Splitting
+from data import Document, Query, Data_Point
 from utility import start_tags, end_tags, start_tags_with_attributes, pad_seq, view_data_point
 import random
 import numpy as np
