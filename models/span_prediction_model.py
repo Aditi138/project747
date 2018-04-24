@@ -75,9 +75,143 @@ def weighted_sum(matrix, attention):
 	intermediate = attention.unsqueeze(-1).expand_as(matrix) * matrix
 	return intermediate.sum(dim=-2)
 
-class ContextMRR(nn.Module):
+class SpanMRR(nn.Module):
 	def __init__(self, args, vocab):
-		super(ContextMRR, self).__init__()
+		super(SpanMRR, self).__init__()
+		hidden_size = args.hidden_size
+		embed_size = args.embed_size
+		word_vocab_size = vocab.get_length()
+
+		if args.dropout > 0:
+			self._dropout = torch.nn.Dropout(p=args.dropout)
+		else:
+			self._dropout = lambda x: x
+
+		## word embedding layer
+		self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size)
+
+		## contextual embedding layer
+		self.contextual_embedding_layer = RecurrentContext(input_size=embed_size, hidden_size=hidden_size, num_layers=1)
+
+		## bidirectional attention flow between question and context
+		self.attention_flow_layer1 = BiDAF(2*hidden_size)
+
+		## modelling layer for question and context : this layer also converts the 8 dimensional input intp two dimensioanl output
+		modeling_layer_inputdim = 8 * hidden_size
+		self.modeling_layer1 = RecurrentContext(modeling_layer_inputdim, hidden_size,num_layers=2)
+		self.modeling_dim = 2 * hidden_size
+
+
+		span_start_input_dim = modeling_layer_inputdim + (2 * hidden_size)
+		self._span_start_predictor = TimeDistributed(torch.nn.Linear(span_start_input_dim, 1))
+
+		span_end_input_dim = modeling_layer_inputdim + (2 * hidden_size)
+		self._span_end_predictor = TimeDistributed(torch.nn.Linear(span_end_input_dim, 1))
+
+		span_end_dim = modeling_layer_inputdim + 3 * self.modeling_dim
+		self._span_end_encoder = RecurrentContext(span_end_dim, hidden_size)
+
+	def forward(self, batch_query, batch_query_length,batch_query_mask,
+				      batch_context, batch_context_length, batch_context_mask,
+				      span_starts, span_ends, gold_index, batch_metrics, batch_len):
+		batch_query_mask = batch_query_mask.unsqueeze(0)
+		batch_context_mask = batch_context_mask.unsqueeze(0)
+		query_embedded = self.word_embedding_layer(batch_query)
+		query_embedded = query_embedded.unsqueeze(0)
+		context_embedded = self.word_embedding_layer(batch_context)
+		context_embedded = context_embedded.unsqueeze(0)
+		passage_length = context_embedded.size(1)
+		query_encoded, _ = self.contextual_embedding_layer(query_embedded, batch_query_length)
+		query_encoded = self._dropout(query_encoded)
+		context_encoded, _ = self.contextual_embedding_layer(context_embedded, batch_context_length)
+		context_encoded = self._dropout(context_encoded)
+		context_attention_encoded, query_aware_context_encoded, context_aware_query_encoded = self.attention_flow_layer1(
+			query_encoded, context_encoded, batch_query_mask, batch_context_mask)
+		context_modeled, _ = self.modeling_layer1(context_attention_encoded, batch_context_length)
+		context_modeled = self._dropout(context_modeled)
+		span_start_input = self._dropout(torch.cat([context_attention_encoded, context_modeled], dim=-1))
+		span_start_logits = self._span_start_predictor(span_start_input).squeeze(-1)
+		span_start_probs = masked_softmax(span_start_logits, batch_context_mask)
+		span_start_representation = weighted_sum(context_modeled, span_start_probs)
+		tiled_start_representation = span_start_representation.unsqueeze(1).expand(span_start_representation.size(0),
+																				   passage_length,
+																				   self.modeling_dim)
+		span_end_representation = torch.cat([context_attention_encoded,
+											 context_modeled,
+											 tiled_start_representation,
+											 context_modeled * tiled_start_representation],
+											dim=-1)
+		encoded_span_end, _ = self._span_end_encoder(span_end_representation, batch_context_length)
+		encoded_span_end = self._dropout(encoded_span_end)
+		span_end_input = self._dropout(torch.cat([context_attention_encoded, encoded_span_end], dim=-1))
+		span_end_logits = self._span_end_predictor(span_end_input).squeeze(-1)
+
+		## loss computation 1
+		## log_softmax(exp(logsoftmax(logit score start) + logsoftmax(logit score end))
+		# span_start_logprobs = masked_log_softmax(span_start_logits, batch_context_mask)
+		# span_end_logprobs = masked_log_softmax(span_end_logits, batch_context_mask)
+		# span_start_scores = torch.index_select(span_start_logprobs, 1, span_starts)
+		# span_end_scores = torch.index_select(span_end_logprobs, 1, span_ends)
+		# total_scores = torch.exp(span_start_scores + span_end_scores)
+		# loss = F.cross_entropy(total_scores, gold_index)
+
+		## loss_computation 2 (S, n)
+		span_start_logprobs = masked_softmax(span_start_logits, batch_context_mask)
+		span_end_logprobs = masked_softmax(span_end_logits, batch_context_mask)
+		span_start_scores = torch.index_select(span_start_logprobs, 1, span_starts)
+		span_end_scores = torch.index_select(span_end_logprobs, 1, span_ends)
+		total_scores = span_start_scores + span_end_scores
+		loss = F.cross_entropy(total_scores, gold_index)
+		sorted, indices = torch.sort(total_scores.squeeze(0), dim=0, descending=True)
+		return loss, indices
+
+	def eval(self, batch_query, batch_query_length,batch_question_mask,
+			 batch_context, batch_context_length,batch_context_mask,
+			 batch_start_indices, batch_end_indices, batch_len):
+		batch_query_mask = batch_question_mask.unsqueeze(0)
+		batch_context_mask = batch_context_mask.unsqueeze(0)
+		query_embedded = self.word_embedding_layer(batch_query)
+		query_embedded = query_embedded.unsqueeze(0)
+		context_embedded = self.word_embedding_layer(batch_context)
+		context_embedded = context_embedded.unsqueeze(0)
+		passage_length = context_embedded.size(1)
+		query_encoded, _ = self.contextual_embedding_layer(query_embedded, batch_query_length)
+		query_encoded = self._dropout(query_encoded)
+		context_encoded, _ = self.contextual_embedding_layer(context_embedded, batch_context_length)
+		context_encoded = self._dropout(context_encoded)
+		context_attention_encoded, query_aware_context_encoded, context_aware_query_encoded = self.attention_flow_layer1(
+			query_encoded, context_encoded, batch_query_mask, batch_context_mask)
+		context_modeled, _ = self.modeling_layer1(context_attention_encoded, batch_context_length)
+		context_modeled = self._dropout(context_modeled)
+		span_start_input = self._dropout(torch.cat([context_attention_encoded, context_modeled], dim=-1))
+		span_start_logits = self._span_start_predictor(span_start_input).squeeze(-1)
+		span_start_probs = masked_softmax(span_start_logits, batch_context_mask)
+		span_start_representation = weighted_sum(context_modeled, span_start_probs)
+		tiled_start_representation = span_start_representation.unsqueeze(1).expand(span_start_representation.size(0),
+																				   passage_length,
+																				   self.modeling_dim)
+		span_end_representation = torch.cat([context_attention_encoded,
+											 context_modeled,
+											 tiled_start_representation,
+											 context_modeled * tiled_start_representation],
+											dim=-1)
+		encoded_span_end, _ = self._span_end_encoder(span_end_representation, batch_context_length)
+		encoded_span_end = self._dropout(encoded_span_end)
+		span_end_input = self._dropout(torch.cat([context_attention_encoded, encoded_span_end], dim=-1))
+		span_end_logits = self._span_end_predictor(span_end_input).squeeze(-1)
+
+		## get ranked indices
+		span_start_logprobs = masked_log_softmax(span_start_logits, batch_context_mask)
+		span_end_logprobs = masked_log_softmax(span_end_logits, batch_context_mask)
+		span_start_scores = torch.index_select(span_start_logprobs, 1, batch_start_indices)
+		span_end_scores = torch.index_select(span_end_logprobs, 1, batch_end_indices)
+		total_scores = span_start_scores + span_end_scores
+		sorted, indices = torch.sort(total_scores.squeeze(0), dim=0, descending=True)
+		return indices
+
+class SpanScorer(nn.Module):
+	def __init__(self, args, vocab):
+		super(SpanScorer, self).__init__()
 		hidden_size = args.hidden_size
 		embed_size = args.embed_size
 		word_vocab_size = vocab.get_length()
@@ -321,10 +455,6 @@ class ContextMRR(nn.Module):
 			self._span_accuracy_valid.accuracy(best_span, torch.stack([span_start, span_end], -1))
 			return self._span_start_accuracy_valid.correct_count, self._span_end_accuracy_valid.correct_count, self._span_accuracy_valid._correct_count
 
-
-
-
-
 class OutputLayer(nn.Module):
 	def __init__(self, input_size, hidden_size):
 		super(OutputLayer, self).__init__()
@@ -396,8 +526,6 @@ class TimeDistributed(torch.nn.Module):
 		outputs = reshaped_outputs.contiguous().view(*new_shape)
 
 		return outputs
-
-
 
 class Accuracy:
 	def __init__(self,top_k=1):

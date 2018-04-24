@@ -36,7 +36,6 @@ def replace_masked_values(tensor, mask, replace_with):
 	values_to_add = replace_with * one_minus_mask
 	return tensor * mask + values_to_add
 
-
 def last_dim_softmax(tensor,mask):
 	tensor_shape = tensor.size()
 	reshaped_tensor = tensor.view(-1, tensor.size()[-1])
