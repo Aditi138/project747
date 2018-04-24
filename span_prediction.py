@@ -30,7 +30,7 @@ def evaluate(model, batches):
 
 	model.train(False)
 
-	model._span_start_accuracy_valis = Accuracy()
+	model._span_start_accuracy_valid = Accuracy()
 	model._span_end_accuracy_valid = Accuracy()
 	model._span_accuracy_valid = BooleanAccuracy()
 
@@ -72,20 +72,18 @@ def train_epochs(model, vocab):
 	clip_threshold = args.clip_threshold
 	eval_interval = args.eval_interval
 
-	optimizer = optim.Adam(model.parameters(), lr=args.learning_rate, betas=(0.9,0.9))
+	optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 	train_loss = 0
 	train_denom = 0
 	validation_history = []
 	bad_counter = 0
-	best_mrr = -1.0
 	all_start_correct = 0.0
 	all_end_correct = 0.0
 	all_span_correct  = 0.0
 
-	patience = 30
+	patience = 10
 
-	valid_batches = make_bucket_batches(valid_documents, args.batch_length, vocab)[:200]
-
+	valid_batches = make_bucket_batches(valid_documents, args.batch_length, vocab)
 
 	for epoch in range(args.num_epochs):
 
@@ -128,7 +126,7 @@ def train_epochs(model, vocab):
 							exit(0)
 
 			batch = train_batches[iteration]
-			# view_batch(batch,loader.vocab)
+			#view_batch(batch,loader.vocab)
 			batch_query_lengths = batch['qlengths']
 
 			batch_start_indices = variable(torch.LongTensor(batch['start_indices']))
@@ -190,12 +188,12 @@ if __name__ == "__main__":
 	parser.add_argument("--max_documents", type=int, default=0, help="If greater than 0, load at most this many documents")
 
 	# Model parameters
-	parser.add_argument("--hidden_size", type=int, default=100)
-	parser.add_argument("--embed_size", type=int, default=100)
+	parser.add_argument("--hidden_size", type=int, default=10)
+	parser.add_argument("--embed_size", type=int, default=10)
 	parser.add_argument("--cuda", action="store_true", default=True)
 	parser.add_argument("--batch_length", type=int, default=40)
 	parser.add_argument("--eval_interval", type=int, default=2)
-	parser.add_argument("--learning_rate", type=float, default=0.0001)
+	parser.add_argument("--learning_rate", type=float, default=0.5)
 	parser.add_argument("--num_epochs", type=int, default=20)
 	parser.add_argument("--clip_threshold", type=int, default=5)
 	parser.add_argument("--num_layers", type=int, default=3)

@@ -25,23 +25,20 @@ global vocab
 def view_batch(batch,vocab):
 
     queries = batch['queries']
-    ner_queries = batch['q_ner']
+    contexts =  batch['contexts']
+    start_indices =  batch['start_indices']
+    end_indices =  batch['end_indices']
     q  = []
     a = []
-    q_ner = []
-    a_ner = []
+    c = []
+
     for index,question_tokens in enumerate(queries):
         q.append(" ".join([vocab.get_word(id) for id in question_tokens]) + "\n")
-        q_ner.append(" ".join([vocab.id_to_nertag[id] for id in ner_queries[index]]) + "\n")
-    batch_candidates = batch["candidates"]
-    batch_answer_indices = batch['answer_indices']
+        c.append(" ".join([vocab.get_word(id) for id in contexts[index]]) + "\n")
+        a.append(c[index][start_indices[index]:end_indices[index]])
 
-    for index,answer_tokens in enumerate(batch_candidates['answers']):
-        gold_answer_tokens = answer_tokens[batch_answer_indices[index]]
-        a.append(" ".join([vocab.get_word(id) for id in gold_answer_tokens]) + "\n")
-        a_ner.append(" ".join([vocab.id_to_nertag[id] for id in batch_candidates['ner'][index][batch_answer_indices[index]]]) + "\n")
     for index in range(len(q)):
-        print(q[index] + " " +  q_ner[index] + " " + a[index] + " " + a_ner[index]+"\n")
+        print(q[index] + " "  + a[index] + " " +"\n")
 
 def make_bucket_batches(data, batch_size,vocab):
     # Data are bucketed according to the length of the first item in the data_collections.
@@ -58,7 +55,7 @@ def make_bucket_batches(data, batch_size,vocab):
         bucket = buckets[src_len]
         np.random.shuffle(bucket)
 
-        #Sort bucket by question_tokens
+        #Sort bucket by context_tokens
         q_lengths = [len(data_point.question_tokens) for data_point in bucket]
         sorted_data = list(zip(q_lengths, bucket))
         sorted_data.sort(reverse=True)

@@ -55,6 +55,7 @@ class BiDAF(nn.Module):
 		super(BiDAF, self).__init__()
 		self.input_size = input_size
 		self.similarity_layer = nn.Linear(3*input_size, 1)
+		self.similarity_layer.bias.data.fill_(1)
 
 
 
