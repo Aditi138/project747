@@ -32,6 +32,10 @@ def get_random_batch_from_training(batches, num):
         small.append(batches[index])
     return small
 
+def test_model(model, documents,vocab):
+    test_batches = create_batches(documents,args.batch_length,args.job_size, vocab)
+    print("Testing!")
+    evaluate(model, test_batches)
 
 
 def evaluate(model, batches):
@@ -202,6 +206,12 @@ def train_epochs(model, vocab):
             torch.save(model, args.model_path + ".dummy")
 
     print("All epochs done")
+    print("Testing started")
+    if not saved:
+        model = torch.load(args.model_path + ".dummy")
+    else:
+        model = torch.load(args.model_path)
+    evaluate(model, test_batches)
 
 
 if __name__ == "__main__":
@@ -221,6 +231,7 @@ if __name__ == "__main__":
     parser.add_argument("--hidden_size", type=int, default=100)
     parser.add_argument("--embed_size", type=int, default=100)
     parser.add_argument("--cuda", action="store_true", default=True)
+    parser.add_argument("--test", action="store_true", default=False)
     parser.add_argument("--batch_length", type=int, default=10)
     parser.add_argument("--eval_interval", type=int, default=10)
     parser.add_argument("--learning_rate", type=float, default=0.001)
@@ -262,6 +273,10 @@ if __name__ == "__main__":
     
     if args.use_cuda:
         model = model.cuda()
-
-    train_epochs(model, loader.vocab)
-
+     
+    if args.test:
+	model = torch.load(args.model_path)
+        test_model(model, test_documents, loader.vocab)
+    else:
+	train_epochs(model, loader.vocab)
+  
