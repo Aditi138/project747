@@ -40,3 +40,10 @@ def pad_elmo(batch):
 def view_data_point(data_point, vocab):
     print(" ".join([vocab.get_word(id) for id in data_point.question_tokens]))
     print(" ".join([vocab.get_word(id) for id in data_point.candidates[data_point.answer_indices[0]]]))
+
+def view_span_data_point(data_point, vocab):
+    print(" ".join([vocab.get_word(id) for id in data_point.question_tokens]))
+    print(" ".join([vocab.get_word(id) for id in data_point.answer_tokens]))
+
+    ansnwer_from_context = data_point.context_tokens[data_point.span_indices[0]:data_point.span_indices[1] + 1]
+    print(" ".join([vocab.get_word(id) for id in ansnwer_from_context]))

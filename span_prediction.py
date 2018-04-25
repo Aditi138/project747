@@ -1,13 +1,13 @@
 import argparse
 import sys
 
-from dataloaders.dataloader import create_batches, view_batch, make_bucket_batches
+from dataloaders.dataloader import create_batches, view_batch, make_bucket_batches, DataLoader
 from dataloaders.squad_dataloader import SquadDataloader
 from models.span_prediction_model import ContextMRR, Accuracy, BooleanAccuracy
 
 import torch
 from torch import optim
-from dataloaders.utility import variable, view_data_point
+from dataloaders.utility import variable, view_data_point,view_span_data_point
 import numpy as np
 from time import time
 import random
@@ -84,6 +84,7 @@ def train_epochs(model, vocab):
 	patience = 10
 
 	valid_batches = make_bucket_batches(valid_documents, args.batch_length, vocab)
+	test_batches = make_bucket_batches(test_documents, args.batch_length, vocab)
 
 	for epoch in range(args.num_epochs):
 
@@ -122,7 +123,11 @@ def train_epochs(model, vocab):
 						if bad_counter > patience:
 							print("Early Stopping")
 							print("Testing started")
-							evaluate(model, valid_batches)
+							if not saved:
+								torch.load(model, args.model_path + ".dummy")
+							else:
+								torch.load(model, args.model_path)
+							evaluate(model, test_batches)
 							exit(0)
 
 			batch = train_batches[iteration]
@@ -172,7 +177,12 @@ def train_epochs(model, vocab):
 
 
 	print("All epochs done")
-
+	print("Testing started")
+	if not saved:
+		torch.load(model, args.model_path + ".dummy")
+	else:
+		torch.load(model, args.model_path)
+	evaluate(model, test_batches)
 
 if __name__ == "__main__":
 	reload(sys)
@@ -215,11 +225,18 @@ if __name__ == "__main__":
 	else:
 		vars(args)['use_cuda'] = False
 
-	loader = SquadDataloader(args)
+	#For running squad
+	#loader = SquadDataloader(args)
+	# start = time()
+	# train_documents = loader.load_docuements(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
+	# valid_documents = loader.load_docuements(args.valid_path, summary_path=None, max_documents=args.max_documents)
+	# test_documents = loader.load_docuements(args.test_path, summary_path=None, max_documents=args.max_documents)
 
+	loader = DataLoader(args)
 	start = time()
-	train_documents = loader.load_docuements(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
-	valid_documents = loader.load_docuements(args.valid_path, summary_path=None, max_documents=args.max_documents)
+	train_documents = loader.load_documents_with_answer_spans(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
+	valid_documents = loader.load_documents_with_answer_spans(args.valid_path, summary_path=None, max_documents=args.max_documents)
+	test_documents = loader.load_documents_with_answer_spans(args.test_path, summary_path=None, max_documents=args.max_documents)
 
 
 	end = time()
