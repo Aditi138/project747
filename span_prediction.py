@@ -115,7 +115,7 @@ def train_epochs(model, vocab):
 						if span >= max(validation_history):
 							saved = True
 							print("Saving best model seen so far itr number {0}".format(iteration))
-							torch.save(model, args.model_path)
+							torch.save(model.state_dict(), args.model_path)
 							print("Best on Validation: Start:{0} End:{1} Span:{2}".format(start, end, span))
 							bad_counter = 0
 						else:
@@ -123,7 +123,8 @@ def train_epochs(model, vocab):
 						if bad_counter > patience:
 							print("Early Stopping")
 							print("Testing started")
-							model = torch.load(args.model_path)
+							model = SpanMRR(args, loader)
+							model.load_state_dict(torch.load(args.model_path))
 							evaluate(model, test_batches)
 							exit(0)
 
@@ -169,13 +170,14 @@ def train_epochs(model, vocab):
 
 		if not saved:
 			print("Saving model after epoch {0}".format(epoch))
-			torch.save(model, args.model_path + ".dummy")
+			torch.save(model.state_dict(), args.model_path + ".dummy")
 
 
 
 	print("All epochs done")
 	print("Testing started")
-	model = torch.load(args.model_path)
+	model = SpanMRR(args, loader)
+	model.load_state_dict(torch.load(args.model_path))
 	evaluate(model, test_batches)
 
 if __name__ == "__main__":
