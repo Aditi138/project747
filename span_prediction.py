@@ -235,6 +235,8 @@ if __name__ == "__main__":
 	valid_documents = loader.load_documents_with_answer_spans(args.valid_path, summary_path=None, max_documents=args.max_documents)
 	test_documents = loader.load_documents_with_answer_spans(args.test_path, summary_path=None, max_documents=args.max_documents)
 
+	for i in range(20):
+		view_span_data_point(valid_documents[i], loader.vocab)
 	
 	print("Train documents:{0} valid documents:{1} test documents:{2}".format(len(train_documents), len(valid_documents), len(test_documents)))
 	end = time()

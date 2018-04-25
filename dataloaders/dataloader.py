@@ -600,6 +600,7 @@ class DataLoader():
             # candidate_per_doc_per_answer_ner = []
             # candidate_per_doc_per_answer_pos = []
             i = 0
+            q_index= 0
             while i < len(document.candidates):
                 answers_per_doc.append(document.candidates[i])
                 # candidate_per_doc_per_answer_ner.append(document.ner_candidates[i])
@@ -608,12 +609,13 @@ class DataLoader():
 
             for idx,query in enumerate(document.queries):
                 query.question_tokens = self.vocab.add_and_get_indices(query.question_tokens)
+                #print("Index:{0} {1}".format(q_index, " ".join(answers_per_doc[idx])))
+                q_index += 1
                 ## if answer is an exact span of the context, add span indices
                 span_indices = self.is_span(answers_per_doc[idx], document.document_tokens)
                 answer_tokens = self.vocab.add_and_get_indices(answers_per_doc[idx])
                 if span_indices[0] != -1 and span_indices[1] != -1:
 
-                    #chunk in 300
                     chunk_length  =300
                     total_chunks = len(document_tokens) // chunk_length
                     if len(document_tokens) % chunk_length > 0:
@@ -621,30 +623,39 @@ class DataLoader():
                     chunk_storage = []
                     chunk_start = span_indices[0] / chunk_length
                     chunk_end  = span_indices[1] / chunk_length
+                    chunk_number  = -1
                     for chunk_number in range(total_chunks - 1):
                         chunk = document_tokens[chunk_length * chunk_number:chunk_length * (chunk_number + 1)]
                         chunk_storage.append(chunk)
 
-                    chunk_storage.append(document_tokens[-chunk_length:])
+                    last = (chunk_number + 1) * chunk_length
+                    chunk_storage.append(document_tokens[last:])
                     if chunk_end > chunk_start:
                         tokens = chunk_storage[chunk_start][-150:] + chunk_storage[chunk_end][:150]
-                        new_start = span_indices[0] - chunk_length
-                        if new_start > 0:
+                        new_start = span_indices[0] - (chunk_length * chunk_start)
+                        if new_start >= 0:
                             span_indices[0] = new_start
                         span_indices[0] = span_indices[0]  - 150
                         span_indices[1] = span_indices[0] + len(answer_tokens) - 1
-                        #print("different")
 
                     else:
                         tokens = chunk_storage[chunk_start]
-                        new_start = span_indices[0] - chunk_length
-                        if new_start > 0:
+                        #print(span_indices[0])
+                        #print(span_indices[1])
+                        #lenght = min(chunk_length, )
+                        new_start = span_indices[0] - (chunk_length * chunk_start)
+                        if new_start >= 0:
                             span_indices[0] = new_start
                         span_indices[1] = span_indices[0] + len(answer_tokens) - 1
 
                     # Handle last chunk separately
+                    #answer = " ".join([self.vocab.get_word(id) for id in tokens[span_indices[0]:span_indices[1]+1]])
+                    #print("Updated:{0} {1} {2}".format(span_indices[0], span_indices[1], answer))
 
+                    if len(tokens) == 0 or span_indices[0] > len(tokens) or span_indices[1] > len(tokens):
+                        print('Empty')
 
+                    #tokens = document_tokens
                     data_points.append(Span_Data_Point(query.question_tokens,tokens, span_indices, answer_tokens))
 
         return data_points
