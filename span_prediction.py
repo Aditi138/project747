@@ -185,7 +185,7 @@ if __name__ == "__main__":
 
 	parser.add_argument("--train_path", type=str, default="/../narrativeqa/summaries/small_summaries.pickle")
 	parser.add_argument("--valid_path", type=str, default=None)
-	parser.add_argument("--test_path", type=str, default=None)
+	parser.add_argument("--test_path", type=str, default="../test_summaries.pickle")
 	parser.add_argument("--summary_path", type=str, default=None)
 	parser.add_argument("--model_path", type=str, default=None)
 	parser.add_argument("--job_size", type=int, default=5)
@@ -196,6 +196,7 @@ if __name__ == "__main__":
 	parser.add_argument("--hidden_size", type=int, default=10)
 	parser.add_argument("--embed_size", type=int, default=100)
 	parser.add_argument("--cuda", action="store_true", default=True)
+	parser.add_argument("--test", action="store_true", default=False)
 	parser.add_argument("--batch_length", type=int, default=40)
 	parser.add_argument("--eval_interval", type=int, default=2)
 	parser.add_argument("--learning_rate", type=float, default=0.5)
@@ -232,8 +233,8 @@ if __name__ == "__main__":
 	valid_documents = loader.load_documents_with_answer_spans(args.valid_path, summary_path=None, max_documents=args.max_documents)
 	test_documents = loader.load_documents_with_answer_spans(args.test_path, summary_path=None, max_documents=args.max_documents)
 
-	# for i in range(10):
-	# 	view_span_data_point(train_documents[i], loader.vocab)
+	
+	print("Train documents:{0} valid documents:{1} test documents:{2}".format(len(train_documents), len(valid_documents), len(test_documents)))
 	end = time()
 	print(end - start)
 
