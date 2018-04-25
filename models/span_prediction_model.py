@@ -243,7 +243,7 @@ class SpanScorer(nn.Module):
 		self._span_end_predictor = TimeDistributed(torch.nn.Linear(span_end_input_dim, 1))
 
 		span_end_dim = modeling_layer_inputdim + 3 * self.modeling_dim
-		self._span_end_encoder = RecurrentContext(span_end_dim, hidden_size)
+		self._span_end_encoder = RecurrentContext(span_end_dim, hidden_size,num_layers=1)
 
 		self._span_start_accuracy = Accuracy()
 		self._span_end_accuracy = Accuracy()
@@ -471,15 +471,14 @@ class OutputLayer(nn.Module):
 		return self.mlp(batch)
 
 class RecurrentContext(nn.Module):
-	def __init__(self, input_size, hidden_size, num_layers=1):
+	def __init__(self, input_size, hidden_size, num_layers=1,dropout=0.0):
 		# format of input output
 		super(RecurrentContext, self).__init__()
-		self.lstm_layer = nn.LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers,
+		self.lstm_layer = nn.LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers,dropout=dropout,
 								  bidirectional=True, batch_first=True)
 
 	def forward(self, batch, batch_length):
 		packed = torch.nn.utils.rnn.pack_padded_sequence(batch, batch_length, batch_first=True)
-		self.lstm_layer.flatten_parameters()
 		outputs, hidden = self.lstm_layer(packed)  # output: concatenated hidden dimension
 		outputs_unpacked, _ = torch.nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
 		return outputs_unpacked, hidden
