@@ -232,7 +232,8 @@ if __name__ == "__main__":
 	valid_documents = loader.load_documents_with_answer_spans(args.valid_path, summary_path=None, max_documents=args.max_documents)
 	test_documents = loader.load_documents_with_answer_spans(args.test_path, summary_path=None, max_documents=args.max_documents)
 
-
+	# for i in range(10):
+	# 	view_span_data_point(train_documents[i], loader.vocab)
 	end = time()
 	print(end - start)
 
