@@ -3,11 +3,11 @@ import sys
 
 from dataloaders.dataloader import create_batches, view_batch, make_bucket_batches, DataLoader
 from dataloaders.squad_dataloader import SquadDataloader
-from models.span_prediction_model import ContextMRR, Accuracy, BooleanAccuracy
+from models.span_prediction_model import SpanMRR, Accuracy, BooleanAccuracy
 
 import torch
 from torch import optim
-from dataloaders.utility import variable, view_data_point,view_span_data_point
+from dataloaders.utility import variable, view_data_point,view_span_data_point,get_pretrained_emb
 import numpy as np
 from time import time
 import random
@@ -200,7 +200,7 @@ if __name__ == "__main__":
 
 	# Model parameters
 	parser.add_argument("--hidden_size", type=int, default=10)
-	parser.add_argument("--embed_size", type=int, default=10)
+	parser.add_argument("--embed_size", type=int, default=100)
 	parser.add_argument("--cuda", action="store_true", default=True)
 	parser.add_argument("--batch_length", type=int, default=40)
 	parser.add_argument("--eval_interval", type=int, default=2)
@@ -242,10 +242,14 @@ if __name__ == "__main__":
 	end = time()
 	print(end - start)
 
-	model = ContextMRR(args, loader.vocab)
+	model = SpanMRR(args, loader)
 
 	if args.use_cuda:
 		model = model.cuda()
 
-	
+	# Get pre_trained embeddings
+	if args.pretrain_path is not None:
+		word_embedding = get_pretrained_emb(args.pretrain_path, loader.vocab.vocabulary, args.embed_size)
+		loader.pretrain_embedding = word_embedding
+
 	train_epochs(model, loader.vocab)

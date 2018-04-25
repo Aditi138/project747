@@ -75,12 +75,12 @@ def weighted_sum(matrix, attention):
 	intermediate = attention.unsqueeze(-1).expand_as(matrix) * matrix
 	return intermediate.sum(dim=-2)
 
-class ContextMRR(nn.Module):
-	def __init__(self, args, vocab):
-		super(ContextMRR, self).__init__()
+class SpanMRR(nn.Module):
+	def __init__(self, args, loader):
+		super(SpanMRR, self).__init__()
 		hidden_size = args.hidden_size
 		embed_size = args.embed_size
-		word_vocab_size = vocab.get_length()
+		word_vocab_size = loader.vocab.get_length()
 
 		if args.dropout > 0:
 			self._dropout = torch.nn.Dropout(p=args.dropout)
@@ -88,7 +88,7 @@ class ContextMRR(nn.Module):
 			self._dropout = lambda x: x
 
 		## word embedding layer
-		self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size)
+		self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size, pretrain_embedding=loader.pretrain_embedding)
 
 		## contextual embedding layer
 		self.contextual_embedding_layer = RecurrentContext(input_size=embed_size, hidden_size=hidden_size, num_layers=1)
@@ -358,7 +358,8 @@ class LookupEncoder(nn.Module):
 		super(LookupEncoder, self).__init__()
 		self.embedding_dim = embedding_dim
 		self.word_embeddings = nn.Embedding(vocab_size, embedding_dim)
-		# self.word_embeddings.weight.data.copy_(torch.from_numpy(pretrain_embedding))
+		if pretrain_embedding is not None:
+			self.word_embeddings.weight.data.copy_(torch.from_numpy(pretrain_embedding))
 
 	def forward(self, batch):
 		return self.word_embeddings(batch)

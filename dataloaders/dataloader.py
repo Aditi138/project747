@@ -169,6 +169,7 @@ class DataLoader():
         self.performance = Performance(args)
         self.args = args
         self.nlp = spacy.load('en')
+        self.pretrain_embedding = None
 
     # This function loads raw documents, summaries and queries, processes them, stores them in document class and finally saves to a pickle
     def process_data(self, input_folder, summary_path, qap_path, document_path, pickle_folder, small_number=-1, summary_only=False, interval=50):
