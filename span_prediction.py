@@ -123,10 +123,7 @@ def train_epochs(model, vocab):
 						if bad_counter > patience:
 							print("Early Stopping")
 							print("Testing started")
-							if not saved:
-								torch.load(model, args.model_path + ".dummy")
-							else:
-								torch.load(model, args.model_path)
+							model = torch.load(args.model_path)
 							evaluate(model, test_batches)
 							exit(0)
 
@@ -178,10 +175,7 @@ def train_epochs(model, vocab):
 
 	print("All epochs done")
 	print("Testing started")
-	if not saved:
-		torch.load(model, args.model_path + ".dummy")
-	else:
-		torch.load(model, args.model_path)
+	model = torch.load(args.model_path)
 	evaluate(model, test_batches)
 
 if __name__ == "__main__":
