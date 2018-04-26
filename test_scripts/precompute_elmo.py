@@ -13,6 +13,15 @@ class Document_Embed:
         self.candidates_embed = candidates_embed
         self.candidates = candidates
 
+class Document_All_Embed:
+    def __init__(self,id, qaps,candidates_embed, candidates, document_tokens, document_embed):
+        self.id = id
+        self.qaps = qaps
+        self.candidates_embed = candidates_embed
+        self.candidates = candidates
+        self.document_tokens = document_tokens
+        self.document_embed = document_embed
+
 class Query_Embed:
     def __init__(self, question_tokens, answer_indices, query_embed=None):
         self.question_tokens = question_tokens
@@ -20,7 +29,7 @@ class Query_Embed:
         self.query_embed = query_embed
 
 
-def load_documents(qap_path, pickle_folder,e,nlp):
+def load_documents(qap_path, pickle_folder,e,nlp, use_doc = False, summary_file= None):
     candidates_per_doc = defaultdict(list)
     candidates_embed_per_doc = defaultdict(list)
     qaps = defaultdict(list)
@@ -37,8 +46,6 @@ def load_documents(qap_path, pickle_folder,e,nlp):
         first = True
         for line in reader(fin):
 
-            if index == 3:
-                break
             if first:
                 first = False
                 continue
@@ -115,15 +122,42 @@ def load_documents(qap_path, pickle_folder,e,nlp):
     with open(pickle_folder + "question_answer_embed.pickle", "wb") as fout:
         pickle.dump(embed_info_per_doc, fout)
 
+    if use_doc:
+        embed_info = []
+
+        with codecs.open(summary_file, "r", encoding='utf-8', errors='replace') as fin:
+            first = True
+            for line in reader(fin):
+                if first:
+                    first = False
+                    continue
+                id = line[0]
+                summary_tokens = line[2]
+                doc = nlp(summary_tokens)
+                tokenized_sents = [[token.string.strip() for token in s] for s in doc.sents]
+                embeddings = e.embed_batch(tokenized_sents)
+                mean_embeddings = []
+                for index in range(len(embeddings)):
+                    mean_embeddings.append(np.mean(embeddings[index], axis=0))
+
+                embed_info.append(Document_All_Embed(id,qpas_embed[id], candidates_embed_per_doc[id], candidates_per_doc[id], tokenized_sents, mean_embeddings ))
+
+        print("Pickling question_a and documents embeddings")
+        with open(pickle_folder + "question_answer_doc_embed.pickle", "wb") as fout:
+            pickle.dump(embed_info, fout)
+        print("Loaded summaries")
+
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--pickle_folder", type=str, default=None, help="Input sentences")
 parser.add_argument("--qaps_file", type=str, default=None, help="Input sentences")
+parser.add_argument("--summary_file", type=str, default=None, help="Input sentences")
+parser.add_argument("--use_doc", action="store_true", default=False)
 args = parser.parse_args()
 
-e  =ElmoEmbedder()
+e  =ElmoEmbedder(cuda_device=-1)
 nlp = spacy.load('en')
-load_documents(args.qaps_file, args.pickle_folder, e,nlp)
+load_documents(args.qaps_file, args.pickle_folder, e,nlp, args.use_doc, args.summary_file)
 
 #Testing
 # with open(args.pickle_folder + "question_answer_embed.pickle", "rb") as fin:
