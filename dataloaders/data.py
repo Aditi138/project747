@@ -40,6 +40,18 @@ class Query:
     def get_answer_tokens(self):
         return (self.answer1_tokens, self.answer2_tokens)
 
+class Span_Data_Point:
+    question_tokens = []
+    answer_tokens = []
+    context_tokens = []
+    span_indices = []
+
+    def __init__(self, question_tokens, context_tokens, span_indices, answer_tokens=None):
+        self.question_tokens = question_tokens
+        self.context_tokens = context_tokens
+        self.answer_tokens = answer_tokens
+        self.span_indices = span_indices
+
 class Data_Point:
     question_tokens = []
     context_tokens = []
