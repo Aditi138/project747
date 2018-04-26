@@ -152,25 +152,23 @@ def load_documents(qap_path, pickle_folder,e,nlp,doc_file,  use_doc = False, sum
                     first = False
                     continue
                 id = line[0]
-                if id == "0025577043f5090cd603c6aea60f26e236195594":
-                    summary_tokens = line[2]
-                    doc = nlp(summary_tokens)
-                    tokenized_sents = [[token.string.strip() for token in s] for s in doc.sents]
-                    embeddings = e.embed_batch(tokenized_sents)
-                    mean_embeddings = []
-                    for index in range(len(embeddings)):
-                        mean_embeddings.append(np.mean(embeddings[index], axis=0))
+                summary_tokens = line[2]
+                doc = nlp(summary_tokens)
+                tokenized_sents = [[token.string.strip() for token in s] for s in doc.sents]
+                embeddings = e.embed_batch(tokenized_sents)
+                mean_embeddings = []
+                for index in range(len(embeddings)):
+                    mean_embeddings.append(np.mean(embeddings[index], axis=0))
 
-                    doc = Document_All_Embed(id,qpas_embed[id], candidates_embed_per_doc[id], candidates_per_doc[id], tokenized_sents, list(mean_embeddings) )
+                doc = Document_All_Embed(id,qpas_embed[id], candidates_embed_per_doc[id], candidates_per_doc[id], tokenized_sents, list(mean_embeddings) )
 
-                    set = set_id[doc.id]
-                    if set == 'train':
-                        train_summaries.append(doc)
-                    elif set == 'valid':
-                        valid_summaries.append(doc)
-                    elif set == 'test':
-                        test_summaries.append(doc)
-                index += 1
+                set = set_id[doc.id]
+                if set == 'train':
+                    train_summaries.append(doc)
+                elif set == 'valid':
+                    valid_summaries.append(doc)
+                elif set == 'test':
+                    test_summaries.append(doc)
 
         with open(args.pickle_folder + "train_summaries_embed.pickle", "wb") as fout:
             pickle.dump(train_summaries, fout, protocol=2)
@@ -192,7 +190,7 @@ parser.add_argument("--doc_file", type=str, default=None, help="Input sentences"
 parser.add_argument("--use_doc", action="store_true", default=False)
 args = parser.parse_args()
 
-e  =ElmoEmbedder(cuda_device=-1)
+e  =ElmoEmbedder(cuda_device=0)
 nlp = spacy.load('en')
 load_documents(args.qaps_file, args.pickle_folder, e,nlp, args.doc_file, args.use_doc, args.summary_file)
 
