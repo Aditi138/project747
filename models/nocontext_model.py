@@ -88,7 +88,7 @@ class NoContext(nn.Module):
 
     def eval(self, batch_query, bathc_query_embed, batch_query_length, batch_candidate,
              batch_candidates_embed_sorted,
-             batch_candidate_lengths, batch_candidate_unsort, gold_answer_index, batch_metrics, batch_len):
+             batch_candidate_lengths, batch_candidate_unsort, gold_answer_index, batch_len):
 
         query_rep = bathc_query_embed.unsqueeze(0)
 
