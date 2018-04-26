@@ -55,7 +55,7 @@ def test_model(model, documents, vocab):
     evaluate(model, test_batches)
 
 
-def evaluate(model, batches):
+def evaluate(model, batches, candidates_embed_docid):
     mrr_value = []
     model.train(False)
     for iteration in range(len(batches)):
@@ -63,6 +63,7 @@ def evaluate(model, batches):
         batch = batches[iteration]
         batch_candidates = batch["candidates"]
         batch_answer_indices = batch['answer_indices']
+        batch_doc_ids = batch['doc_ids']
 
         for index, query in enumerate(batch['queries']):
             # query tokens
@@ -76,8 +77,10 @@ def evaluate(model, batches):
             batch_candidates_sorted = variable(
                 torch.LongTensor(batch_candidates["answers"][index][candidate_sort, ...]), volatile=True)
             batch_candidate_lengths_sorted = batch_candidate_lengths[candidate_sort]
+
+            doc_id = batch_doc_ids[index]
             batch_candidates_embed_sorted = variable(
-                torch.LongTensor(batch_candidates["embed"][index][candidate_sort, ...]))
+                torch.FloatTensor(candidates_embed_docid[doc_id][candidate_sort, ...]))
 
             batch_len = len(batch_candidate_lengths_sorted)
             batch_candidate_unsort = variable(torch.LongTensor(np.argsort(candidate_sort)), volatile=True)
@@ -130,7 +133,7 @@ def train_epochs(model, vocab):
                 print("train loss: {}".format(train_loss / train_denom))
 
                 if iteration != 0:
-                    average_rr = evaluate(model, valid_batches)
+                    average_rr = evaluate(model, valid_batches,valid_candidates_embed_docid)
                     validation_history.append(average_rr)
 
                     mean_rr = np.mean(mrr_value)
@@ -152,7 +155,7 @@ def train_epochs(model, vocab):
                         if bad_counter > patience:
                             print("Early Stopping")
                             print("Testing started")
-                            evaluate(model, test_batches)
+                            evaluate(model, test_batches, test_candidates_embed_docid)
                             exit(0)
 
             batch = train_batches[iteration]
@@ -162,6 +165,7 @@ def train_epochs(model, vocab):
             batch_answer_indices = batch['answer_indices']
             batch_size = len(batch_query_lengths)
             loss_total = variable(torch.zeros(batch_size))
+            batch_doc_ids = batch['doc_ids']
 
             for index, query in enumerate(batch['queries']):
                 # query tokens
@@ -174,8 +178,11 @@ def train_epochs(model, vocab):
                 candidate_sort = np.argsort(batch_candidate_lengths)[::-1].copy()
                 batch_candidates_sorted = variable(
                     torch.LongTensor(batch_candidates["answers"][index][candidate_sort, ...]))
+
+                #get candidates_embed from doc_id
+                doc_id  =  batch_doc_ids[index]
                 batch_candidates_embed_sorted = variable(
-                    torch.LongTensor(batch_candidates["embed"][index][candidate_sort, ...]))
+                    torch.FloatTensor(train_candidates_embed_docid[doc_id][candidate_sort, ...]))
                 batch_candidate_lengths_sorted = batch_candidate_lengths[candidate_sort]
 
 
@@ -238,7 +245,7 @@ if __name__ == "__main__":
 
     # Model parameters
     parser.add_argument("--hidden_size", type=int, default=100)
-    parser.add_argument("--embed_size", type=int, default=100)
+    parser.add_argument("--embed_size", type=int, default=1024)
     parser.add_argument("--cuda", action="store_true", default=True)
     parser.add_argument("--test", action="store_true", default=False)
     parser.add_argument("--batch_length", type=int, default=10)
@@ -271,9 +278,9 @@ if __name__ == "__main__":
     with open(args.test_path, "r") as fin:
         te_documents = pickle.load(fin)
 
-    train_documents = loader.load_documents_elmo(t_documents)
-    valid_documents = loader.load_documents_elmo(v_documents)
-    test_documents = loader.load_documents_elmo(te_documents)
+    train_documents, train_candidates_embed_docid = loader.load_documents_elmo(t_documents)
+    valid_documents, valid_candidates_embed_docid = loader.load_documents_elmo(v_documents)
+    test_documents, test_candidates_embed_docid = loader.load_documents_elmo(te_documents)
 
     end = time()
     print(end - start)

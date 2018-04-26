@@ -76,7 +76,7 @@ def make_bucket_batches(data, batch_size,vocab):
     return batches
 
 def create_single_batch_elmo_no_context(batch_data):
-
+    doc_ids  = [data_point.doc_id for data_point in batch_data]
     batch_query_lengths = [len(data_point.question_tokens) for data_point in batch_data]
     maximum_query_length = max(batch_query_lengths)
     query_length_mask = np.array([[int(x < batch_query_lengths[i])
@@ -87,10 +87,6 @@ def create_single_batch_elmo_no_context(batch_data):
 
     queries_embed  = np.array([pad_seq_elmo(data_point.question_embed, maximum_query_length)
                         for data_point in batch_data])
-    # for index, data_point in enumerate(batch_data):
-    #     print(index)
-    #     queries_embed.append(pad_seq_elmo(data_point.question_embed, maximum_query_length))
-    # queries_embed = np.array(queries_embed)
 
     candidate_information = {}
     batch_candidate_answers_padded = []
@@ -102,30 +98,31 @@ def create_single_batch_elmo_no_context(batch_data):
     for index, data_point in enumerate(batch_data):
         # create a batch mask over candidates similar to the one over different questions
         candidates = data_point.candidates
-        candidates_embed = data_point.candidates_embed
+        # candidates_embed = data_point.candidates_embed
 
         candidate_answer_lengths = [len(answer) for answer in candidates]
         max_candidate_length = max(candidate_answer_lengths)
         candidate_padded_answers = np.array([pad_seq(answer, max_candidate_length) for answer in candidates])
-        candidate_padded_answers_embed = np.array([pad_seq_elmo(answer, max_candidate_length) for answer in candidates_embed])
+        # candidate_padded_answers_embed = np.array([pad_seq_elmo(answer, max_candidate_length) for answer in candidates_embed])
         candidate_answer_length_mask = np.array([[int(x < candidate_answer_lengths[i])
                                                   for x in range(max_candidate_length)] for i in
                                                  range(len(candidates))])
 
         batch_candidate_answers_padded.append(candidate_padded_answers)
-        batch_candidate_answers_embed_padded.append(candidate_padded_answers_embed)
+        # batch_candidate_answers_embed_padded.append(candidate_padded_answers_embed)
         batch_candidate_answer_lengths.append(candidate_answer_lengths)
         batch_candidate_answer_length_mask.append(candidate_answer_length_mask)
 
         batch_answer_indices.append(data_point.answer_indices[0])
 
     candidate_information["answers"] = batch_candidate_answers_padded
-    candidate_information["embed"] = batch_candidate_answers_embed_padded
+    # candidate_information["embed"] = batch_candidate_answers_embed_padded
     candidate_information["anslengths"] = batch_candidate_answer_lengths
     candidate_information["mask"] = batch_candidate_answer_length_mask
 
     batch = {}
     batch['queries'] = queries
+    batch['doc_ids'] = doc_ids
     batch['q_embed'] = queries_embed
     batch['q_mask'] = query_length_mask
     batch['answer_indices'] = batch_answer_indices
@@ -795,18 +792,10 @@ class DataLoader():
 
     def load_documents_elmo(self,documents):
         data_points = []
-        # with open(path, "r") as fin:
-        #     if max_documents > 0:
-        #         documents = pickle.load(fin)[:max_documents]
-        #     else:
-        #         documents = pickle.load(fin)
-
+        candidates_embed_docid = {}
+        candidate_per_docid = {}
         for index,document in enumerate(documents):
             document_tokens = []
-            # for sent in document.document_tokens:
-            #     document_tokens.append(self.vocab.add_and_get_indices(sent))
-            # document_embed = document.document_embed
-
             candidate_per_doc_per_answer = []
             candidate_per_doc_per_answer_embed = []
             i = 0
@@ -821,13 +810,19 @@ class DataLoader():
                 candidate_per_doc_per_answer[query.answer_indices[0] / 2] = self.vocab.add_and_get_indices(
                     candidate_per_doc_per_answer[query.answer_indices[0] / 2])
 
+            candidate_answer_lengths = [len(answer) for answer in candidate_per_doc_per_answer]
+            max_candidate_length = max(candidate_answer_lengths)
+            candidate_padded_answers_embed = np.array([pad_seq_elmo(answer, max_candidate_length) for answer in candidate_per_doc_per_answer_embed])
+
+            candidates_embed_docid[document.id] = candidate_padded_answers_embed
+            #candidate_per_docid[document.id] = candidate_per_doc_per_answer
             for idx, query in enumerate(document.qaps):
                 query.answer_indices[0] = query.answer_indices[0] / 2
                 data_points.append(Elmo_Data_Point
                                    (query.question_tokens,query.query_embed, query.answer_indices,
-                                    [], [], candidate_per_doc_per_answer,candidate_per_doc_per_answer_embed))
+                                    [], [], candidate_per_doc_per_answer,[], document.id))
 
-        return data_points
+        return data_points,candidates_embed_docid
 class Vocabulary(object):
     def __init__(self, pad_token='pad', unk='unk', sos='<sos>',eos='<eos>' ):
 
