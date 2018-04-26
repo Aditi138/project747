@@ -4,7 +4,7 @@ import sys
 from dataloaders.dataloader import DataLoader, create_batches, view_batch
 from dataloaders.squad_dataloader import SquadDataloader
 from models.context_model import ContextMRR
-
+from dataloaders.utility import get_pretrained_emb
 import torch
 from torch import optim
 from dataloaders.utility import variable, view_data_point
@@ -130,6 +130,7 @@ def train_epochs(model, vocab):
 						if bad_counter > patience:
 							print("Early Stopping")
 							print("Testing started")
+							model = torch.load(args.model_path)
 							evaluate(model, valid_batches)
 							exit(0)
 
@@ -211,7 +212,13 @@ def train_epochs(model, vocab):
 			torch.save(model, args.model_path + ".dummy")
 
 	print("All epochs done")
+	model = torch.load(args.model_path)
+	evaluate(model, test_batches)
 
+def test_model(model, documents,vocab):
+    test_batches = create_batches(documents,args.batch_length,args.job_size, vocab)
+    print("Testing!")
+    evaluate(model, test_batches)
 
 if __name__ == "__main__":
 	reload(sys)
@@ -231,6 +238,7 @@ if __name__ == "__main__":
 	parser.add_argument("--hidden_size", type=int, default=128)
 	parser.add_argument("--embed_size", type=int, default=128)
 	parser.add_argument("--cuda", action="store_true", default=True)
+	parser.add_argument("--test", action="store_true", default=False)
 	parser.add_argument("--batch_length", type=int, default=1)
 	parser.add_argument("--eval_interval", type=int, default=2)
 	parser.add_argument("--learning_rate", type=float, default=0.0001)
@@ -273,10 +281,18 @@ if __name__ == "__main__":
 	end = time()
 	print(end - start)
 
+	# Get pre_trained embeddings
+	if args.pretrain_path is not None:
+		word_embedding = get_pretrained_emb(args.pretrain_path, loader.vocab.vocabulary, args.embed_size)
+		loader.pretrain_embedding = word_embedding
+
 	model = ContextMRR(args, loader.vocab)
 
 	if args.use_cuda:
 		model = model.cuda()
 
-	
-	train_epochs(model, loader.vocab)
+	if args.test:
+		model = torch.load(args.model_path)
+		test_model(model, test_documents, loader.vocab)
+	else:
+		train_epochs(model, loader.vocab)

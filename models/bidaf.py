@@ -96,3 +96,7 @@ class BiDAF(nn.Module):
 
 		return G, c2q, q2c
 
+
+
+
+

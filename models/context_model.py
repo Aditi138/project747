@@ -5,14 +5,20 @@ import torch.nn.functional as F
 from bidaf import BiDAF
 
 class ContextMRR(nn.Module):
-	def __init__(self, args, vocab):
+	def __init__(self, args, loader):
 		super(ContextMRR, self).__init__()
 		hidden_size = args.hidden_size
 		embed_size = args.embed_size
-		word_vocab_size = vocab.get_length()
+		word_vocab_size = loader.vocab.get_length()
 
 		## word embedding layer
-		self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size)
+		self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size, pretrain_embedding=loader.pretrain_embedding)
+
+		## dropout layer
+		if args.dropout > 0:
+			self._dropout = torch.nn.Dropout(p=args.dropout)
+		else:
+			self._dropout = lambda x: x
 
 		## contextual embedding layer
 		self.contextual_embedding_layer = RecurrentContext(input_size=embed_size, hidden_size=hidden_size, num_layers=1)
@@ -51,19 +57,27 @@ class ContextMRR(nn.Module):
 		## Encode query and context
 		# (N, J, 2d)
 		query_encoded,_ = self.contextual_embedding_layer(query_embedded, batch_query_length)
+		query_encoded = self._dropout(query_encoded)
 		# (N, T, 2d)
 		context_encoded,_ = self.contextual_embedding_layer(context_embedded, batch_context_length)
+		context_encoded = self._dropout(context_encoded)
+
+		## required to support single element batch of question
+		batch_query_mask = batch_query_mask.unsqueeze(0)
+		batch_context_mask = batch_context_mask.unsqueeze(0)
 
 		## BiDAF 1 to get ~U, ~h and G (8d) between context and query
 		# (N, T, 8d) , (N, T ,2d) , (N, 1, 2d)
-		batch_query_mask = batch_query_mask.unsqueeze(0)
-		batch_context_mask = batch_context_mask.unsqueeze(0)
 		context_attention_encoded, query_aware_context_encoded, context_aware_query_encoded = self.attention_flow_layer1(query_encoded, context_encoded,batch_query_mask,batch_context_mask)
 
 		## modelling layer 1
 		# (N, T, 8d) => (N, T, 2d)
 		context_modeled,_ = self.modeling_layer1(context_attention_encoded, batch_context_length)
+		context_modeled = self._dropout(context_modeled)
 
+		'''
+		BIDAF 2
+		'''
 		## BiDAF for answers
 		batch_size = batch_candidates_sorted.size(0)
 		# N=1 so (N, T, 2d) => (N1, T, 2d)
@@ -72,11 +86,14 @@ class ContextMRR(nn.Module):
 		batch_candidates_embedded = self.word_embedding_layer(batch_candidates_sorted)
 		# (N1, K, 2d)
 		batch_candidates_encoded,_ = self.contextual_embedding_layer(batch_candidates_embedded, batch_candidate_lengths_sorted)
+		batch_candidates_encoded = self._dropout(batch_candidates_encoded)
+
 		answer_attention_encoded, context_aware_answer_encoded, answer_aware_context_encoded = self.attention_flow_layer2(batch_context_modeled, batch_candidates_encoded, batch_context_mask,batch_candidate_masks_sorted)
 
 		## modelling layer 2
 		# (N1, K, 8d) => (N1, K, 2d)
 		answer_modeled, (answer_hidden_state, answer_cell_state) = self.modeling_layer2(answer_attention_encoded, batch_candidate_lengths_sorted)
+		answer_hidden_state = self._dropout(answer_hidden_state)
 
 		## output layer : concatenate hidden dimension of the final answer model layer and run through an MLP : (N1, 2d) => (N1, d)
 		# (N1, 2d) => (N1, 1)
@@ -94,6 +111,7 @@ class ContextMRR(nn.Module):
 
 		#HingeLoss
 		loss = torch.clamp(1 - gold_features + max_negative_feature, 0)
+
 		return loss, max_negative_index
 
 
@@ -184,11 +202,11 @@ class RecurrentContext(nn.Module):
 
 
 class LookupEncoder(nn.Module):
-	def __init__(self, vocab_size, embedding_dim, pretrain_embedding=None):
-		super(LookupEncoder, self).__init__()
-		self.embedding_dim = embedding_dim
-		self.word_embeddings = nn.Embedding(vocab_size, embedding_dim)
-		# self.word_embeddings.weight.data.copy_(torch.from_numpy(pretrain_embedding))
-
-	def forward(self, batch):
-		return self.word_embeddings(batch)
+    def __init__(self, vocab_size, embedding_dim, pretrain_embedding=None):
+        super(LookupEncoder, self).__init__()
+        self.embedding_dim = embedding_dim
+        self.word_embeddings = nn.Embedding(vocab_size, embedding_dim)
+        if pretrain_embedding is not None:
+            self.word_embeddings.weight.data.copy_(torch.from_numpy(pretrain_embedding))
+    def forward(self, batch):
+        return self.word_embeddings(batch)
