@@ -12,7 +12,7 @@ class ContextMRR(nn.Module):
 		word_vocab_size = loader.vocab.get_length()
 
 		## word embedding layer
-		self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size, pretrain_embedding=loader.pretrain_embedding)
+		self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size) #, pretrain_embedding=loader.pretrain_embedding)
 
 		## dropout layer
 		if args.dropout > 0:
@@ -34,13 +34,15 @@ class ContextMRR(nn.Module):
 		self.attention_flow_layer2 = BiDAF(2*hidden_size)
 
 		## modeling layer
-		modeling_layer_inputdim = 8*hidden_size
+		modeling_layer_inputdim = 6*hidden_size
 		self.modeling_layer2 = RecurrentContext(modeling_layer_inputdim, hidden_size)
 
 		## output layer
 		## current implementation: run an mlp on the concatenated hidden states of the answer modeling layer
-		output_layer_inputdim = 2*hidden_size
+		output_layer_inputdim = 4*hidden_size
 		self.output_layer = OutputLayer(output_layer_inputdim, hidden_size)
+
+		self.loss = torch.nn.CrossEntropyLoss()
 
 
 	def forward(self, batch_query, batch_query_length,batch_query_mask,
@@ -90,29 +92,37 @@ class ContextMRR(nn.Module):
 
 		answer_attention_encoded, context_aware_answer_encoded, answer_aware_context_encoded = self.attention_flow_layer2(batch_context_modeled, batch_candidates_encoded, batch_context_mask,batch_candidate_masks_sorted)
 
+		## concatenate original answer and context aware answer
+		input_to_answer_model = torch.cat([batch_candidates_encoded,context_aware_answer_encoded,batch_candidates_encoded * context_aware_answer_encoded],dim=-1)
+
 		## modelling layer 2
 		# (N1, K, 8d) => (N1, K, 2d)
-		answer_modeled, (answer_hidden_state, answer_cell_state) = self.modeling_layer2(answer_attention_encoded, batch_candidate_lengths_sorted)
-		answer_hidden_state = self._dropout(answer_hidden_state)
+		answer_modeled, (answer_hidden_state, answer_cell_state) = self.modeling_layer2(input_to_answer_model, batch_candidate_lengths_sorted)
+		answer_modeled = self._dropout(answer_modeled)
 
 		## output layer : concatenate hidden dimension of the final answer model layer and run through an MLP : (N1, 2d) => (N1, d)
 		# (N1, 2d) => (N1, 1)
-		answer_concat_hidden = torch.cat([answer_hidden_state[-2], answer_hidden_state[-1]], dim=1)
+		# answer_concat_hidden = torch.cat([answer_hidden_state[-2], answer_hidden_state[-1]], dim=1)
+
+		# (N1, 4d) => (N1, 1)
+		# take maxmimum and average of hidden embeddings and concatenate them
+		answer_concat_hidden = torch.cat((torch.max(answer_modeled, dim=1)[0], torch.mean(answer_modeled, dim=1)), dim=1)
 		answer_scores = self.output_layer(answer_concat_hidden)
 
 		## unsort the answer scores
 		answer_scores_unsorted = torch.index_select(answer_scores, 0, batch_candidate_unsort)
-		gold_features = torch.index_select(answer_scores_unsorted, 0, index=gold_index)
-		negative_features = torch.index_select(answer_scores_unsorted, 0, index=negative_indices)
 
-		#negative_metrics = torch.index_select(batch_metrics, 0, index=negative_indices)
-		#negative_features = negative_features + negative_metrics.unsqueeze(1)
-		max_negative_feature, max_negative_index = torch.max(negative_features, 0)
+		## Hinge Loss
+		# gold_features = torch.index_select(answer_scores_unsorted, 0, index=gold_index)
+		# negative_features = torch.index_select(answer_scores_unsorted, 0, index=negative_indices)
+		# #negative_metrics = torch.index_select(batch_metrics, 0, index=negative_indices)
+		# #negative_features = negative_features + negative_metrics.unsqueeze(1)
+		# max_negative_feature, max_negative_index = torch.max(negative_features, 0)
+		# loss = torch.clamp(1 - gold_features + max_negative_feature, 0)
 
-		#HingeLoss
-		loss = torch.clamp(1 - gold_features + max_negative_feature, 0)
-
-		return loss, max_negative_index
+		loss = self.loss(answer_scores_unsorted.transpose(0,1), gold_index)
+		sorted, indices = torch.sort(answer_scores_unsorted.squeeze(0), dim=0, descending=True)
+		return loss, indices
 
 
 	def eval(self,batch_query, batch_query_length,batch_query_mask,
@@ -154,14 +164,23 @@ class ContextMRR(nn.Module):
 		answer_attention_encoded, context_aware_answer_encoded, answer_aware_context_encoded = self.attention_flow_layer2(
 			batch_context_modeled, batch_candidates_encoded,batch_context_mask,batch_candidate_masks_sorted)
 
+		input_to_answer_model = torch.cat([batch_candidates_encoded, context_aware_answer_encoded,
+										   batch_candidates_encoded * context_aware_answer_encoded], dim=-1)
+
 		## modelling layer 2
 		# (N1, K, 8d) => (N1, K, 2d)
-		answer_modeled, (answer_hidden_state, answer_cell_state) = self.modeling_layer2(answer_attention_encoded,
+		answer_modeled, (answer_hidden_state, answer_cell_state) = self.modeling_layer2(input_to_answer_model,
 																						batch_candidate_lengths_sorted,)
+
 
 		## output layer : concatenate hidden dimension of the final answer model layer and run through an MLP : (N1, 2d) => (N1, d)
 		# (N1, 2d) => (N1, 1)
-		answer_concat_hidden = torch.cat([answer_hidden_state[-2], answer_hidden_state[-1]], dim=1)
+		# answer_concat_hidden = torch.cat([answer_hidden_state[-2], answer_hidden_state[-1]], dim=1)
+
+		# (N1, 4d) => (N1, 1)
+		# take maxmimum and average of hidden embeddings and concatenate them
+		answer_concat_hidden = torch.cat((torch.max(answer_modeled, dim=1)[0], torch.mean(answer_modeled, dim=1)),
+										 dim=1)
 		answer_scores = self.output_layer(answer_concat_hidden)
 
 		## unsort the answer scores
@@ -180,7 +199,7 @@ class OutputLayer(nn.Module):
 			nn.Linear(hidden_size, hidden_size),
 			nn.ReLU(),
 			nn.Linear(hidden_size, 1),
-			nn.Sigmoid(),
+			# nn.Sigmoid(), ## since loss is being replaced by cross entropy the exoected input into loss function
 		)
 
 	def forward(self, batch):

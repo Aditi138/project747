@@ -99,6 +99,7 @@ def train_epochs(model, vocab):
 	valid_batches = create_batches(valid_documents, args.batch_length, args.job_size, vocab)[:200]
 	test_batches = create_batches(test_documents,args.batch_length,args.job_size, vocab)
 
+	mrr_value = []
 	for epoch in range(args.num_epochs):
 
 		print("Creating train batches")
@@ -115,10 +116,11 @@ def train_epochs(model, vocab):
 				if iteration != 0:
 					average_rr = evaluate(model, valid_batches)
 					validation_history.append(average_rr)
-
-
+					train_average_rr = np.mean(mrr_value)
 					if (iteration + 1) % (eval_interval * 5) == 0:
 						print("Validation MRR:{0}".format(average_rr))
+						print("Train MRR:{0}".format(train_average_rr))
+						mrr_value = []
 						if average_rr >= max(validation_history):
 							saved = True
 							print("Saving best model seen so far itr number {0}".format(iteration))
@@ -182,7 +184,7 @@ def train_epochs(model, vocab):
 
 
 
-				loss, second_best = model(batch_query, batch_query_length,batch_question_mask,
+				loss, indices = model(batch_query, batch_query_length,batch_question_mask,
 									batch_context, batch_context_length, batch_context_mask,
 									batch_candidates_sorted, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,
 										  batch_candidate_unsort,
@@ -190,6 +192,7 @@ def train_epochs(model, vocab):
 									)
 
 				losses[index] = loss
+				mrr_value.append(train_mrr(index, indices, batch_answer_indices))
 
 			# loss.backward()
 			# torch.nn.utils.clip_grad_norm(model.parameters(), clip_threshold)
@@ -214,6 +217,15 @@ def train_epochs(model, vocab):
 	print("All epochs done")
 	model = torch.load(args.model_path)
 	evaluate(model, test_batches)
+
+def train_mrr(index, indices, batch_answer_indices):
+	if args.use_cuda:
+		indices = indices.data.cpu()
+	else:
+		indices = indices.data
+	position_gold_sorted = (indices == batch_answer_indices[index]).nonzero().numpy()[0][0]
+	index = position_gold_sorted + 1
+	return (1.0 / (index))
 
 def test_model(model, documents,vocab):
     test_batches = create_batches(documents,args.batch_length,args.job_size, vocab)
@@ -242,6 +254,7 @@ if __name__ == "__main__":
 	parser.add_argument("--batch_length", type=int, default=1)
 	parser.add_argument("--eval_interval", type=int, default=2)
 	parser.add_argument("--learning_rate", type=float, default=0.0001)
+	parser.add_argument("--dropout", type=float, default=0.2)
 	parser.add_argument("--num_epochs", type=int, default=10)
 	parser.add_argument("--clip_threshold", type=int, default=10)
 	parser.add_argument("--num_layers", type=int, default=3)
@@ -286,7 +299,7 @@ if __name__ == "__main__":
 		word_embedding = get_pretrained_emb(args.pretrain_path, loader.vocab.vocabulary, args.embed_size)
 		loader.pretrain_embedding = word_embedding
 
-	model = ContextMRR(args, loader.vocab)
+	model = ContextMRR(args, loader)
 
 	if args.use_cuda:
 		model = model.cuda()
