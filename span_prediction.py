@@ -3,8 +3,9 @@ import sys
 
 from dataloaders.dataloader import create_batches, view_batch, make_bucket_batches
 from dataloaders.squad_dataloader import SquadDataloader
-from models.span_prediction_model import Accuracy, BooleanAccuracy, SpanMRR, SpanScorer
-
+from models.span_prediction_conv import Accuracy, BooleanAccuracy, SpanScorer
+from models.span_prediction_model import SpanMRR
+import itertools
 import torch
 from torch import optim
 from dataloaders.utility import variable, view_data_point
@@ -12,6 +13,7 @@ import numpy as np
 from time import time
 import random
 import cProfile
+from dataloaders.utility import get_pretrained_emb
 
 
 def get_random_batch_from_training(batches, num):
@@ -222,12 +224,15 @@ def train_epochs_with_candidate_spans(model, vocab):
 
 	print("All epochs done")
 
+def get_trainable_parameters(model):
+	parameters = itertools.ifilter(lambda p: p.requires_grad, model.parameters())
+	return parameters
 
 def train_epochs(model, vocab):
 	clip_threshold = args.clip_threshold
 	eval_interval = args.eval_interval
 
-	optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+	optimizer = optim.Adam(get_trainable_parameters(model), lr=args.learning_rate)
 	train_loss = 0
 	train_denom = 0
 	validation_history = []
@@ -235,7 +240,7 @@ def train_epochs(model, vocab):
 	all_start_correct = 0.0
 	all_end_correct = 0.0
 	all_span_correct  = 0.0
-	coutn = 0
+	count = 0
 	patience = 10
 
 	valid_batches = make_bucket_batches(valid_documents, args.batch_length, vocab)
@@ -373,23 +378,25 @@ if __name__ == "__main__":
 
 	start = time()
 	## normal bidaf over squad for one correct answer
-	'''
 	train_documents = loader.load_docuements(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
 	valid_documents = loader.load_docuements(args.valid_path, summary_path=None, max_documents=args.max_documents)
 	'''
 	## normal bidaf over squad for multiple correct answers and softmax loss function
 	train_documents= loader.load_documents_with_candidate_spans(args.train_path)
 	valid_documents = loader.load_documents_with_candidate_spans(args.valid_path)
-
+	'''
 	end = time()
 	print(end - start)
 
-	## normal bidaf over squad for one correct span
-	'''
-	model = SpanScorer(args, loader.vocab)
-	'''
-	model = SpanMRR(args, loader.vocab)
+	# Get pre_trained embeddings
+	if args.pretrain_path is not None:
+		word_embedding = get_pretrained_emb(args.pretrain_path, loader.vocab.vocabulary, args.embed_size)
+		loader.pretrain_embedding = word_embedding
 
+	## bidaf over squad for one correct span (encoder block)
+	model = SpanScorer(args, loader)
+	## bidaf over squad for one correct span (recurrent block)
+	# model = SpanMRR(args, loader)
 
 	if args.use_cuda:
 		model = model.cuda()

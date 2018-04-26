@@ -3,6 +3,7 @@ from torch import nn
 from torch.autograd import Variable
 import torch.nn.functional as F
 from bidaf import BiDAF
+from encoderblock import EncoderBlocks, EncoderBlock
 
 
 def masked_log_softmax(vector, mask):
@@ -81,11 +82,11 @@ def weighted_sum(matrix, attention):
 
 
 class SpanMRR(nn.Module):
-	def __init__(self, args, loader):
+	def __init__(self, args, vocab):
 		super(SpanMRR, self).__init__()
 		hidden_size = args.hidden_size
 		embed_size = args.embed_size
-		word_vocab_size = loader.vocab.get_length()
+		word_vocab_size = vocab.get_length()
 
 		if args.dropout > 0:
 			self._dropout = torch.nn.Dropout(p=args.dropout)
@@ -93,11 +94,7 @@ class SpanMRR(nn.Module):
 			self._dropout = lambda x: x
 
 		## word embedding layer
-		if hasattr(loader, 'pretrain_embedding'):
-			self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size,
-												  pretrain_embedding=loader.pretrain_embedding)
-		else:
-			self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size)
+		self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size)
 
 		## contextual embedding layer
 		self.contextual_embedding_layer = RecurrentContext(input_size=embed_size, hidden_size=hidden_size, num_layers=1)
@@ -117,7 +114,154 @@ class SpanMRR(nn.Module):
 		self._span_end_predictor = TimeDistributed(torch.nn.Linear(span_end_input_dim, 1))
 
 		span_end_dim = modeling_layer_inputdim + 3 * self.modeling_dim
-		self._span_end_encoder = RecurrentContext(span_end_dim, hidden_size, num_layers=1)
+		self._span_end_encoder = RecurrentContext(span_end_dim, hidden_size)
+
+	def forward(self, batch_query, batch_query_length, batch_query_mask,
+				batch_context, batch_context_length, batch_context_mask,
+				span_starts, span_ends, gold_index, batch_metrics, batch_len):
+		batch_query_mask = batch_query_mask.unsqueeze(0)
+		batch_context_mask = batch_context_mask.unsqueeze(0)
+		query_embedded = self.word_embedding_layer(batch_query)
+		query_embedded = query_embedded.unsqueeze(0)
+		context_embedded = self.word_embedding_layer(batch_context)
+		context_embedded = context_embedded.unsqueeze(0)
+		passage_length = context_embedded.size(1)
+		query_encoded, _ = self.contextual_embedding_layer(query_embedded, batch_query_length)
+		query_encoded = self._dropout(query_encoded)
+		context_encoded, _ = self.contextual_embedding_layer(context_embedded, batch_context_length)
+		context_encoded = self._dropout(context_encoded)
+		context_attention_encoded, query_aware_context_encoded, context_aware_query_encoded = self.attention_flow_layer1(
+			query_encoded, context_encoded, batch_query_mask, batch_context_mask)
+		context_modeled, _ = self.modeling_layer1(context_attention_encoded, batch_context_length)
+		context_modeled = self._dropout(context_modeled)
+		span_start_input = self._dropout(torch.cat([context_attention_encoded, context_modeled], dim=-1))
+		span_start_logits = self._span_start_predictor(span_start_input).squeeze(-1)
+		span_start_probs = masked_softmax(span_start_logits, batch_context_mask)
+		span_start_representation = weighted_sum(context_modeled, span_start_probs)
+		tiled_start_representation = span_start_representation.unsqueeze(1).expand(span_start_representation.size(0),
+																				   passage_length,
+																				   self.modeling_dim)
+		span_end_representation = torch.cat([context_attention_encoded,
+											 context_modeled,
+											 tiled_start_representation,
+											 context_modeled * tiled_start_representation],
+											dim=-1)
+		encoded_span_end, _ = self._span_end_encoder(span_end_representation, batch_context_length)
+		encoded_span_end = self._dropout(encoded_span_end)
+		span_end_input = self._dropout(torch.cat([context_attention_encoded, encoded_span_end], dim=-1))
+		span_end_logits = self._span_end_predictor(span_end_input).squeeze(-1)
+
+		## loss computation 1
+		## log_softmax(exp(logsoftmax(logit score start) + logsoftmax(logit score end))
+		# span_start_logprobs = masked_log_softmax(span_start_logits, batch_context_mask)
+		# span_end_logprobs = masked_log_softmax(span_end_logits, batch_context_mask)
+		# span_start_scores = torch.index_select(span_start_logprobs, 1, span_starts)
+		# span_end_scores = torch.index_select(span_end_logprobs, 1, span_ends)
+		# total_scores = torch.exp(span_start_scores + span_end_scores)
+		# loss = F.cross_entropy(total_scores, gold_index)
+
+		## loss_computation 2 (S, n)
+		span_start_logprobs = masked_softmax(span_start_logits, batch_context_mask)
+		span_end_logprobs = masked_softmax(span_end_logits, batch_context_mask)
+		span_start_scores = torch.index_select(span_start_logprobs, 1, span_starts)
+		span_end_scores = torch.index_select(span_end_logprobs, 1, span_ends)
+		total_scores = span_start_scores + span_end_scores
+		loss = F.cross_entropy(total_scores, gold_index)
+		sorted, indices = torch.sort(total_scores.squeeze(0), dim=0, descending=True)
+		return loss, indices
+
+	def eval(self, batch_query, batch_query_length, batch_question_mask,
+			 batch_context, batch_context_length, batch_context_mask,
+			 batch_start_indices, batch_end_indices, batch_len):
+		batch_query_mask = batch_question_mask.unsqueeze(0)
+		batch_context_mask = batch_context_mask.unsqueeze(0)
+		query_embedded = self.word_embedding_layer(batch_query)
+		query_embedded = query_embedded.unsqueeze(0)
+		context_embedded = self.word_embedding_layer(batch_context)
+		context_embedded = context_embedded.unsqueeze(0)
+		passage_length = context_embedded.size(1)
+		query_encoded, _ = self.contextual_embedding_layer(query_embedded, batch_query_length)
+		query_encoded = self._dropout(query_encoded)
+		context_encoded, _ = self.contextual_embedding_layer(context_embedded, batch_context_length)
+		context_encoded = self._dropout(context_encoded)
+		context_attention_encoded, query_aware_context_encoded, context_aware_query_encoded = self.attention_flow_layer1(
+			query_encoded, context_encoded, batch_query_mask, batch_context_mask)
+		context_modeled, _ = self.modeling_layer1(context_attention_encoded, batch_context_length)
+		context_modeled = self._dropout(context_modeled)
+		span_start_input = self._dropout(torch.cat([context_attention_encoded, context_modeled], dim=-1))
+		span_start_logits = self._span_start_predictor(span_start_input).squeeze(-1)
+		span_start_probs = masked_softmax(span_start_logits, batch_context_mask)
+		span_start_representation = weighted_sum(context_modeled, span_start_probs)
+		tiled_start_representation = span_start_representation.unsqueeze(1).expand(span_start_representation.size(0),
+																				   passage_length,
+																				   self.modeling_dim)
+		span_end_representation = torch.cat([context_attention_encoded,
+											 context_modeled,
+											 tiled_start_representation,
+											 context_modeled * tiled_start_representation],
+											dim=-1)
+		encoded_span_end, _ = self._span_end_encoder(span_end_representation, batch_context_length)
+		encoded_span_end = self._dropout(encoded_span_end)
+		span_end_input = self._dropout(torch.cat([context_attention_encoded, encoded_span_end], dim=-1))
+		span_end_logits = self._span_end_predictor(span_end_input).squeeze(-1)
+
+		## get ranked indices
+		span_start_logprobs = masked_log_softmax(span_start_logits, batch_context_mask)
+		span_end_logprobs = masked_log_softmax(span_end_logits, batch_context_mask)
+		span_start_scores = torch.index_select(span_start_logprobs, 1, batch_start_indices)
+		span_end_scores = torch.index_select(span_end_logprobs, 1, batch_end_indices)
+		total_scores = span_start_scores + span_end_scores
+		sorted, indices = torch.sort(total_scores.squeeze(0), dim=0, descending=True)
+		return indices
+
+
+class SpanScorer(nn.Module):
+	def __init__(self, args, loader):
+		super(SpanScorer, self).__init__()
+		hidden_size = args.hidden_size
+		embed_size = args.embed_size
+		word_vocab_size = loader.vocab.get_length()
+
+		if args.dropout > 0:
+			self._dropout = torch.nn.Dropout(p=args.dropout)
+		else:
+			self._dropout = lambda x: x
+
+		## word embedding layer
+		if hasattr(loader, 'pretrain_embedding'):
+			self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size,
+													  pretrain_embedding=loader.pretrain_embedding)
+		else:
+			self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size)
+
+		## contextual embedding layer
+		# self.contextual_embedding_layer = RecurrentContext(input_size=embed_size, hidden_size=hidden_size, num_layers=1)
+		## replacing with the encoder block
+		self.dimension_extension_layer = TimeDistributed(torch.nn.Linear(embed_size, 2 * hidden_size))
+		self.contextual_embedding_layer = ConvolutionAttentionContext(input_size=2 * hidden_size)
+
+		## bidirectional attention flow between question and context
+		self.attention_flow_layer1 = BiDAF(2 * hidden_size)
+
+		## modelling layer for question and context : this layer also converts the 8 dimensional input intp two dimensioanl output
+		modeling_layer_inputdim = 8 * hidden_size
+		# self.modeling_layer1 = RecurrentContext(modeling_layer_inputdim, hidden_size,num_layers=2)
+		## replacing with encoder block and one layer of TimeDistricuted linear layer that goes from 8d to 2d
+		self.modeling_layer1 = ConvolutionAttentionContext(modeling_layer_inputdim)
+		self.dimension_reduction_layer1 = TimeDistributed(torch.nn.Linear(modeling_layer_inputdim, 2 * hidden_size))
+		self.modeling_dim = 2 * hidden_size
+
+		span_start_input_dim = modeling_layer_inputdim + (2 * hidden_size)
+		self._span_start_predictor = TimeDistributed(torch.nn.Linear(span_start_input_dim, 1))
+
+		span_end_input_dim = modeling_layer_inputdim + (2 * hidden_size)
+		self._span_end_predictor = TimeDistributed(torch.nn.Linear(span_end_input_dim, 1))
+
+		span_end_dim = modeling_layer_inputdim + 3 * self.modeling_dim
+		# self._span_end_encoder = RecurrentContext(span_end_dim, hidden_size,num_layers=1)
+		# replacing with encoder block
+		self._span_end_encoder = ConvolutionAttentionContext(span_end_dim)
+		self.dimension_reduction_layer2 = TimeDistributed(torch.nn.Linear(span_end_dim, 2 * hidden_size))
 
 		self._span_start_accuracy = Accuracy()
 		self._span_end_accuracy = Accuracy()
@@ -141,10 +285,12 @@ class SpanMRR(nn.Module):
 
 		## Encode query and context
 		# (N, J, 2d)
-		query_encoded, _ = self.contextual_embedding_layer(query_embedded, batch_query_length[0])
+		query_expanded = self.dimension_extension_layer(query_embedded)
+		query_encoded = self.contextual_embedding_layer(query_expanded, batch_query_mask.unsqueeze(2))
 		query_encoded = self._dropout(query_encoded)
 		# (N, T, 2d)
-		context_encoded, _ = self.contextual_embedding_layer(context_embedded, batch_context_length[0])
+		context_expanded = self.dimension_extension_layer(context_embedded)
+		context_encoded = self.contextual_embedding_layer(context_expanded, batch_context_mask.unsqueeze(2))
 		context_encoded = self._dropout(context_encoded)
 
 		## BiDAF 1 to get ~U, ~h and G (8d) between context and query
@@ -154,12 +300,15 @@ class SpanMRR(nn.Module):
 			query_encoded, context_encoded, batch_query_mask, batch_context_mask)
 
 		## modelling layer 1
-		# (N, T, 8d) => (N, T, 2d)
-		context_modeled, _ = self.modeling_layer1(context_attention_encoded, batch_context_length[0])
+		# (N, T, 8d) => (N, T, 8d)
+		context_modeled = self.modeling_layer1(context_attention_encoded, batch_context_mask.unsqueeze(2))
 		context_modeled = self._dropout(context_modeled)
+		# (N, T, 8d) => (N, T, 2d)
+		context_reduced = self.dimension_reduction_layer1(context_modeled)
 
-		# Shape: (batch_size, passage_length, encoding_dim * 4 + modeling_dim))
-		span_start_input = self._dropout(torch.cat([context_attention_encoded, context_modeled], dim=-1))
+
+		# Shape: (batch_size, passage_length, encoding_dim * 4 + modeling_dim): 10d
+		span_start_input = self._dropout(torch.cat([context_attention_encoded, context_reduced], dim=-1))
 
 		# Shape: (batch_size, passage_length)
 		span_start_logits = self._span_start_predictor(span_start_input).squeeze(-1)
@@ -168,7 +317,7 @@ class SpanMRR(nn.Module):
 		span_start_probs = masked_softmax(span_start_logits, batch_context_mask)
 
 		# Shape: (batch_size, modeling_dim)
-		span_start_representation = weighted_sum(context_modeled, span_start_probs)
+		span_start_representation = weighted_sum(context_reduced, span_start_probs)
 
 		# Shape: (batch_size, passage_length, modeling_dim)
 		tiled_start_representation = span_start_representation.unsqueeze(1).expand(span_start_representation.size(0),
@@ -177,17 +326,18 @@ class SpanMRR(nn.Module):
 
 		# Shape: (batch_size, passage_length, encoding_dim * 4 + modeling_dim * 3)
 		span_end_representation = torch.cat([context_attention_encoded,
-											 context_modeled,
+											 context_reduced,
 											 tiled_start_representation,
-											 context_modeled * tiled_start_representation],
+											 context_reduced * tiled_start_representation],
 											dim=-1)
 
 		# Shape: (batch_size, passage_length, encoding_dim)
-		encoded_span_end, _ = self._span_end_encoder(span_end_representation, batch_context_length[0])
+		encoded_span_end = self._span_end_encoder(span_end_representation, batch_context_mask.unsqueeze(2))
 		encoded_span_end = self._dropout(encoded_span_end)
+		encoded_span_end_reduced = self.dimension_reduction_layer2(encoded_span_end)
 
 		# Shape: (batch_size, passage_length, encoding_dim * 4 + span_end_encoding_dim)
-		span_end_input = self._dropout(torch.cat([context_attention_encoded, encoded_span_end], dim=-1))
+		span_end_input = self._dropout(torch.cat([context_attention_encoded, encoded_span_end_reduced], dim=-1))
 
 		span_end_logits = self._span_end_predictor(span_end_input).squeeze(-1)
 
@@ -250,10 +400,12 @@ class SpanMRR(nn.Module):
 
 		## Encode query and context
 		# (N, J, 2d)
-		query_encoded, _ = self.contextual_embedding_layer(query_embedded, batch_query_length[0])
+		query_expanded = self.dimension_extension_layer(query_embedded)
+		query_encoded = self.contextual_embedding_layer(query_expanded, batch_query_mask.unsqueeze(2))
 		query_encoded = self._dropout(query_encoded)
 		# (N, T, 2d)
-		context_encoded, _ = self.contextual_embedding_layer(context_embedded, batch_context_length[0])
+		context_expanded = self.dimension_extension_layer(context_embedded)
+		context_encoded = self.contextual_embedding_layer(context_expanded, batch_context_mask.unsqueeze(2))
 		context_encoded = self._dropout(context_encoded)
 
 		## BiDAF 1 to get ~U, ~h and G (8d) between context and query
@@ -263,12 +415,14 @@ class SpanMRR(nn.Module):
 			query_encoded, context_encoded, batch_query_mask, batch_context_mask)
 
 		## modelling layer 1
-		# (N, T, 8d) => (N, T, 2d)
-		context_modeled, _ = self.modeling_layer1(context_attention_encoded, batch_context_length[0])
+		# (N, T, 8d) => (N, T, 8d)
+		context_modeled = self.modeling_layer1(context_attention_encoded, batch_context_mask.unsqueeze(2))
 		context_modeled = self._dropout(context_modeled)
+		# (N, T, 8d) => (N, T, 2d)
+		context_reduced = self.dimension_reduction_layer1(context_modeled)
 
-		# Shape: (batch_size, passage_length, encoding_dim * 4 + modeling_dim))
-		span_start_input = self._dropout(torch.cat([context_attention_encoded, context_modeled], dim=-1))
+		# Shape: (batch_size, passage_length, encoding_dim * 4 + modeling_dim): 10d
+		span_start_input = self._dropout(torch.cat([context_attention_encoded, context_reduced], dim=-1))
 
 		# Shape: (batch_size, passage_length)
 		span_start_logits = self._span_start_predictor(span_start_input).squeeze(-1)
@@ -277,7 +431,7 @@ class SpanMRR(nn.Module):
 		span_start_probs = masked_softmax(span_start_logits, batch_context_mask)
 
 		# Shape: (batch_size, modeling_dim)
-		span_start_representation = weighted_sum(context_modeled, span_start_probs)
+		span_start_representation = weighted_sum(context_reduced, span_start_probs)
 
 		# Shape: (batch_size, passage_length, modeling_dim)
 		tiled_start_representation = span_start_representation.unsqueeze(1).expand(span_start_representation.size(0),
@@ -286,17 +440,18 @@ class SpanMRR(nn.Module):
 
 		# Shape: (batch_size, passage_length, encoding_dim * 4 + modeling_dim * 3)
 		span_end_representation = torch.cat([context_attention_encoded,
-											 context_modeled,
+											 context_reduced,
 											 tiled_start_representation,
-											 context_modeled * tiled_start_representation],
+											 context_reduced * tiled_start_representation],
 											dim=-1)
 
 		# Shape: (batch_size, passage_length, encoding_dim)
-		encoded_span_end, _ = self._span_end_encoder(span_end_representation, batch_context_length[0])
+		encoded_span_end = self._span_end_encoder(span_end_representation, batch_context_mask.unsqueeze(2))
 		encoded_span_end = self._dropout(encoded_span_end)
+		encoded_span_end_reduced = self.dimension_reduction_layer2(encoded_span_end)
 
 		# Shape: (batch_size, passage_length, encoding_dim * 4 + span_end_encoding_dim)
-		span_end_input = self._dropout(torch.cat([context_attention_encoded, encoded_span_end], dim=-1))
+		span_end_input = self._dropout(torch.cat([context_attention_encoded, encoded_span_end_reduced], dim=-1))
 
 		span_end_logits = self._span_end_predictor(span_end_input).squeeze(-1)
 
@@ -345,6 +500,15 @@ class RecurrentContext(nn.Module):
 		outputs, hidden = self.lstm_layer(packed)  # output: concatenated hidden dimension
 		outputs_unpacked, _ = torch.nn.utils.rnn.pad_packed_sequence(outputs, batch_first=True)
 		return outputs_unpacked, hidden
+
+
+class ConvolutionAttentionContext(nn.Module):
+	def __init__(self, input_size, num_conv_layers=4, kernel_size=7, num_heads=4, max_positions=3000):
+		super(ConvolutionAttentionContext, self).__init__()
+		self.encoder_block_layer = EncoderBlock(max_positions, input_size, kernel_size, num_conv_layers, num_heads)
+
+	def forward(self, batch, mask):
+		return self.encoder_block_layer(batch, mask)
 
 
 class LookupEncoder(nn.Module):
