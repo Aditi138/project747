@@ -37,7 +37,13 @@ def pad_seq(seq, max_len, pad_token=0):
 
 def pad_elmo(batch):
     max_len = len(max(batch, key=len))
-    padded_batch=[sequence + [[0]*50 for i in range(max_len - len(sequence))] for sequence in batch]
+    padded_batch=[sequence + [[0]*1024 for i in range(max_len - len(sequence))] for sequence in batch]
+    return padded_batch
+
+def pad_seq_elmo(seq, max_len,size=1024):
+    if max_len - len(seq) == 0:
+        return seq
+    padded_batch=np.concatenate((seq ,[[0]*1024 for i in range(max_len - len(seq))]),axis=0)
     return padded_batch
 
 def view_data_point(data_point, vocab):
