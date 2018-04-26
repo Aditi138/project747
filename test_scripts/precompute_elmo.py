@@ -152,16 +152,53 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--pickle_folder", type=str, default=None, help="Input sentences")
 parser.add_argument("--qaps_file", type=str, default=None, help="Input sentences")
 parser.add_argument("--summary_file", type=str, default=None, help="Input sentences")
+parser.add_argument("--doc_file", type=str, default=None, help="Input sentences")
 parser.add_argument("--use_doc", action="store_true", default=False)
 args = parser.parse_args()
 
-e  =ElmoEmbedder(cuda_device=-1)
-nlp = spacy.load('en')
-load_documents(args.qaps_file, args.pickle_folder, e,nlp, args.use_doc, args.summary_file)
+# e  =ElmoEmbedder(cuda_device=-1)
+# nlp = spacy.load('en')
+# load_documents(args.qaps_file, args.pickle_folder, e,nlp, args.use_doc, args.summary_file)
 
 #Testing
-# with open(args.pickle_folder + "question_answer_embed.pickle", "rb") as fin:
-#     documents = pickle.load(fin)
-#     for doc in documents:
-#         print("inside")
+train_summaries = []
+valid_summaries = []
+test_summaries = []
+set_id = {}
+with codecs.open(args.doc_file, "r") as fin:
+    index = 0
+    for line in reader(fin):
+
+        tokens = line
+        assert len(tokens) == 10
+
+        if index > 0:
+            doc_id = tokens[0]
+            set = tokens[1]
+            kind = tokens[2]
+            start_tag = tokens[8]
+            end_tag = tokens[9]
+            set_id[doc_id] = set
+
+        index = index + 1
+
+with open(args.pickle_folder + "question_answer_doc_embed.pickle", "rb") as fin:
+    documents = pickle.load(fin)
+    for doc in documents:
+        set = doc.id
+        if set == 'train':
+            train_summaries.append(doc)
+        elif set == 'valid':
+            valid_summaries.append(doc)
+        elif set == 'test':
+            test_summaries.append(doc)
+
+with open(args.pickle_folder + "train_summaries_embed.pickle", "wb") as fout:
+    pickle.dump(train_summaries, fout)
+
+with open(args.pickle_folder + "valid_summaries_embed.pickle", "wb") as fout:
+    pickle.dump(valid_summaries, fout)
+
+with open(args.pickle_folder + "test_summaries_embed.pickle", "wb") as fout:
+    pickle.dump(test_summaries, fout)
 
