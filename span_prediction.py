@@ -7,12 +7,28 @@ from models.span_prediction_model import SpanMRR, Accuracy, BooleanAccuracy
 
 import torch
 from torch import optim
-from dataloaders.utility import variable, view_data_point,view_span_data_point,get_pretrained_emb
+from dataloaders.utility import variable, view_data_point,view_span_data_point,get_pretrained_emb, pad_seq_elmo
 import numpy as np
 from time import time
 import random
 import cProfile
+import pickle
 
+
+class Document_All_Embed(object):
+    def __init__(self,id, qaps,candidates_embed, candidates, document_tokens, document_embed):
+        self.id = id
+        self.qaps = qaps
+        self.candidates_embed = candidates_embed
+        self.candidates = candidates
+        self.document_tokens = document_tokens
+        self.document_embed = document_embed
+
+class Query_Embed(object):
+    def __init__(self, question_tokens, answer_indices, query_embed=None):
+        self.question_tokens = question_tokens
+        self.answer_indices = answer_indices
+        self.query_embed = query_embed
 
 def get_random_batch_from_training(batches, num):
 	small = []
@@ -22,7 +38,7 @@ def get_random_batch_from_training(batches, num):
 	return small
 
 
-def evaluate(model, batches):
+def evaluate(model, batches,context_per_docid):
 	all_start_correct = 0.0
 	all_end_correct = 0.0
 	all_span_correct = 0.0
@@ -45,17 +61,30 @@ def evaluate(model, batches):
 
 		batch_size = len(batch_query_lengths)
 
-		batch_query = variable(torch.LongTensor(batch['queries']))
+		#batch_query = variable(torch.LongTensor(batch['queries']))
+		batch_query_embed = variable(torch.FloatTensor(batch['q_embed']))
 		batch_query_length = np.array([batch['qlengths']])
 		batch_question_mask = variable(torch.FloatTensor(batch['q_mask']))
 
 		# context tokens
-		batch_context = variable(torch.LongTensor(batch['contexts']))
+		#batch_context = variable(torch.LongTensor(batch['contexts']))
 		batch_context_length = np.array([batch['clengths']])
 		batch_context_mask = variable(torch.FloatTensor(batch['context_mask']))
 
-		start_correct, end_correct, span_correct = model.eval(batch_query, batch_query_length, batch_question_mask,
-															   batch_context, batch_context_length, batch_context_mask,
+		doc_ids = batch['doc_ids']
+		batch_context_embed = []
+		max_batch_context = len(batch['context_mask'][0])
+
+		for doc_id in doc_ids:
+			batch_context_embed.append(context_per_docid[doc_id])
+
+		batch_context_embed_padded = np.array(
+			[pad_seq_elmo(context_embed, max_batch_context) for context_embed in batch_context_embed])
+
+		batch_context_embed_padded = variable(torch.FloatTensor(batch_context_embed_padded))
+
+		start_correct, end_correct, span_correct = model.eval(batch_query_embed, batch_query_length, batch_question_mask,
+															  batch_context_embed_padded, batch_context_length, batch_context_mask,
 															   batch_start_indices, batch_end_indices)
 
 		all_start_correct = start_correct
@@ -104,7 +133,7 @@ def train_epochs(model, vocab):
 				print("train loss: {}".format(train_loss / train_denom))
 
 				if iteration != 0:
-					start, end, span = evaluate(model, valid_batches)
+					start, end, span = evaluate(model, valid_batches, v_context_per_docid)
 					validation_history.append(span)
 
 					if (iteration + 1) % (eval_interval * 5) == 0:
@@ -125,7 +154,7 @@ def train_epochs(model, vocab):
 							print("Testing started")
 							model = SpanMRR(args, loader)
 							model.load_state_dict(torch.load(args.model_path))
-							evaluate(model, test_batches)
+							evaluate(model, test_batches,te_context_per_docid)
 							exit(0)
 
 			batch = train_batches[iteration]
@@ -138,17 +167,30 @@ def train_epochs(model, vocab):
 			batch_size = len(batch_query_lengths)
 
 
-			batch_query = variable(torch.LongTensor(batch['queries']))
+			#batch_query = variable(torch.LongTensor(batch['queries']))
+			batch_query_embed = variable(torch.FloatTensor(batch['q_embed']))
 			batch_query_length = np.array([batch['qlengths']])
 			batch_question_mask = variable(torch.FloatTensor(batch['q_mask']))
 
 			# context tokens
-			batch_context = variable(torch.LongTensor(batch['contexts']))
+			#batch_context = variable(torch.LongTensor(batch['contexts']))
+			doc_ids= batch['doc_ids']
+			batch_context_embed = []
+			max_batch_context = len(batch['context_mask'][0])
+
+			for doc_id in doc_ids:
+				batch_context_embed.append(t_context_per_docid[doc_id])
+
+			batch_context_embed_padded = np.array(
+				[pad_seq_elmo(context_embed, max_batch_context) for context_embed in batch_context_embed])
+
+			batch_context_embed_padded = variable(torch.FloatTensor(batch_context_embed_padded))
+
 			batch_context_length = np.array([batch['clengths']])
 			batch_context_mask =variable(torch.FloatTensor(batch['context_mask']))
 			
-			loss, start_correct, end_correct, span_correct = model(batch_query, batch_query_length,batch_question_mask,
-				      batch_context, batch_context_length, batch_context_mask,
+			loss, start_correct, end_correct, span_correct = model(batch_query_embed, batch_query_length,batch_question_mask,
+																   batch_context_embed_padded, batch_context_length, batch_context_mask,
 						 batch_start_indices, batch_end_indices)
 
 			all_start_correct = start_correct
@@ -178,7 +220,7 @@ def train_epochs(model, vocab):
 	print("Testing started")
 	model = SpanMRR(args, loader)
 	model.load_state_dict(torch.load(args.model_path))
-	evaluate(model, test_batches)
+	evaluate(model, test_batches,te_context_per_docid)
 
 if __name__ == "__main__":
 	reload(sys)
@@ -196,7 +238,7 @@ if __name__ == "__main__":
 
 	# Model parameters
 	parser.add_argument("--hidden_size", type=int, default=10)
-	parser.add_argument("--embed_size", type=int, default=100)
+	parser.add_argument("--embed_size", type=int, default=1024)
 	parser.add_argument("--cuda", action="store_true", default=True)
 	parser.add_argument("--test", action="store_true", default=False)
 	parser.add_argument("--batch_length", type=int, default=40)
@@ -231,13 +273,24 @@ if __name__ == "__main__":
 
 	loader = DataLoader(args)
 	start = time()
-	train_documents = loader.load_documents_with_answer_spans(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
-	valid_documents = loader.load_documents_with_answer_spans(args.valid_path, summary_path=None, max_documents=args.max_documents)
-	test_documents = loader.load_documents_with_answer_spans(args.test_path, summary_path=None, max_documents=args.max_documents)
+	# train_documents = loader.load_documents_with_answer_spans(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
+	# valid_documents = loader.load_documents_with_answer_spans(args.valid_path, summary_path=None, max_documents=args.max_documents)
+	# test_documents = loader.load_documents_with_answer_spans(args.test_path, summary_path=None, max_documents=args.max_documents)
 
-	for i in range(20):
-		view_span_data_point(valid_documents[i], loader.vocab)
-	
+	with open(args.train_path, "r") as fin:
+		t_documents = pickle.load(fin)
+	with open(args.valid_path, "r") as fin:
+		v_documents = pickle.load(fin)
+	with open(args.test_path, "r") as fin:
+		te_documents = pickle.load(fin)
+
+	train_documents, t_context_per_docid = loader.load_documents_with_answer_spans_elmo(t_documents)
+	valid_documents,  v_context_per_docid = loader.load_documents_with_answer_spans_elmo(v_documents)
+	test_documents, te_context_per_docid = loader.load_documents_with_answer_spans_elmo(te_documents)
+
+	# for i in range(20):
+	# 	view_span_data_point(valid_documents[i], loader.vocab)
+	#
 	print("Train documents:{0} valid documents:{1} test documents:{2}".format(len(train_documents), len(valid_documents), len(test_documents)))
 	end = time()
 	print(end - start)

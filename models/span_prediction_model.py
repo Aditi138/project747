@@ -88,7 +88,7 @@ class SpanMRR(nn.Module):
 			self._dropout = lambda x: x
 
 		## word embedding layer
-		self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size, pretrain_embedding=loader.pretrain_embedding)
+		#self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size, pretrain_embedding=loader.pretrain_embedding)
 
 		## contextual embedding layer
 		self.contextual_embedding_layer = RecurrentContext(input_size=embed_size, hidden_size=hidden_size, num_layers=1)
@@ -120,15 +120,16 @@ class SpanMRR(nn.Module):
 		self._span_accuracy_valid = BooleanAccuracy()
 
 
-	def forward(self, batch_query, batch_query_length,batch_query_mask,
-				      batch_context, batch_context_length, batch_context_mask,
+	def forward(self, query_embedded, batch_query_length,batch_query_mask,
+				context_embedded, batch_context_length, batch_context_mask,
 				      span_start, span_end):
 
 		## Embed query and context
 		# (N, J, d)
-		query_embedded = self.word_embedding_layer(batch_query)
+		#query_embedded = self.word_embedding_layer(batch_query)
 		# (N, T, d)
-		context_embedded = self.word_embedding_layer(batch_context)
+		#context_embedded = self.word_embedding_layer(batch_context)
+
 
 		passage_length = context_embedded.size(1)
 
@@ -242,14 +243,14 @@ class SpanMRR(nn.Module):
 					max_span_log_prob[b] = val1 + val2
 		return best_word_span
 
-	def eval(self,batch_query, batch_query_length,batch_query_mask,
-				      batch_context, batch_context_length, batch_context_mask,
+	def eval(self,query_embedded, batch_query_length,batch_query_mask,
+			 context_embedded, batch_context_length, batch_context_mask,
 				      span_start, span_end):
 		## Embed query and context
 		# (N, J, d)
-		query_embedded = self.word_embedding_layer(batch_query)
+		#query_embedded = self.word_embedding_layer(batch_query)
 		# (N, T, d)
-		context_embedded = self.word_embedding_layer(batch_context)
+		#context_embedded = self.word_embedding_layer(batch_context)
 
 		passage_length = context_embedded.size(1)
 

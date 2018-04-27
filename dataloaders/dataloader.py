@@ -13,7 +13,7 @@ except:
 import sys
 import spacy
 from nltk import word_tokenize
-from data import Document, Query, Data_Point, Span_Data_Point, Elmo_Data_Point
+from data import Document, Query, Data_Point, Span_Data_Point, Elmo_Data_Point, Span_Data_Point_Elmo
 from utility import start_tags, end_tags, start_tags_with_attributes, pad_seq,pad_seq_elmo, view_data_point
 import random
 import numpy as np
@@ -68,12 +68,54 @@ def make_bucket_batches(data, batch_size,vocab):
             begin_index = i * batch_size
             end_index = begin_index + cur_batch_size
             batch_data  =list(bucket[begin_index:end_index])
-            batch = create_single_batch(batch_data)
+            batch = create_single_batch_elmo_with_context(batch_data)
+            #batch = create_single_batch(batch_data)
+
             #view_batch(batch,vocab)
             batches.append(batch)
 
     np.random.shuffle(batches)
     return batches
+
+def create_single_batch_elmo_with_context(batch_data):
+    doc_ids  = [data_point.id for data_point in batch_data]
+    batch_query_lengths = [len(data_point.question_tokens) for data_point in batch_data]
+    maximum_query_length = max(batch_query_lengths)
+    query_length_mask = np.array([[int(x < batch_query_lengths[i])
+                                   for x in range(maximum_query_length)] for i in range(len(batch_data))])
+
+    #queries = np.array([pad_seq(data_point.question_tokens, maximum_query_length)
+    #                    for data_point in batch_data])
+
+    queries_embed  = np.array([pad_seq_elmo(data_point.question_embed, maximum_query_length)
+                        for data_point in batch_data])
+
+    batch_context_lengths = [len(data_point.context_tokens) for data_point in batch_data]
+    maximum_context_length = max(batch_context_lengths)
+    #contexts = np.array([pad_seq(data_point.context_tokens, maximum_context_length) for data_point in batch_data])
+    batch_context_mask = np.array([[int(x < batch_context_lengths[i])
+                                    for x in range(maximum_context_length)] for i in range(len(batch_data))])
+
+    start_span_indices = [data_point.span_indices[0] for data_point in batch_data]
+    end_span_indices = [data_point.span_indices[1] for data_point in batch_data]
+
+
+    batch = {}
+
+    batch['doc_ids'] = doc_ids
+    batch['q_embed'] = queries_embed
+    batch['q_mask'] = query_length_mask
+
+    batch['context_mask'] = batch_context_mask
+
+    batch['start_indices'] = start_span_indices
+    batch['end_indices'] = end_span_indices
+
+    batch['qlengths'] = batch_query_lengths
+    batch['clengths'] = batch_context_lengths
+
+
+    return batch
 
 def create_single_batch_elmo_no_context(batch_data):
     doc_ids  = [data_point.doc_id for data_point in batch_data]
@@ -148,7 +190,8 @@ def create_single_batch(batch_data):
     batch_context_mask = np.array([[int(x < batch_context_lengths[i])
                                    for x in range(maximum_context_length)] for i in range(len(batch_data))])
 
-
+    start_span_indices = [data_point.span_indices[0] for data_point in batch_data]
+    end_span_indices = [data_point.span_indices[1] for data_point in batch_data]
 
 
     batch = {}
@@ -794,8 +837,10 @@ class DataLoader():
         data_points = []
         candidates_embed_docid = {}
         candidate_per_docid = {}
+        context_per_docid = {}
         for index,document in enumerate(documents):
             document_tokens = []
+            context_per_docid[document.id,] = document.document_embed
             candidate_per_doc_per_answer = []
             candidate_per_doc_per_answer_embed = []
             i = 0
@@ -822,7 +867,40 @@ class DataLoader():
                                    (query.question_tokens,query.query_embed, query.answer_indices,
                                     [], [], candidate_per_doc_per_answer,[], document.id))
 
-        return data_points,candidates_embed_docid
+        return data_points,candidates_embed_docid,context_per_docid
+
+    def load_documents_with_answer_spans_elmo(self, documents):
+        data_points = []
+        context_per_docid = {}
+
+        for index, document in enumerate(documents):
+
+            #document_tokens = self.vocab.add_and_get_indices(document.document_tokens)
+            document_tokens = []
+            raw_tokens = []
+            for sent in document.document_tokens:
+                document_tokens += self.vocab.add_and_get_indices(sent)
+                raw_tokens += sent
+            context_per_docid[document.id] = np.concatenate(document.document_embed)
+
+            answers_per_doc = []
+            i = 0
+            q_index = 0
+            while i < len(document.candidates):
+                answers_per_doc.append(document.candidates[i])
+                i += 2
+
+            for idx, query in enumerate(document.qaps):
+                query.question_tokens = self.vocab.add_and_get_indices(query.question_tokens)
+                q_index += 1
+                ## if answer is an exact span of the context, add span indices
+                span_indices = self.is_span(answers_per_doc[idx], raw_tokens)
+                answer_tokens = self.vocab.add_and_get_indices(answers_per_doc[idx])
+                if span_indices[0] != -1 and span_indices[1] != -1:
+                    data_points.append(Span_Data_Point_Elmo(document.id, query.question_tokens,query.query_embed,
+                                                            document_tokens, span_indices, answer_tokens))
+
+        return data_points, context_per_docid
 class Vocabulary(object):
     def __init__(self, pad_token='pad', unk='unk', sos='<sos>',eos='<eos>' ):
 
