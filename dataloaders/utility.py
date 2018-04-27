@@ -1,5 +1,8 @@
 import torch
 from torch.autograd import Variable
+import codecs
+import numpy as np
+import math
 
 
 PAD_token = 0
@@ -34,9 +37,54 @@ def pad_seq(seq, max_len, pad_token=0):
 
 def pad_elmo(batch):
     max_len = len(max(batch, key=len))
-    padded_batch=[sequence + [[0]*50 for i in range(max_len - len(sequence))] for sequence in batch]
+    padded_batch=[sequence + [[0]*1024 for i in range(max_len - len(sequence))] for sequence in batch]
+    return padded_batch
+
+def pad_seq_elmo(seq, max_len,size=1024):
+    diff = max_len - len(seq)
+    if diff == 0:
+        return seq
+    padded = np.zeros((diff, size))
+    padded_batch=np.concatenate((seq ,padded),axis=0)
     return padded_batch
 
 def view_data_point(data_point, vocab):
     print(" ".join([vocab.get_word(id) for id in data_point.question_tokens]))
     print(" ".join([vocab.get_word(id) for id in data_point.candidates[data_point.answer_indices[0]]]))
+
+def view_span_data_point(data_point, vocab):
+    print(" ".join([vocab.get_word(id) for id in data_point.question_tokens]))
+    print(" ".join([vocab.get_word(id) for id in data_point.answer_tokens]))
+
+    ansnwer_from_context = data_point.context_tokens[data_point.span_indices[0]:data_point.span_indices[1] + 1]
+    print(" ".join([vocab.get_word(id) for id in ansnwer_from_context]))
+
+def get_pretrained_emb(embedding_path, word_to_id, dim):
+    word_emb = []
+    print("Loading pretrained embeddings from {0}".format(embedding_path))
+    for _ in range(len(word_to_id)):
+        word_emb.append(np.random.uniform(-math.sqrt(3.0 / dim), math.sqrt(3.0 / dim), size=dim))
+
+    print("length of dict: {0}".format(len(word_to_id)))
+    pretrain_word_emb = {}
+    for line in codecs.open(embedding_path, "r", "utf-8", errors='replace'):
+        items = line.strip().split()
+        if len(items) == dim + 1:
+            try:
+                pretrain_word_emb[items[0]] = np.asarray(items[1:]).astype(np.float32)
+            except ValueError:
+                continue
+
+    not_covered = 0
+    for word, id in word_to_id.iteritems():
+        if word in pretrain_word_emb:
+            word_emb[id] = pretrain_word_emb[word]
+        elif word.lower() in pretrain_word_emb:
+            word_emb[id] = pretrain_word_emb[word.lower()]
+        else:
+            not_covered += 1
+
+    emb = np.array(word_emb, dtype=np.float32)
+
+    print("Word number not covered in pretrain embedding: {0}".format(not_covered))
+    return emb

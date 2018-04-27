@@ -77,7 +77,3 @@ class Data_Point:
         self.ner_for_candidates = ner_for_candidates
         self.pos_for_candidates = pos_for_candidates
 
-
-
-
-

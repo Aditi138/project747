@@ -1,13 +1,12 @@
 import argparse
 import sys
 
-from dataloaders.dataloader import create_batches, view_batch, make_bucket_batches
+from dataloaders.dataloader import create_batches, view_batch, make_bucket_batches, DataLoader
 from dataloaders.squad_dataloader import SquadDataloader
 from models.span_prediction_model import Accuracy, BooleanAccuracy, SpanMRR, SpanScorer
-
 import torch
 from torch import optim
-from dataloaders.utility import variable, view_data_point
+from dataloaders.utility import variable, view_data_point,view_span_data_point,get_pretrained_emb
 import numpy as np
 from time import time
 import random
@@ -239,6 +238,7 @@ def train_epochs(model, vocab):
 	patience = 10
 
 	valid_batches = make_bucket_batches(valid_documents, args.batch_length, vocab)
+	test_batches = make_bucket_batches(test_documents, args.batch_length, vocab)
 
 	for epoch in range(args.num_epochs):
 
@@ -269,7 +269,7 @@ def train_epochs(model, vocab):
 						if span >= max(validation_history):
 							saved = True
 							print("Saving best model seen so far itr number {0}".format(iteration))
-							torch.save(model, args.model_path)
+							torch.save(model.state_dict(), args.model_path)
 							print("Best on Validation: Start:{0} End:{1} Span:{2}".format(start, end, span))
 							bad_counter = 0
 						else:
@@ -277,7 +277,9 @@ def train_epochs(model, vocab):
 						if bad_counter > patience:
 							print("Early Stopping")
 							print("Testing started")
-							evaluate(model, valid_batches)
+							model = SpanMRR(args, loader)
+							model.load_state_dict(torch.load(args.model_path))
+							evaluate(model, test_batches)
 							exit(0)
 
 			batch = train_batches[iteration]
@@ -322,11 +324,15 @@ def train_epochs(model, vocab):
 
 		if not saved:
 			print("Saving model after epoch {0}".format(epoch))
-			torch.save(model, args.model_path + ".dummy")
+			torch.save(model.state_dict(), args.model_path + ".dummy")
 
 
 
 	print("All epochs done")
+	print("Testing started")
+	model = SpanMRR(args, loader)
+	model.load_state_dict(torch.load(args.model_path))
+	evaluate(model, test_batches)
 
 if __name__ == "__main__":
 	reload(sys)
@@ -335,7 +341,7 @@ if __name__ == "__main__":
 
 	parser.add_argument("--train_path", type=str, default="/../narrativeqa/summaries/small_summaries.pickle")
 	parser.add_argument("--valid_path", type=str, default=None)
-	parser.add_argument("--test_path", type=str, default=None)
+	parser.add_argument("--test_path", type=str, default="../test_summaries.pickle")
 	parser.add_argument("--summary_path", type=str, default=None)
 	parser.add_argument("--model_path", type=str, default=None)
 	parser.add_argument("--job_size", type=int, default=5)
@@ -344,9 +350,10 @@ if __name__ == "__main__":
 
 	# Model parameters
 	parser.add_argument("--hidden_size", type=int, default=10)
-	parser.add_argument("--embed_size", type=int, default=10)
+	parser.add_argument("--embed_size", type=int, default=100)
 	parser.add_argument("--cuda", action="store_true", default=True)
-	parser.add_argument("--batch_length", type=int, default=1)
+	parser.add_argument("--test", action="store_true", default=False)
+	parser.add_argument("--batch_length", type=int, default=40)
 	parser.add_argument("--eval_interval", type=int, default=2)
 	parser.add_argument("--learning_rate", type=float, default=0.5)
 	parser.add_argument("--num_epochs", type=int, default=20)
@@ -369,29 +376,34 @@ if __name__ == "__main__":
 	else:
 		vars(args)['use_cuda'] = False
 
-	loader = SquadDataloader(args)
+	#For running squad
+	#loader = SquadDataloader(args)
+	# start = time()
+	# train_documents = loader.load_docuements(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
+	# valid_documents = loader.load_docuements(args.valid_path, summary_path=None, max_documents=args.max_documents)
+	# test_documents = loader.load_docuements(args.test_path, summary_path=None, max_documents=args.max_documents)
 
+	loader = DataLoader(args)
 	start = time()
-	## normal bidaf over squad for one correct answer
-	'''
-	train_documents = loader.load_docuements(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
-	valid_documents = loader.load_docuements(args.valid_path, summary_path=None, max_documents=args.max_documents)
-	'''
-	## normal bidaf over squad for multiple correct answers and softmax loss function
-	train_documents= loader.load_documents_with_candidate_spans(args.train_path)
-	valid_documents = loader.load_documents_with_candidate_spans(args.valid_path)
+	train_documents = loader.load_documents_with_answer_spans(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
+	valid_documents = loader.load_documents_with_answer_spans(args.valid_path, summary_path=None, max_documents=args.max_documents)
+	test_documents = loader.load_documents_with_answer_spans(args.test_path, summary_path=None, max_documents=args.max_documents)
 
+	for i in range(20):
+		view_span_data_point(valid_documents[i], loader.vocab)
+	
+	print("Train documents:{0} valid documents:{1} test documents:{2}".format(len(train_documents), len(valid_documents), len(test_documents)))
 	end = time()
 	print(end - start)
 
-	## normal bidaf over squad for one correct span
-	'''
-	model = SpanScorer(args, loader.vocab)
-	'''
-	model = SpanMRR(args, loader.vocab)
-
+	model = SpanMRR(args, loader)
 
 	if args.use_cuda:
 		model = model.cuda()
-	
+
+	# Get pre_trained embeddings
+	if args.pretrain_path is not None:
+		word_embedding = get_pretrained_emb(args.pretrain_path, loader.vocab.vocabulary, args.embed_size)
+		loader.pretrain_embedding = word_embedding
+
 	train_epochs(model, loader.vocab)
