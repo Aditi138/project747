@@ -41,7 +41,7 @@ def view_batch(batch,vocab):
     for index in range(len(q)):
         print(q[index] + " "  + a[index] + " " +"\n")
 
-def make_bucket_batches(data, batch_size,vocab):
+def make_bucket_batches(data, batch_size, vocab, multiple=False):
     # Data are bucketed according to the length of the first item in the data_collections.
     buckets = defaultdict(list)
 
@@ -70,6 +70,7 @@ def make_bucket_batches(data, batch_size,vocab):
             batch_data  =list(bucket[begin_index:end_index])
             batch = create_single_batch_elmo_with_context(batch_data)
             #batch = create_single_batch(batch_data)
+            #batch = create_single_batch(batch_data, multiple)
 
             #view_batch(batch,vocab)
             batches.append(batch)
@@ -174,9 +175,9 @@ def create_single_batch_elmo_no_context(batch_data):
 
     return batch
 
-def create_single_batch(batch_data):
-
+def create_single_batch(batch_data, multiple=False):
     batch_query_lengths = [len(data_point.question_tokens) for data_point in batch_data]
+
     maximum_query_length = max(batch_query_lengths)
     query_length_mask = np.array([[int(x < batch_query_lengths[i])
                                    for x in range(maximum_query_length)] for i in range(len(batch_data))])
@@ -190,6 +191,7 @@ def create_single_batch(batch_data):
     batch_context_mask = np.array([[int(x < batch_context_lengths[i])
                                    for x in range(maximum_context_length)] for i in range(len(batch_data))])
 
+
     start_span_indices = [data_point.span_indices[0] for data_point in batch_data]
     end_span_indices = [data_point.span_indices[1] for data_point in batch_data]
 
@@ -201,17 +203,23 @@ def create_single_batch(batch_data):
     batch['contexts'] = contexts
     batch['context_mask'] = batch_context_mask
 
-    batch['start_indices'] = start_span_indices
-    batch['end_indices'] = end_span_indices
-
     batch['qlengths'] = batch_query_lengths
     batch['clengths'] = batch_context_lengths
 
-
-
+    if not multiple:
+        start_span_indices = [data_point.span_indices[0] for data_point in batch_data]
+        end_span_indices = [data_point.span_indices[1] for data_point in batch_data]
+        batch['start_indices'] = start_span_indices
+        batch['end_indices'] = end_span_indices
+    else:
+        ''' Following piece of code executed when candidate spans are evaluated with MRR/Softmax'''
+        '''Currently supports batch size 1'''
+        batch['candidates'] = [data_point.candidates for data_point in batch_data]
+        batch['metrics'] = np.array([data_point.metrics for data_point in batch_data])
+        batch['answer_indices'] = [data_point.answer_indices[0] for data_point in batch_data]
     return batch
 
-def create_batches(data, batch_size, job_size,vocab):
+def create_batches(data, batch_size, job_size,vocab, multiple=False):
     vocab = vocab
     job_pool = Pool(job_size)
     end_index = 0

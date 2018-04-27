@@ -322,10 +322,6 @@ class SpanMRR(nn.Module):
 			self._span_accuracy_valid.accuracy(best_span, torch.stack([span_start, span_end], -1))
 			return self._span_start_accuracy_valid.correct_count, self._span_end_accuracy_valid.correct_count, self._span_accuracy_valid._correct_count
 
-
-
-
-
 class OutputLayer(nn.Module):
 	def __init__(self, input_size, hidden_size):
 		super(OutputLayer, self).__init__()
@@ -397,8 +393,6 @@ class TimeDistributed(torch.nn.Module):
 		outputs = reshaped_outputs.contiguous().view(*new_shape)
 
 		return outputs
-
-
 
 class Accuracy:
 	def __init__(self,top_k=1):
