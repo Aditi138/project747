@@ -247,7 +247,7 @@ class SpanScorer(nn.Module):
 		modeling_layer_inputdim = 8 * hidden_size
 		# self.modeling_layer1 = RecurrentContext(modeling_layer_inputdim, hidden_size,num_layers=2)
 		## replacing with encoder block and one layer of TimeDistricuted linear layer that goes from 8d to 2d
-		self.modeling_layer1 = ConvolutionAttentionContext(modeling_layer_inputdim)
+		self.modeling_layer1 = ConvolutionAttentionContext(modeling_layer_inputdim, n_blocks=5, num_conv_layers=2)
 		self.dimension_reduction_layer1 = TimeDistributed(torch.nn.Linear(modeling_layer_inputdim, 2 * hidden_size))
 		self.modeling_dim = 2 * hidden_size
 
@@ -260,7 +260,7 @@ class SpanScorer(nn.Module):
 		span_end_dim = modeling_layer_inputdim + 3 * self.modeling_dim
 		# self._span_end_encoder = RecurrentContext(span_end_dim, hidden_size,num_layers=1)
 		# replacing with encoder block
-		self._span_end_encoder = ConvolutionAttentionContext(span_end_dim)
+		self._span_end_encoder = ConvolutionAttentionContext(span_end_dim, )
 		self.dimension_reduction_layer2 = TimeDistributed(torch.nn.Linear(span_end_dim, 2 * hidden_size))
 
 		self._span_start_accuracy = Accuracy()
@@ -503,9 +503,9 @@ class RecurrentContext(nn.Module):
 
 
 class ConvolutionAttentionContext(nn.Module):
-	def __init__(self, input_size, num_conv_layers=4, kernel_size=7, num_heads=4, max_positions=3000):
+	def __init__(self, input_size, n_blocks=1, num_conv_layers=4, kernel_size=7, num_heads=4, max_positions=3000):
 		super(ConvolutionAttentionContext, self).__init__()
-		self.encoder_block_layer = EncoderBlock(max_positions, input_size, kernel_size, num_conv_layers, num_heads)
+		self.encoder_block_layer = EncoderBlocks(n_blocks, max_positions, input_size, kernel_size, num_conv_layers, num_heads)
 
 	def forward(self, batch, mask):
 		return self.encoder_block_layer(batch, mask)
