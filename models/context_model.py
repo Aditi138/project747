@@ -103,14 +103,23 @@ class ContextMRR(nn.Module):
 		answer_modeled, (answer_hidden_state, answer_cell_state) = self.modeling_layer2(input_to_answer_model, batch_candidate_lengths_sorted)
 		answer_modeled = self._dropout(answer_modeled)
 
+		answer_modeled_replaced = self.attention_flow_layer2.replace_masked_values(answer_modeled.transpose(1, 2),
+																				   batch_candidate_masks_sorted.unsqueeze(
+																					   1), 1e-7)
+		answer_modeled_mask = answer_modeled.transpose(1, 2) * batch_candidate_masks_sorted.unsqueeze(1)
+		answer_concat_hidden = torch.cat(
+			(torch.max(answer_modeled_replaced, dim=2)[0], torch.mean(answer_modeled_mask, dim=2)), dim=1)
+
 		## output layer : concatenate hidden dimension of the final answer model layer and run through an MLP : (N1, 2d) => (N1, d)
 		# (N1, 2d) => (N1, 1)
 		# answer_concat_hidden = torch.cat([answer_hidden_state[-2], answer_hidden_state[-1]], dim=1)
 
 		# (N1, 4d) => (N1, 1)
 		# take maxmimum and average of hidden embeddings and concatenate them
-		answer_concat_hidden = torch.cat((torch.max(answer_modeled, dim=1)[0], torch.mean(answer_modeled, dim=1)), dim=1)
+
+
 		answer_scores = self.output_layer(answer_concat_hidden)
+
 
 		## unsort the answer scores
 		answer_scores_unsorted = torch.index_select(answer_scores, 0, batch_candidate_unsort)
@@ -124,7 +133,7 @@ class ContextMRR(nn.Module):
 		# loss = torch.clamp(1 - gold_features + max_negative_feature, 0)
 
 		loss = self.loss(answer_scores_unsorted.transpose(0,1), gold_index)
-		sorted, indices = torch.sort(answer_scores_unsorted.squeeze(0), dim=0, descending=True)
+		sorted, indices = torch.sort(F.log_softmax(answer_scores_unsorted.squeeze(0),dim=0), dim=0, descending=True)
 		return loss, indices
 
 
@@ -179,20 +188,25 @@ class ContextMRR(nn.Module):
 		answer_modeled, (answer_hidden_state, answer_cell_state) = self.modeling_layer2(input_to_answer_model,
 																						batch_candidate_lengths_sorted,)
 
+		answer_modeled_replaced = self.attention_flow_layer2.replace_masked_values(answer_modeled.transpose(1, 2),
+																				   batch_candidate_masks_sorted.unsqueeze(
+																					   1), 1e-7)
+		answer_modeled_mask = answer_modeled.transpose(1, 2) * batch_candidate_masks_sorted.unsqueeze(1)
+		answer_concat_hidden = torch.cat(
+			(torch.max(answer_modeled_replaced, dim=2)[0], torch.mean(answer_modeled_mask, dim=2)), dim=1)
 
 		## output layer : concatenate hidden dimension of the final answer model layer and run through an MLP : (N1, 2d) => (N1, d)
 		# (N1, 2d) => (N1, 1)
 		# answer_concat_hidden = torch.cat([answer_hidden_state[-2], answer_hidden_state[-1]], dim=1)
 
-		# (N1, 4d) => (N1, 1)
+		# (N1, K, 4d) => (N1, 1, 4d)
 		# take maxmimum and average of hidden embeddings and concatenate them
-		answer_concat_hidden = torch.cat((torch.max(answer_modeled, dim=1)[0], torch.mean(answer_modeled, dim=1)),
-										 dim=1)
+
 		answer_scores = self.output_layer(answer_concat_hidden)
 
 		## unsort the answer scores
 		answer_scores_unsorted = torch.index_select(answer_scores, 0, batch_candidate_unsort)
-		sorted, indices = torch.sort(answer_scores_unsorted, dim=0, descending=True)
+		sorted, indices = torch.sort(F.log_softmax(answer_scores_unsorted, dim=0), dim=0, descending=True)
 		return indices
 
 

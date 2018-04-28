@@ -48,8 +48,8 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid ):
 		for index, query_embed in enumerate(batch['q_embed']):
 
 			# query tokens
-			batch_query = variable(torch.LongTensor(query_embed), volatile=True)
-			batch_query_length = [batch['qlengths'][index]]
+			batch_query = variable(torch.FloatTensor(query_embed), volatile=True)
+			batch_query_length = np.array([batch['qlengths'][index]])
 			batch_question_mask = variable(torch.FloatTensor(batch['q_mask'][index]))
 
 
@@ -130,8 +130,8 @@ def train_epochs(model, vocab):
 					validation_history.append(average_rr)
 					train_average_rr = np.mean(mrr_value)
 					if (iteration + 1) % (eval_interval) == 0:
-						print("Validation MRR:{0}".format(average_rr))
-						print("Train MRR:{0}".format(train_average_rr))
+						print("Train MRR:{0}  Validation MRR:{1}".format(train_average_rr,average_rr))
+
 						mrr_value = []
 						if average_rr >= max(validation_history):
 							saved = True
