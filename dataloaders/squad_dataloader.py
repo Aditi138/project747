@@ -196,8 +196,8 @@ class SquadDataloader():
 		article_count = 1
 		for article in dataset:
 			print(article_count)
-			if article_count == 10:
-				break
+			#if article_count == 10:
+			#	break
 			article_count += 1
 			for paragraph_json in article['paragraphs']:
 				paragraph = paragraph_json["context"]
@@ -343,8 +343,8 @@ class Vocabulary(object):
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 
-	parser.add_argument("--train_path", type=str, default="/Users/aditichaudhary/Documents/CMU/small/dev-v1.1.json")
-	parser.add_argument("--t_output_path", type=str, default="/Users/aditichaudhary/Documents/CMU/project747/smalldev-v1.1-sentwise.pickle")
+	parser.add_argument("--train_path", type=str, default="../../squad/dev-v1.1.json")
+	parser.add_argument("--t_output_path", type=str, default="../../squad/dev-v1.1-sentwise.pickle")
 	parser.add_argument("--valid_path", type=str, default="../../squad/dev-v1.1.json")
 	parser.add_argument("--valid_output_path", type=str, default="../../squad/dev-v1.1-sentwise.pickle")
 	parser.add_argument("--test_path", type=str, default=None)
@@ -352,5 +352,5 @@ if __name__ == '__main__':
 
 	squad_dataloader = SquadDataloader(args)
 	squad_dataloader.pickle_data(args.train_path, args.t_output_path)
-	#squad_dataloader.pickle_data(args.valid_path, args.valid_output_path)
+	squad_dataloader.pickle_data(args.valid_path, args.valid_output_path)
 	#data_points = squad_dataloader.load_docuements(args.t_output_path)
