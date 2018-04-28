@@ -343,8 +343,8 @@ class Vocabulary(object):
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 
-	parser.add_argument("--train_path", type=str, default="../../squad/dev-v1.1.json")
-	parser.add_argument("--t_output_path", type=str, default="../../squad/dev-v1.1-sentwise.pickle")
+	parser.add_argument("--train_path", type=str, default="../../squad/train-v1.1.json")
+	parser.add_argument("--t_output_path", type=str, default="../../squad/train-v1.1-sentwise.pickle")
 	parser.add_argument("--valid_path", type=str, default="../../squad/dev-v1.1.json")
 	parser.add_argument("--valid_output_path", type=str, default="../../squad/dev-v1.1-sentwise.pickle")
 	parser.add_argument("--test_path", type=str, default=None)
