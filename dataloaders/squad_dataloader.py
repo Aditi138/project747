@@ -237,18 +237,20 @@ class SquadDataloader():
 						tokens_covered += len(sent_tokens)
 						new_context += sent_tokens
 						if not sentence_found:
-							if span_start < tokens_covered and span_end < tokens_covered:
-								gold_sentence_index = sent_idx
-								sentence_found = True
-							elif span_start < tokens_covered:
-								gold_sentence_index = sent_idx
-								sentence_found = True
-							if sent_idx == last_chunk_idx:
+							if sent_idx != last_chunk_idx:
+								if span_start < tokens_covered and span_end < tokens_covered:
+									gold_sentence_index = sent_idx
+									sentence_found = True
+								elif span_start < tokens_covered:
+									gold_sentence_index = sent_idx
+									sentence_found = True
+							else:
 								#print("special case")
 								original_context_len = len(copy_tokenized_paragraph)
 								new_span_start = chunk_length - (original_context_len - (chunk_length * sent_idx)) + span_start
 								span_start = new_span_start
 								span_end = new_span_start + len(answer_text) - 1
+								sentence_found = True
 								#print(new_context[span_start: span_end+1])
 								#print(answer_text)
 
