@@ -29,6 +29,12 @@ class Query_Embed(object):
         self.answer_indices = answer_indices
         self.query_embed = query_embed
 
+def test_model(model, documents, vocab, context_per_docid):
+    test_batches = make_bucket_batches(documents, args.batch_length, vocab)
+    print("Testing!")
+    evaluate(model, test_batches,te_context_per_docid)
+
+
 def get_random_batch_from_training(batches, num):
 	small = []
 	for i in range(num):
@@ -307,6 +313,8 @@ def train_epochs(model, vocab):
 							print("Early Stopping")
 							print("Testing started")
 							model = SpanMRR(args, loader)
+							if args.use_cuda:
+								model = model.cuda()
 							model.load_state_dict(torch.load(args.model_path))
 							evaluate(model, test_batches,te_context_per_docid)
 							exit(0)
@@ -373,6 +381,8 @@ def train_epochs(model, vocab):
 	print("All epochs done")
 	print("Testing started")
 	model = SpanMRR(args, loader)
+	if args.use_cuda:
+		model = model.cuda()
 	model.load_state_dict(torch.load(args.model_path))
 	evaluate(model, test_batches,te_context_per_docid)
 
@@ -459,4 +469,8 @@ if __name__ == "__main__":
 		word_embedding = get_pretrained_emb(args.pretrain_path, loader.vocab.vocabulary, args.embed_size)
 		loader.pretrain_embedding = word_embedding
 
-	train_epochs(model, loader.vocab)
+	if args.test:
+		model.load_state_dict(torch.load(args.model_path))
+		test_model(model, test_documents, loader.vocab,te_context_per_docid)
+	else:
+		train_epochs(model, loader.vocab)
