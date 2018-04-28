@@ -45,22 +45,27 @@ class Span_Data_Point:
     answer_tokens = []
     context_tokens = []
     span_indices = []
+    sentence_bleu = []
 
-    def __init__(self, question_tokens, context_tokens, span_indices, answer_tokens=None):
+
+    def __init__(self, question_tokens, context_tokens, span_indices, sentence_bleu,answer_tokens=None, gold_sentence_index= -1):
         self.question_tokens = question_tokens
         self.context_tokens = context_tokens
         self.answer_tokens = answer_tokens
         self.span_indices = span_indices
+        self.sentence_bleu = sentence_bleu
+        self.gold_sentence_index = gold_sentence_index
 
 class Span_Data_Point_Elmo:
 
-    def __init__(self,id, question_tokens,question_embed,  context_tokens, span_indices, answer_tokens=None):
+    def __init__(self,id, question_tokens,question_embed,  context_tokens, span_indices,  answer_tokens=None):
         self.id = id
         self.question_tokens = question_tokens
         self.question_embed = question_embed
         self.context_tokens = context_tokens
         self.answer_tokens = answer_tokens
         self.span_indices = span_indices
+
 
 
 class Data_Point:
