@@ -3,7 +3,7 @@ import sys
 
 from dataloaders.dataloader import create_batches, view_batch, make_bucket_batches, DataLoader
 from dataloaders.squad_dataloader import SquadDataloader
-from models.span_prediction_model import Accuracy, BooleanAccuracy, SpanMRR, SpanScorer
+from models.span_prediction_model import Accuracy, BooleanAccuracy, SpanMRR
 import torch
 from torch import optim
 from dataloaders.utility import variable, view_data_point,view_span_data_point,get_pretrained_emb, pad_seq_elmo
@@ -32,7 +32,8 @@ class Query_Embed(object):
 def test_model(model, documents, vocab, context_per_docid):
     test_batches = make_bucket_batches(documents, args.batch_length, vocab)
     print("Testing!")
-    evaluate(model, test_batches,te_context_per_docid)
+    start,end,span = evaluate(model, test_batches,te_context_per_docid)
+    print("Testing Accuracy: Start:{0} End:{1} Span:{2}".format(start, end, span))
 
 
 def get_random_batch_from_training(batches, num):
