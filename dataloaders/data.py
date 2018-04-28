@@ -76,6 +76,20 @@ class Data_Point:
         self.ner_for_candidates = ner_for_candidates
         self.pos_for_candidates = pos_for_candidates
 
+class Elmo_Data_Point:
+
+    def __init__(self, question_tokens,question_embed,
+                 answer_indices, context_tokens, context_embed, candidates, candidates_embed, doc_id):
+        self.question_tokens = question_tokens
+        self.question_embed = question_embed
+        self.context_tokens = context_tokens
+        self.context_embed = context_embed
+        self.answer_indices =answer_indices
+        self.candidates = candidates
+        self.candidates_embed = candidates_embed
+        self.doc_id = doc_id
+
+
 
 
 

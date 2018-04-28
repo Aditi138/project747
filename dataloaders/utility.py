@@ -43,6 +43,13 @@ def view_data_point(data_point, vocab):
     print(" ".join([vocab.get_word(id) for id in data_point.question_tokens]))
     print(" ".join([vocab.get_word(id) for id in data_point.candidates[data_point.answer_indices[0]]]))
 
+def pad_seq_elmo(seq, max_len,size=1024):
+    diff = max_len - len(seq)
+    if diff == 0:
+        return seq
+    padded = np.zeros((diff, size))
+    padded_batch=np.concatenate((seq ,padded),axis=0)
+    return padded_batch
 
 def get_pretrained_emb(embedding_path, word_to_id, dim):
     word_emb = []

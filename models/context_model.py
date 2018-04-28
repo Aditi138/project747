@@ -12,7 +12,7 @@ class ContextMRR(nn.Module):
 		word_vocab_size = loader.vocab.get_length()
 
 		## word embedding layer
-		self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size) #, pretrain_embedding=loader.pretrain_embedding)
+		#self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size) #, pretrain_embedding=loader.pretrain_embedding)
 
 		## dropout layer
 		if args.dropout > 0:
@@ -48,14 +48,16 @@ class ContextMRR(nn.Module):
 	def forward(self, batch_query, batch_query_length,batch_query_mask,
 				batch_context, batch_context_length,batch_context_mask,
 				batch_candidates_sorted, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,batch_candidate_unsort,
-				gold_index, negative_indices, batch_metrics):
+				gold_index, negative_indices):
 
 		## Embed query and context
 		# (N, J, d)
-		query_embedded = self.word_embedding_layer(batch_query.unsqueeze(0))
+		#query_embedded = self.word_embedding_layer(batch_query.unsqueeze(0))
 		# (N, T, d)
-		context_embedded = self.word_embedding_layer(batch_context.unsqueeze(0))
+		#context_embedded = self.word_embedding_layer(batch_context.unsqueeze(0))
 
+		query_embedded = batch_query.unsqueeze(0)
+		context_embedded = batch_context.unsqueeze(0)
 		## Encode query and context
 		# (N, J, 2d)
 		query_encoded,_ = self.contextual_embedding_layer(query_embedded, batch_query_length)
@@ -130,9 +132,12 @@ class ContextMRR(nn.Module):
 			 batch_candidates_sorted, batch_candidate_lengths_sorted,batch_candidate_masks_sorted, batch_candidate_unsort):
 		## Embed query and context
 		# (N, J, d)
-		query_embedded = self.word_embedding_layer(batch_query.unsqueeze(0))
+		#query_embedded = self.word_embedding_layer(batch_query.unsqueeze(0))
 		# (N, T, d)
-		context_embedded = self.word_embedding_layer(batch_context.unsqueeze(0))
+		#context_embedded = self.word_embedding_layer(batch_context.unsqueeze(0))
+
+		query_embedded = batch_query.unsqueeze(0)
+		context_embedded = batch_context.unsqueeze(0)
 
 		## Encode query and context
 		# (N, J, 2d)
