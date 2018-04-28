@@ -68,8 +68,8 @@ def make_bucket_batches(data, batch_size, vocab, multiple=False):
             begin_index = i * batch_size
             end_index = begin_index + cur_batch_size
             batch_data  =list(bucket[begin_index:end_index])
-            batch = create_single_batch_elmo_with_context(batch_data)
-            #batch = create_single_batch(batch_data)
+            # batch = create_single_batch_elmo_with_context(batch_data)
+            batch = create_single_batch(batch_data)
             #batch = create_single_batch(batch_data, multiple)
 
             #view_batch(batch,vocab)
@@ -195,7 +195,6 @@ def create_single_batch(batch_data, multiple=False):
     start_span_indices = [data_point.span_indices[0] for data_point in batch_data]
     end_span_indices = [data_point.span_indices[1] for data_point in batch_data]
 
-
     batch = {}
     batch['queries'] = queries
     batch['q_mask'] = query_length_mask
@@ -205,6 +204,10 @@ def create_single_batch(batch_data, multiple=False):
 
     batch['qlengths'] = batch_query_lengths
     batch['clengths'] = batch_context_lengths
+
+    ## code for sending the sentence scores
+    batch["gold_sentence_indices"] = [data_point.gold_sentence_index for data_point in batch_data]
+    batch["sentence_bleu"] = [data_point.sentence_bleu for data_point in batch_data]
 
     if not multiple:
         start_span_indices = [data_point.span_indices[0] for data_point in batch_data]

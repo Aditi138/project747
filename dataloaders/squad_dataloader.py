@@ -91,8 +91,10 @@ class SquadDataloader():
 				data_points = pickle.load(fin)
 		for data_point in data_points:
 			q_tokens = self.vocab.add_and_get_indices(data_point.question_tokens)
-			c_tokens = self.vocab.add_and_get_indices(data_point.context_tokens)
-			final_data_points.append(Span_Data_Point(q_tokens, c_tokens, data_point.span_indices))
+			c_tokens= []
+			for sent in data_point.context_tokens:
+				c_tokens += self.vocab.add_and_get_indices(sent)
+			final_data_points.append(Span_Data_Point(q_tokens, c_tokens, data_point.span_indices, data_point.sentence_bleu, data_point.gold_sentence_index))
 		return final_data_points
 
 	def load_documents_with_candidates(self, path, summary_path=None, max_documents=0):

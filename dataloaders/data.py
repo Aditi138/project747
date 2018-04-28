@@ -48,7 +48,7 @@ class Span_Data_Point:
     sentence_bleu = []
 
 
-    def __init__(self, question_tokens, context_tokens, span_indices, sentence_bleu,answer_tokens=None, gold_sentence_index= -1):
+    def __init__(self, question_tokens, context_tokens, span_indices, sentence_bleu, gold_sentence_index= -1, answer_tokens=None):
         self.question_tokens = question_tokens
         self.context_tokens = context_tokens
         self.answer_tokens = answer_tokens

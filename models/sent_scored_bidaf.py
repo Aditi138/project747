@@ -57,7 +57,9 @@ class BiDAF(nn.Module):
 		self.similarity_layer.bias.data.fill_(1)
 
 
-	def forward(self, U, H, U_mask, H_mask): #H:context U: query
+
+	## TODO: Add capability of sentence mask (scoring) for sentence selection model
+	def forward(self, U, H, U_mask, H_mask, H_scores): #H:context U: query
 		T = H.size(1)   #Context Length
 		J = U.size(1)  #Quesiton Length
 
@@ -79,20 +81,31 @@ class BiDAF(nn.Module):
 
 		S = self.similarity_layer(cat_data).view(-1, T, J) # (N, T, J, 1) => (N, T, J)
 
+		## normalize by sentence scores
+		num_chunks = H_scores.size(1)
+		permuted_S = S.permute(2,1,0)
+		reshaped_S = permuted_S.contiguous().view(J*num_chunks,-1, batch_size)
+		chunk_averages = torch.mean(reshaped_S, dim=1).unsqueeze(1)
+		chunk_standardized_S = reshaped_S/chunk_averages
+		## multiply scores of chunks
+		scores = H_scores.transpose(0,1).unsqueeze(1)
+		rep_scores = scores.repeat(J,1,1)
+		score_transformed_S = chunk_standardized_S*rep_scores
+		undo_reshaped_S = score_transformed_S.view(J,T,batch_size)
+		undo_permute_S = undo_reshaped_S.permute(2,1,0)
+		scored_S = undo_permute_S.contiguous()
+
 
 		## compute ~U (context 2 query)
 		## softmax along J's dimension
 		## (N, T, 2d) = (N, T, J) X (N, J, 2d)
-
-
 		#Query aware context representation.
-
-		c2q = torch.bmm(last_dim_softmax(S, U_mask), U)
+		c2q = torch.bmm(last_dim_softmax(scored_S, U_mask), U)
 
 
 		#Context aware query representation
 		## compute ~h and expand to ~H
-		masked_similarity = replace_masked_values(S,U_mask.unsqueeze(1), -1e7)
+		masked_similarity = replace_masked_values(scored_S,U_mask.unsqueeze(1), -1e7)
 		b = masked_softmax(torch.max(masked_similarity, dim=-1)[0].squeeze(-1), H_mask)
 
 		## (N, 1, 2d) = (N,1,T) * (N, T, 2d)
@@ -110,4 +123,3 @@ class BiDAF(nn.Module):
 		G = torch.cat([H,c2q,H * c2q,H*tiled_q2c],dim=-1)
 
 		return G, c2q, q2c
-

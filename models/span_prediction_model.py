@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from torch.autograd import Variable
 import torch.nn.functional as F
-from bidaf import BiDAF
+from sent_scored_bidaf import BiDAF
 
 def masked_log_softmax(vector, mask):
     """
@@ -88,7 +88,10 @@ class SpanMRR(nn.Module):
 			self._dropout = lambda x: x
 
 		## word embedding layer
-		#self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size, pretrain_embedding=loader.pretrain_embedding)
+		if hasattr(loader, 'pretrain_embedding'):
+			self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size, pretrain_embedding=loader.pretrain_embedding)
+		else:
+			self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size)
 
 		## contextual embedding layer
 		self.contextual_embedding_layer = RecurrentContext(input_size=embed_size, hidden_size=hidden_size, num_layers=1)
@@ -120,15 +123,15 @@ class SpanMRR(nn.Module):
 		self._span_accuracy_valid = BooleanAccuracy()
 
 
-	def forward(self, query_embedded, batch_query_length,batch_query_mask,
-				context_embedded, batch_context_length, batch_context_mask,
-				      span_start, span_end):
+	def forward(self, batch_query, batch_query_length,batch_query_mask,
+				      batch_context, batch_context_length, batch_context_mask,
+				      span_start, span_end, context_scores):
 
 		## Embed query and context
 		# (N, J, d)
-		#query_embedded = self.word_embedding_layer(batch_query)
+		query_embedded = self.word_embedding_layer(batch_query)
 		# (N, T, d)
-		#context_embedded = self.word_embedding_layer(batch_context)
+		context_embedded = self.word_embedding_layer(batch_context)
 
 
 		passage_length = context_embedded.size(1)
@@ -144,7 +147,7 @@ class SpanMRR(nn.Module):
 		## BiDAF 1 to get ~U, ~h and G (8d) between context and query
 		# (N, T, 8d) , (N, T ,2d) , (N, 1, 2d)
 
-		context_attention_encoded, query_aware_context_encoded, context_aware_query_encoded = self.attention_flow_layer1(query_encoded, context_encoded,batch_query_mask,batch_context_mask)
+		context_attention_encoded, query_aware_context_encoded, context_aware_query_encoded = self.attention_flow_layer1(query_encoded, context_encoded,batch_query_mask,batch_context_mask, context_scores)
 
 		## modelling layer 1
 		# (N, T, 8d) => (N, T, 2d)
@@ -243,14 +246,14 @@ class SpanMRR(nn.Module):
 					max_span_log_prob[b] = val1 + val2
 		return best_word_span
 
-	def eval(self,query_embedded, batch_query_length,batch_query_mask,
-			 context_embedded, batch_context_length, batch_context_mask,
-				      span_start, span_end):
+	def eval(self,batch_query, batch_query_length,batch_query_mask,
+				      batch_context, batch_context_length, batch_context_mask,
+				      span_start, span_end, context_scores):
 		## Embed query and context
 		# (N, J, d)
-		#query_embedded = self.word_embedding_layer(batch_query)
+		query_embedded = self.word_embedding_layer(batch_query)
 		# (N, T, d)
-		#context_embedded = self.word_embedding_layer(batch_context)
+		context_embedded = self.word_embedding_layer(batch_context)
 
 		passage_length = context_embedded.size(1)
 
@@ -266,7 +269,7 @@ class SpanMRR(nn.Module):
 		# (N, T, 8d) , (N, T ,2d) , (N, 1, 2d)
 
 		context_attention_encoded, query_aware_context_encoded, context_aware_query_encoded = self.attention_flow_layer1(
-			query_encoded, context_encoded, batch_query_mask, batch_context_mask)
+			query_encoded, context_encoded, batch_query_mask, batch_context_mask, context_scores)
 
 		## modelling layer 1
 		# (N, T, 8d) => (N, T, 2d)
