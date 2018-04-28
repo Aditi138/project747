@@ -8,7 +8,7 @@ import spacy
 import pickle
 import argparse
 from test_metrics import Performance
-import random
+import random, math
 
 class SquadDataloader():
 	def __init__(self, args):
@@ -189,6 +189,7 @@ class SquadDataloader():
 
 	def pickle_data(self, path, output_path):
 		data_points = []
+		chunk_length = 20
 
 		with open(path) as data_file:
 			dataset = json.load(data_file)['data']
@@ -200,7 +201,7 @@ class SquadDataloader():
 			article_count += 1
 			for paragraph_json in article['paragraphs']:
 				paragraph = paragraph_json["context"]
-				tokenized_chunks, tokenized_paragraph = self.tokenize(paragraph, chunk_length=20, chunk=True)
+				tokenized_chunks, tokenized_paragraph = self.tokenize(paragraph, chunk_length=chunk_length, chunk=True)
 
 				for question_answer in paragraph_json['qas']:
 					question_text = question_answer["question"].strip().replace("\n", "")
@@ -227,18 +228,34 @@ class SquadDataloader():
 					answer_text = copy_tokenized_paragraph[span_start:span_end + 1]
 
 					tokens_covered = 0
+					new_context = []
 					gold_sentence_index = -1
 					sentence_bleu = []
 					sentence_found = False
+					last_chunk_idx = len(tokenized_chunks) - 1
 					for sent_idx,sent_tokens in enumerate(tokenized_chunks):
 						tokens_covered += len(sent_tokens)
-						if not sentence_found and span_start < tokens_covered and span_end < tokens_covered:
-							gold_sentence_index = sent_idx
-							sentence_found = True
+						new_context += sent_tokens
+						if not sentence_found:
+							if span_start < tokens_covered and span_end < tokens_covered:
+								gold_sentence_index = sent_idx
+								sentence_found = True
+							elif span_start < tokens_covered:
+								gold_sentence_index = sent_idx
+								sentence_found = True
+							if sent_idx == last_chunk_idx:
+								#print("special case")
+								original_context_len = len(copy_tokenized_paragraph)
+								new_span_start = chunk_length - (original_context_len - (chunk_length * sent_idx)) + span_start
+								span_start = new_span_start
+								span_end = new_span_start + len(answer_text) - 1
+								#print(new_context[span_start: span_end+1])
+								#print(answer_text)
+
 						sentence_bleu.append(self.performance.bleu(answer_text, sent_tokens))
 
 					data_points.append(
-						Span_Data_Point(question_tokens, tokenized_chunks, [span_start, span_end],sentence_bleu, gold_sentence_index= gold_sentence_index ))
+						Span_Data_Point(question_tokens, tokenized_chunks, [span_start, span_end],sentence_bleu, answer_tokens=answer_text, gold_sentence_index= gold_sentence_index ))
 		with open(output_path, "wb") as fout:
 			pickle.dump(data_points, fout)
 
@@ -324,8 +341,8 @@ class Vocabulary(object):
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 
-	parser.add_argument("--train_path", type=str, default="../../squad/train-v1.1.json")
-	parser.add_argument("--t_output_path", type=str, default="../../train-v1.1-sentwise.pickle")
+	parser.add_argument("--train_path", type=str, default="/Users/aditichaudhary/Documents/CMU/small/dev-v1.1.json")
+	parser.add_argument("--t_output_path", type=str, default="/Users/aditichaudhary/Documents/CMU/project747/smalldev-v1.1-sentwise.pickle")
 	parser.add_argument("--valid_path", type=str, default="../../squad/dev-v1.1.json")
 	parser.add_argument("--valid_output_path", type=str, default="../../squad/dev-v1.1-sentwise.pickle")
 	parser.add_argument("--test_path", type=str, default=None)
@@ -334,4 +351,4 @@ if __name__ == '__main__':
 	squad_dataloader = SquadDataloader(args)
 	squad_dataloader.pickle_data(args.train_path, args.t_output_path)
 	#squad_dataloader.pickle_data(args.valid_path, args.valid_output_path)
-	#data_points = squad_dataloader.load_docuements(args.train_output_path)
+	#data_points = squad_dataloader.load_docuements(args.t_output_path)
