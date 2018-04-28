@@ -206,6 +206,7 @@ def train_epochs(model, vocab):
 
 			mean_loss = losses.mean(0)
 			mean_loss.backward()
+			torch.nn.utils.clip_grad_norm(model.parameters(), clip_threshold)
 			optimizer.step()
 			if args.use_cuda:
 				train_loss += mean_loss.data.cpu().numpy()[0] * batch_size
