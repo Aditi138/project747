@@ -48,8 +48,8 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid ):
 		for index, query_embed in enumerate(batch['q_embed']):
 
 			# query tokens
-			batch_query = variable(torch.LongTensor(query_embed), volatile=True)
-			batch_query_length = [batch['qlengths'][index]]
+			batch_query = variable(torch.FloatTensor(query_embed), volatile=True)
+			batch_query_length = np.array([batch['qlengths'][index]])
 			batch_question_mask = variable(torch.FloatTensor(batch['q_mask'][index]))
 
 
