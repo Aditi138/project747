@@ -66,9 +66,9 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid ):
 
 
 			# context tokens
-			batch_context = variable(torch.FloatTensor(train_context_per_docid[doc_id]))
-			batch_context_length = batch_context.size(0)
-			batch_context_mask = variable(torch.FloatTensor(np.array([1 for x in range(batch_context_length)])))
+			batch_context = variable(torch.FloatTensor(context_per_docid[doc_id]))
+			batch_context_length = [batch_context.size(0)]
+			batch_context_mask = variable(torch.FloatTensor(np.array([1 for x in range(batch_context_length[0])])))
 
 			batch_len = len(batch_candidate_lengths_sorted)
 			batch_candidate_unsort = variable(torch.LongTensor(np.argsort(candidate_sort)), volatile=True)
@@ -180,8 +180,8 @@ def train_epochs(model, vocab):
 
 				# context tokens
 				batch_context = variable(torch.FloatTensor(train_context_per_docid[doc_id]))
-				batch_context_length = batch_context.size(0)
-				batch_context_mask =variable(torch.FloatTensor(np.array([1 for x in range(batch_context_length)])))
+				batch_context_length = [batch_context.size(0)]
+				batch_context_mask =variable(torch.FloatTensor(np.array([1 for x in range(batch_context_length[0])])))
 
 				gold_index = variable(torch.LongTensor([batch_answer_indices[index]]))
 				negative_indices = [idx for idx in range(batch_len)]

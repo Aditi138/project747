@@ -87,7 +87,8 @@ class ContextMRR(nn.Module):
 		# N=1 so (N, T, 2d) => (N1, T, 2d)
 		batch_context_modeled = context_modeled.repeat(batch_size,1,1)
 		# (N1, K, d)
-		batch_candidates_embedded = self.word_embedding_layer(batch_candidates_sorted)
+		#batch_candidates_embedded = self.word_embedding_layer(batch_candidates_sorted)
+		batch_candidates_embedded = batch_candidates_sorted
 		# (N1, K, 2d)
 		batch_candidates_encoded,_ = self.contextual_embedding_layer(batch_candidates_embedded, batch_candidate_lengths_sorted)
 		batch_candidates_encoded = self._dropout(batch_candidates_encoded)
@@ -162,7 +163,8 @@ class ContextMRR(nn.Module):
 		# N=1 so (N, T, 2d) => (N1, T, 2d)
 		batch_context_modeled = context_modeled.repeat(batch_size, 1, 1)
 		# (N1, K, d)
-		batch_candidates_embedded = self.word_embedding_layer(batch_candidates_sorted)
+		#batch_candidates_embedded = self.word_embedding_layer(batch_candidates_sorted)
+		batch_candidates_embedded = batch_candidates_sorted
 		# (N1, K, 2d)
 		batch_candidates_encoded, _ = self.contextual_embedding_layer(batch_candidates_embedded,
 																	  batch_candidate_lengths_sorted)
