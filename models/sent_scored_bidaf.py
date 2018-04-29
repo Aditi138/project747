@@ -93,19 +93,19 @@ class BiDAF(nn.Module):
 		score_transformed_S = chunk_standardized_S*rep_scores
 		undo_reshaped_S = score_transformed_S.view(J,T,batch_size)
 		undo_permute_S = undo_reshaped_S.permute(2,1,0)
-		scored_S = undo_permute_S.contiguous()
+		S = undo_permute_S.contiguous()
 
 
 		## compute ~U (context 2 query)
 		## softmax along J's dimension
 		## (N, T, 2d) = (N, T, J) X (N, J, 2d)
 		#Query aware context representation.
-		c2q = torch.bmm(last_dim_softmax(scored_S, U_mask), U)
+		c2q = torch.bmm(last_dim_softmax(S, U_mask), U)
 
 
 		#Context aware query representation
 		## compute ~h and expand to ~H
-		masked_similarity = replace_masked_values(scored_S,U_mask.unsqueeze(1), -1e7)
+		masked_similarity = replace_masked_values(S,U_mask.unsqueeze(1), -1e7)
 		b = masked_softmax(torch.max(masked_similarity, dim=-1)[0].squeeze(-1), H_mask)
 
 		## (N, 1, 2d) = (N,1,T) * (N, T, 2d)
