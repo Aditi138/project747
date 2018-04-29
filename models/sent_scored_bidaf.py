@@ -48,6 +48,17 @@ def last_dim_softmax(tensor,mask):
 	reshaped_result = masked_softmax(reshaped_tensor, mask)
 	return reshaped_result.view(*tensor_shape)
 
+def last_dim_normalization(tensor, mask):
+	tensor_shape = tensor.size()
+	reshaped_tensor = tensor.view(-1, tensor.size()[-1])
+	if mask is not None:
+		while mask.dim() < tensor.dim():
+			mask = mask.unsqueeze(1)
+		mask = mask.expand_as(tensor).contiguous().float()
+		mask = mask.view(-1, mask.size()[-1])
+	reshaped_tensor = reshaped_tensor * mask
+	result = reshaped_tensor / (reshaped_tensor.sum(dim=1, keepdim=True) + 1e-13)
+	return result.view(*tensor_shape)
 
 class BiDAF(nn.Module):
 	def __init__(self, input_size):
@@ -84,9 +95,10 @@ class BiDAF(nn.Module):
 		## normalize by sentence scores
 		num_chunks = H_scores.size(1)
 		permuted_S = S.permute(2,1,0)
+		## are log space operations required here?
 		reshaped_S = permuted_S.contiguous().view(J*num_chunks,-1, batch_size)
-		chunk_averages = torch.mean(reshaped_S, dim=1).unsqueeze(1)
-		chunk_standardized_S = reshaped_S/chunk_averages
+		total_chunk_score = torch.sum(reshaped_S, dim=1).unsqueeze(1)
+		chunk_standardized_S = reshaped_S/total_chunk_score
 		## multiply scores of chunks
 		scores = H_scores.transpose(0,1).unsqueeze(1)
 		rep_scores = scores.repeat(J,1,1)
@@ -101,7 +113,8 @@ class BiDAF(nn.Module):
 		## (N, T, 2d) = (N, T, J) X (N, J, 2d)
 		#Query aware context representation.
 		c2q = torch.bmm(last_dim_softmax(S, U_mask), U)
-
+		## exp probabiltity scores can be normalized directly
+		# c2q = torch.bmm(last_dim_normalization(S, U_mask), U)
 
 		#Context aware query representation
 		## compute ~h and expand to ~H

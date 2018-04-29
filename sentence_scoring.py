@@ -115,8 +115,15 @@ def evaluate(model, batches, context_per_docid=None):
 		batch_scores = []
 		for i, gold_index in enumerate(batch_gold_chunk_indices):
 			num_chunks = len(batch['contexts'][i]) / 20
-			norm = scipy.stats.norm(gold_index, math.sqrt(num_chunks))
-			scores = np.array([norm.pdf(j) for j in range(num_chunks)])
+			norm = scipy.stats.norm(gold_index[0], 0.5)
+			# scores = np.array([norm.pdf(j) for j in range(num_chunks)])
+			scores = np.zeros(num_chunks)
+			for g in gold_index:
+				scores[g] = norm.pdf(gold_index[0])
+			for i in range(0, gold_index[0]):
+				scores[i] = norm.pdf(gold_index[0] + 0.5 * (i - gold_index[0]))
+			for i in range(gold_index[-1] + 1, num_chunks):
+				scores[i] = norm.pdf(gold_index[-1] + (i - gold_index[-1]) * 0.5)
 			batch_scores.append(scores / np.sum(scores))
 		batch_scores_variable = variable(torch.FloatTensor(batch_scores))
 
@@ -197,7 +204,7 @@ def train_epochs_with_candidate_spans(model, vocab):
 	validation_history = []
 	bad_counter = 0
 
-	patience = 10
+	patience = 30
 	## last true argument makes it collect multiple candidate spans
 	valid_batches = make_bucket_batches(valid_documents, args.batch_length, vocab, True)
 	mrr_value = []
@@ -407,8 +414,15 @@ def train_epochs(model, vocab):
 			batch_scores = []
 			for i, gold_index in enumerate(batch_gold_chunk_indices):
 				num_chunks = len(batch['contexts'][i]) / 20
-				norm = scipy.stats.norm(gold_index, math.sqrt(num_chunks))
-				scores = np.array([norm.pdf(j) for j in range(num_chunks)])
+				norm = scipy.stats.norm(gold_index[0], 0.5)
+				# scores = np.array([norm.pdf(j) for j in range(num_chunks)])
+				scores = np.zeros(num_chunks)
+				for g in gold_index:
+					scores[g] = norm.pdf(gold_index[0])
+				for i in range(0, gold_index[0]):
+					scores[i] = norm.pdf(gold_index[0] + 0.5*(i - gold_index[0]))
+				for i in range(gold_index[-1]+1, num_chunks):
+					scores[i] = norm.pdf(gold_index[-1] + (i - gold_index[-1])*0.5)
 				batch_scores.append(scores/np.sum(scores))
 			batch_scores_variable = variable(torch.FloatTensor(batch_scores))
 
