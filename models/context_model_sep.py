@@ -63,7 +63,8 @@ class ContextMRR_Sep(nn.Module):
 		context_embedded = batch_context.unsqueeze(0)
 		## Encode query and context
 		# (N, J, 2d)
-		query_encoded,_ = self.contextual_embedding_layer(query_embedded, batch_query_length)
+		query_encoded,(query_encoded_hidden, query_encoded_cell) = self.contextual_embedding_layer(query_embedded, batch_query_length)
+		query_encoded_hidden = torch.cat([query_encoded_hidden[-2], query_encoded_hidden[-1]], dim=1)
 		query_encoded = self._dropout(query_encoded)
 		# (N, T, 2d)
 		context_encoded,_ = self.contextual_embedding_layer(context_embedded, batch_context_length)
@@ -83,8 +84,8 @@ class ContextMRR_Sep(nn.Module):
 		## modelling layer 1
 		# (N, T, 8d) => (N, T, 2d)
 		query_modeled,(query_modeled_hidden, query_modeled_cell) = self.modeling_layer1(query_attention_encoded, batch_query_length)
-		query_modeled_hidden = torch.cat([query_modeled_hidden[-2], query_modeled_hidden[-1]], dim=1)
-		query_modeled = self._dropout(query_modeled_hidden)
+		query_modeled = torch.cat([query_encoded_hidden,query_modeled_hidden[-2], query_modeled_hidden[-1]], dim=1)
+
 
 		'''
 		BIDAF 2
@@ -92,12 +93,15 @@ class ContextMRR_Sep(nn.Module):
 		## BiDAF for answers
 		batch_size = batch_candidates_sorted.size(0)
 		# N=1 so (N, T, 2d) => (N1, T, 2d)
-		batch_context_modeled = context_encoded.expand(batch_size,context_encoded.size(1), context_encoded.size(2))
+		context_encoded_2, _ = self.contextual_embedding_layer_2(context_embedded, batch_context_length)
+		context_encoded_2 = self._dropout(context_encoded_2)
+		batch_context_modeled = context_encoded_2.expand(batch_size,context_encoded_2.size(1), context_encoded_2.size(2))
 		# (N1, K, d)
-		#batch_candidates_embedded = self.word_embedding_layer(batch_candidates_sorted)
+
 		batch_candidates_embedded = batch_candidates_sorted
 		# (N1, K, 2d)
-		batch_candidates_encoded,_ = self.contextual_embedding_layer_2(batch_candidates_embedded, batch_candidate_lengths_sorted)
+		batch_candidates_encoded,(batch_candidates_hidden, batch_candidates_cell) = self.contextual_embedding_layer_2(batch_candidates_embedded, batch_candidate_lengths_sorted)
+		batch_candidates_hidden = torch.cat([batch_candidates_hidden[-2], batch_candidates_hidden[-1]], dim=1)
 		batch_candidates_encoded = self._dropout(batch_candidates_encoded)
 
 		answer_attention_encoded, context_aware_answer_encoded, answer_aware_context_encoded = self.attention_flow_layer2(
@@ -106,7 +110,7 @@ class ContextMRR_Sep(nn.Module):
 		## modelling layer 2
 		# (N1, K, 8d) => (N1, K, 2d)
 		answer_modeled, (answer_hidden_state, answer_cell_state) = self.modeling_layer2(answer_attention_encoded, batch_candidate_lengths_sorted)
-		answer_hidden_state = torch.cat([answer_hidden_state[-2], answer_hidden_state[-1]], dim=1)
+		answer_hidden_state = torch.cat([batch_candidates_hidden, answer_hidden_state[-2], answer_hidden_state[-1]], dim=1)
 		answer_modeled = self._dropout(answer_hidden_state)
 
 		answer_scores = torch.mm(answer_modeled, query_modeled.transpose(0, 1))
@@ -123,9 +127,86 @@ class ContextMRR_Sep(nn.Module):
 			 batch_candidates_sorted, batch_candidate_lengths_sorted,batch_candidate_masks_sorted, batch_candidate_unsort):
 		## Embed query and context
 		# (N, J, d)
-		#query_embedded = self.word_embedding_layer(batch_query.unsqueeze(0))
+		# query_embedded = self.word_embedding_layer(batch_query.unsqueeze(0))
 		# (N, T, d)
-		#context_embedded = self.word_embedding_layer(batch_context.unsqueeze(0))
+		# context_embedded = self.word_embedding_layer(batch_context.unsqueeze(0))
+
+		query_embedded = batch_query.unsqueeze(0)
+		context_embedded = batch_context.unsqueeze(0)
+		## Encode query and context
+		# (N, J, 2d)
+		query_encoded, (query_encoded_hidden, query_encoded_cell) = self.contextual_embedding_layer(query_embedded,
+																									batch_query_length)
+		query_encoded_hidden = torch.cat([query_encoded_hidden[-2], query_encoded_hidden[-1]], dim=1)
+		query_encoded = self._dropout(query_encoded)
+		# (N, T, 2d)
+		context_encoded, _ = self.contextual_embedding_layer(context_embedded, batch_context_length)
+		context_encoded = self._dropout(context_encoded)
+
+		## required to support single element batch of question
+		batch_query_mask = batch_query_mask.unsqueeze(0)
+		batch_context_mask = batch_context_mask.unsqueeze(0)
+
+		## BiDAF 1 to get ~U, ~h and G (8d) between context and query
+		# (N, T, 8d) , (N, T ,2d) , (N, 1, 2d)
+		# context_attention_encoded, query_aware_context_encoded, context_aware_query_encoded = self.attention_flow_layer1(query_encoded, context_encoded,batch_query_mask,batch_context_mask)
+
+		query_attention_encoded, context_aware_query_encoded, query_aware_context_encoded = self.attention_flow_layer1(
+			context_encoded, query_encoded, batch_context_mask, batch_query_mask)
+
+		## modelling layer 1
+		# (N, T, 8d) => (N, T, 2d)
+		query_modeled, (query_modeled_hidden, query_modeled_cell) = self.modeling_layer1(query_attention_encoded,
+																						 batch_query_length)
+		query_modeled = torch.cat([query_encoded_hidden, query_modeled_hidden[-2], query_modeled_hidden[-1]], dim=1)
+
+		'''
+        BIDAF 2
+        '''
+		## BiDAF for answers
+		batch_size = batch_candidates_sorted.size(0)
+		# N=1 so (N, T, 2d) => (N1, T, 2d)
+		context_encoded_2, _ = self.contextual_embedding_layer_2(context_embedded, batch_context_length)
+		context_encoded_2 = self._dropout(context_encoded_2)
+		batch_context_modeled = context_encoded_2.expand(batch_size, context_encoded_2.size(1),
+														 context_encoded_2.size(2))
+		# (N1, K, d)
+
+		batch_candidates_embedded = batch_candidates_sorted
+		# (N1, K, 2d)
+		batch_candidates_encoded, (batch_candidates_hidden, batch_candidates_cell) = self.contextual_embedding_layer_2(
+			batch_candidates_embedded, batch_candidate_lengths_sorted)
+		batch_candidates_hidden = torch.cat([batch_candidates_hidden[-2], batch_candidates_hidden[-1]], dim=1)
+		batch_candidates_encoded = self._dropout(batch_candidates_encoded)
+
+		answer_attention_encoded, context_aware_answer_encoded, answer_aware_context_encoded = self.attention_flow_layer2(
+			batch_context_modeled, batch_candidates_encoded, batch_context_mask, batch_candidate_masks_sorted)
+
+		## modelling layer 2
+		# (N1, K, 8d) => (N1, K, 2d)
+		answer_modeled, (answer_hidden_state, answer_cell_state) = self.modeling_layer2(answer_attention_encoded,
+																						batch_candidate_lengths_sorted)
+		answer_hidden_state = torch.cat([batch_candidates_hidden, answer_hidden_state[-2], answer_hidden_state[-1]],
+										dim=1)
+		answer_modeled = self._dropout(answer_hidden_state)
+
+		answer_scores = torch.mm(answer_modeled, query_modeled.transpose(0, 1))
+
+		## unsort the answer scores
+		answer_scores_unsorted = torch.index_select(answer_scores, 0, batch_candidate_unsort)
+		loss = self.loss(answer_scores_unsorted.transpose(0, 1), gold_index)
+		sorted, indices = torch.sort(F.log_softmax(answer_scores_unsorted.squeeze(0), dim=0), dim=0, descending=True)
+		return loss, indices
+
+	def eval(self, batch_query, batch_query_length, batch_query_mask,
+			 batch_context, batch_context_length, batch_context_mask,
+			 batch_candidates_sorted, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,
+			 batch_candidate_unsort):
+		## Embed query and context
+		# (N, J, d)
+		# query_embedded = self.word_embedding_layer(batch_query.unsqueeze(0))
+		# (N, T, d)
+		# context_embedded = self.word_embedding_layer(batch_context.unsqueeze(0))
 
 		query_embedded = batch_query.unsqueeze(0)
 		context_embedded = batch_context.unsqueeze(0)
@@ -173,8 +254,7 @@ class ContextMRR_Sep(nn.Module):
 		answer_hidden_state = torch.cat([answer_hidden_state[-2], answer_hidden_state[-1]], dim=1)
 		answer_modeled = self._dropout(answer_hidden_state)
 
-		answer_scores = torch.mm(answer_modeled, query_modeled.transpose(0, 1))
-		## unsort the answer scores
+		answer_scores = torch.mm(answer_modeled, query_modeled.transpose(0, 1))		## unsort the answer scores
 		answer_scores_unsorted = torch.index_select(answer_scores, 0, batch_candidate_unsort)
 		sorted, indices = torch.sort(	F.log_softmax(answer_scores_unsorted, dim=0), dim=0, descending=True)
 		return indices
