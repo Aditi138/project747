@@ -48,7 +48,7 @@ def make_bucket_batches(data, batch_size,vocab):
     buckets = defaultdict(list)
 
     for data_item in data:
-        src = data_item.candidates
+        src = data_item.question_tokens
         buckets[len(src)].append(data_item)
 
     batch_data = []
@@ -64,7 +64,7 @@ def make_bucket_batches(data, batch_size,vocab):
             begin_index = i * batch_size
             end_index = begin_index + cur_batch_size
             batch_data  =list(bucket[begin_index:end_index])
-            batch = create_single_batch(batch_data)
+            batch = create_single_batch_elmo(batch_data)
             #view_batch(batch,vocab)
             batches.append(batch)
 

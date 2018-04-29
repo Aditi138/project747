@@ -1,6 +1,6 @@
 import argparse
 import sys
-from dataloaders.dataloader import DataLoader, create_batches, view_batch
+from dataloaders.dataloader import DataLoader, create_batches, view_batch, make_bucket_batches
 from dataloaders.squad_dataloader import SquadDataloader
 from models.context_model import ContextMRR
 from models.context_model_sep import ContextMRR_Sep
@@ -109,14 +109,14 @@ def train_epochs(model, vocab):
 
 	patience = 30
 
-	valid_batches = create_batches(valid_documents, args.batch_length, args.job_size, vocab)[:200]
-	test_batches = create_batches(test_documents,args.batch_length,args.job_size, vocab)
+	valid_batches = make_bucket_batches(valid_documents, args.batch_length, vocab)
+	test_batches = make_bucket_batches(test_documents,args.batch_length, vocab)
 
 	mrr_value = []
 	for epoch in range(args.num_epochs):
 
 		print("Creating train batches")
-		train_batches = create_batches(train_documents, args.batch_length, args.job_size, vocab)
+		train_batches = make_bucket_batches(train_documents, args.batch_length, vocab)
 		print("Starting epoch {}".format(epoch))
 
 		saved = False
