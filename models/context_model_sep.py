@@ -31,7 +31,7 @@ class ContextMRR_Sep(nn.Module):
 		self.modeling_layer1 = RecurrentContext(modeling_layer_inputdim, hidden_size, num_layers=1)
 
 		'''BIDAF 2'''
-		#self.contextual_embedding_layer_2 = RecurrentContext(input_size=embed_size, hidden_size=hidden_size, num_layers=1)
+		self.contextual_embedding_layer_2 = RecurrentContext(input_size=embed_size, hidden_size=hidden_size, num_layers=1)
 
 		## bidirectional attention flow between [q+c] and answer
 		self.attention_flow_layer2 = BiDAF(2*hidden_size)
