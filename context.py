@@ -109,8 +109,8 @@ def train_epochs(model, vocab):
 
 	patience = 30
 
-	valid_batches = make_bucket_batches(valid_documents, args.batch_length, vocab)
-	test_batches = make_bucket_batches(test_documents,args.batch_length, vocab)
+	valid_batches = create_batches(valid_documents, args.batch_length,args.job_size, vocab)
+	test_batches = create_batches(test_documents,args.batch_length,args.job_size, vocab)
 
 	mrr_value = []
 	for epoch in range(args.num_epochs):
@@ -282,6 +282,7 @@ if __name__ == "__main__":
 	else:
 		vars(args)['use_cuda'] = False
 
+	print(args)
 
 	start = time()
 	if args.squad:
