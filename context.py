@@ -3,6 +3,7 @@ import sys
 from dataloaders.dataloader import DataLoader, create_batches, view_batch
 from dataloaders.squad_dataloader import SquadDataloader
 from models.context_model import ContextMRR
+from models.context_model_sep import ContextMRR_Sep
 from dataloaders.utility import get_pretrained_emb
 import torch
 from torch import optim
@@ -122,8 +123,7 @@ def train_epochs(model, vocab):
 		for iteration in range(len(train_batches)):
 			optimizer.zero_grad()
 			if (iteration + 1) % eval_interval == 0:
-				print("iteration {}".format(iteration + 1))
-				print("train loss: {}".format(train_loss / train_denom))
+				print("iteration: {0} train loss: {1}".format(iteration + 1, train_loss / train_denom))
 
 				if iteration != 0:
 					average_rr = evaluate(model, valid_batches, valid_candidates_embed_docid, valid_context_per_docid)
@@ -316,7 +316,7 @@ if __name__ == "__main__":
 		word_embedding = get_pretrained_emb(args.pretrain_path, loader.vocab.vocabulary, args.embed_size)
 		loader.pretrain_embedding = word_embedding
 
-	model = ContextMRR(args, loader)
+	model = ContextMRR_Sep(args, loader)
 
 	if args.use_cuda:
 		model = model.cuda()

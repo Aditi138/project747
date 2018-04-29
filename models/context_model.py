@@ -30,6 +30,9 @@ class ContextMRR(nn.Module):
 		modeling_layer_inputdim = 8 * hidden_size
 		self.modeling_layer1 = RecurrentContext(modeling_layer_inputdim, hidden_size)
 
+		'''BIDAF 2'''
+		self.contextual_embedding_layer_2 = RecurrentContext(input_size=embed_size, hidden_size=hidden_size, num_layers=1)
+
 		## bidirectional attention flow between [q+c] and answer
 		self.attention_flow_layer2 = BiDAF(2*hidden_size)
 
@@ -206,7 +209,7 @@ class ContextMRR(nn.Module):
 
 		## unsort the answer scores
 		answer_scores_unsorted = torch.index_select(answer_scores, 0, batch_candidate_unsort)
-		sorted, indices = torch.sort(F.log_softmax(answer_scores_unsorted, dim=0), dim=0, descending=True)
+		sorted, indices = torch.sort(	F.log_softmax(answer_scores_unsorted, dim=0), dim=0, descending=True)
 		return indices
 
 
