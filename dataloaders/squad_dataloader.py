@@ -8,7 +8,7 @@ import spacy
 import pickle
 import argparse
 from test_metrics import Performance
-import random
+import random, math
 
 class SquadDataloader():
 	def __init__(self, args):
@@ -17,11 +17,29 @@ class SquadDataloader():
 		self.performance = Performance(args)
 		self.nlp =  spacy.load('en')
 
-	def tokenize(self, text):
+	def tokenize(self, text, chunk_length = 20, chunk= False):
 		# tokens = [self.stemmer.stem(token) for token in word_tokenize(text.lower())]
+		#tokenized_sents = [[token.string.strip() for token in s] for s in doc.sents]
 		doc = self.nlp(text)
-		tokenized_sents = [[token.string.strip() for token in s] for s in doc.sents]
-		return tokenized_sents, [t for t in self.nlp(text) if not t.is_space]
+		tokens = [t for t in self.nlp(text) if not t.is_space]
+		raw_tokens = [t.text for t in tokens]
+		chunk_storage = []
+
+
+		if chunk:
+			total_chunks = len(raw_tokens) // chunk_length
+			if len(raw_tokens) % chunk_length > 0:
+				total_chunks += 1
+
+			for chunk_number in range(total_chunks - 1):
+				chunk = raw_tokens[chunk_length * chunk_number:chunk_length * (chunk_number + 1)]
+				chunk_storage.append(chunk)
+
+			# Handle last chunk separately
+			chunk = raw_tokens[-chunk_length:]
+			chunk_storage.append(chunk)
+
+		return chunk_storage,tokens
 
 	def char_span_to_token_span(self, token_offsets, character_span):
 		"""
@@ -171,16 +189,19 @@ class SquadDataloader():
 
 	def pickle_data(self, path, output_path):
 		data_points = []
+		chunk_length = 20
 
 		with open(path) as data_file:
 			dataset = json.load(data_file)['data']
 		article_count = 1
 		for article in dataset:
 			print(article_count)
+			#if article_count == 10:
+			#	break
 			article_count += 1
 			for paragraph_json in article['paragraphs']:
 				paragraph = paragraph_json["context"]
-				tokenized_sentences, tokenized_paragraph = self.tokenize(paragraph)
+				tokenized_chunks, tokenized_paragraph = self.tokenize(paragraph, chunk_length=chunk_length, chunk=True)
 
 				for question_answer in paragraph_json['qas']:
 					question_text = question_answer["question"].strip().replace("\n", "")
@@ -207,18 +228,46 @@ class SquadDataloader():
 					answer_text = copy_tokenized_paragraph[span_start:span_end + 1]
 
 					tokens_covered = 0
-					gold_sentence_index = -1
+					new_context = []
+					gold_sentence_index = []
 					sentence_bleu = []
 					sentence_found = False
-					for sent_idx,sent_tokens in enumerate(tokenized_sentences):
+					continue_span = False
+					last_chunk_idx = len(tokenized_chunks) - 1
+					for sent_idx,sent_tokens in enumerate(tokenized_chunks):
 						tokens_covered += len(sent_tokens)
-						if not sentence_found and span_start < tokens_covered and span_end < tokens_covered:
-							gold_sentence_index = sent_idx
-							sentence_found = True
+						new_context += sent_tokens
+						if not sentence_found:
+							if sent_idx != last_chunk_idx:
+								if span_start < tokens_covered and span_end < tokens_covered:
+									gold_sentence_index.append(sent_idx)
+									sentence_found = True
+									continue_span = False
+								elif span_start < tokens_covered:
+									gold_sentence_index.append(sent_idx)
+									continue_span = True
+									# sentence_found = True
+								elif span_end < tokens_covered:
+									gold_sentence_index.append(sent_idx)
+									sentence_found = True
+									continue_span = False
+								elif continue_span:
+									gold_sentence_index.append(sent_idx)
+							else:
+								#print("special case")
+								original_context_len = len(copy_tokenized_paragraph)
+								new_span_start = chunk_length - (original_context_len - (chunk_length * sent_idx)) + span_start
+								span_start = new_span_start
+								span_end = new_span_start + len(answer_text) - 1
+								sentence_found = True
+								gold_sentence_index.append(sent_idx)
+								#print(new_context[span_start: span_end+1])
+								#print(answer_text)
+
 						sentence_bleu.append(self.performance.bleu(answer_text, sent_tokens))
 
 					data_points.append(
-						Span_Data_Point(tokenized_sentences, copy_tokenized_paragraph, [span_start, span_end],sentence_bleu, gold_sentence_index= gold_sentence_index ))
+						Span_Data_Point(question_tokens, tokenized_chunks, [span_start, span_end],sentence_bleu, answer_tokens=answer_text, gold_sentence_index= gold_sentence_index ))
 		with open(output_path, "wb") as fout:
 			pickle.dump(data_points, fout)
 
@@ -304,8 +353,8 @@ class Vocabulary(object):
 if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 
-	parser.add_argument("--train_path", type=str, default="../../train-v1.1.json")
-	parser.add_argument("--t_output_path", type=str, default="../../train-v1.1-sentwise.pickle")
+	parser.add_argument("--train_path", type=str, default="../../squad/train-v1.1.json")
+	parser.add_argument("--t_output_path", type=str, default="../../squad/train-v1.1-sentwise.pickle")
 	parser.add_argument("--valid_path", type=str, default="../../squad/dev-v1.1.json")
 	parser.add_argument("--valid_output_path", type=str, default="../../squad/dev-v1.1-sentwise.pickle")
 	parser.add_argument("--test_path", type=str, default=None)
@@ -314,4 +363,4 @@ if __name__ == '__main__':
 	squad_dataloader = SquadDataloader(args)
 	squad_dataloader.pickle_data(args.train_path, args.t_output_path)
 	squad_dataloader.pickle_data(args.valid_path, args.valid_output_path)
-	#data_points = squad_dataloader.load_docuements(args.train_output_path)
+	#data_points = squad_dataloader.load_docuements(args.t_output_path)
