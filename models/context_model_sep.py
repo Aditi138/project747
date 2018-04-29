@@ -28,17 +28,17 @@ class ContextMRR_Sep(nn.Module):
 
 		## modelling layer for question and context : this layer also converts the 8 dimensional input intp two dimensioanl output
 		modeling_layer_inputdim = 8 * hidden_size
-		self.modeling_layer1 = RecurrentContext(modeling_layer_inputdim, hidden_size, num_layers=2)
+		self.modeling_layer1 = RecurrentContext(modeling_layer_inputdim, hidden_size, num_layers=1)
 
 		'''BIDAF 2'''
-		self.contextual_embedding_layer_2 = RecurrentContext(input_size=embed_size, hidden_size=hidden_size, num_layers=1)
+		#self.contextual_embedding_layer_2 = RecurrentContext(input_size=embed_size, hidden_size=hidden_size, num_layers=1)
 
 		## bidirectional attention flow between [q+c] and answer
 		self.attention_flow_layer2 = BiDAF(2*hidden_size)
 
 		## modeling layer
 		modeling_layer_inputdim = 8*hidden_size
-		self.modeling_layer2 = RecurrentContext(modeling_layer_inputdim, hidden_size, num_layers=2)
+		self.modeling_layer2 = RecurrentContext(modeling_layer_inputdim, hidden_size, num_layers=1)
 
 		## output layer
 		## current implementation: run an mlp on the concatenated hidden states of the answer modeling layer
@@ -93,9 +93,9 @@ class ContextMRR_Sep(nn.Module):
 		## BiDAF for answers
 		batch_size = batch_candidates_sorted.size(0)
 		# N=1 so (N, T, 2d) => (N1, T, 2d)
-		context_encoded_2, _ = self.contextual_embedding_layer_2(context_embedded, batch_context_length)
-		context_encoded_2 = self._dropout(context_encoded_2)
-		batch_context_modeled = context_encoded_2.expand(batch_size,context_encoded_2.size(1), context_encoded_2.size(2))
+		#context_encoded_2, _ = self.contextual_embedding_layer_2(context_embedded, batch_context_length)
+		#context_encoded_2 = self._dropout(context_encoded_2)
+		batch_context_modeled = context_encoded.expand(batch_size,context_encoded.size(1), context_encoded.size(2))
 		# (N1, K, d)
 
 		batch_candidates_embedded = batch_candidates_sorted
@@ -166,10 +166,10 @@ class ContextMRR_Sep(nn.Module):
 		## BiDAF for answers
 		batch_size = batch_candidates_sorted.size(0)
 		# N=1 so (N, T, 2d) => (N1, T, 2d)
-		context_encoded_2, _ = self.contextual_embedding_layer_2(context_embedded, batch_context_length)
-		context_encoded_2 = self._dropout(context_encoded_2)
-		batch_context_modeled = context_encoded_2.expand(batch_size, context_encoded_2.size(1),
-														 context_encoded_2.size(2))
+		#context_encoded_2, _ = self.contextual_embedding_layer_2(context_embedded, batch_context_length)
+		#context_encoded_2 = self._dropout(context_encoded_2)
+		batch_context_modeled = context_encoded.expand(batch_size, context_encoded.size(1),
+														 context_encoded.size(2))
 		# (N1, K, d)
 
 		batch_candidates_embedded = batch_candidates_sorted
