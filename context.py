@@ -4,6 +4,7 @@ from dataloaders.dataloader import DataLoader, create_batches, view_batch, make_
 from dataloaders.squad_dataloader import SquadDataloader
 from models.context_model import ContextMRR
 from models.context_model_sep import ContextMRR_Sep
+from models.context_model_sep_switched import  ContextMRR_Sep_Switched
 from dataloaders.utility import get_pretrained_emb
 import torch
 from torch import optim
@@ -317,7 +318,8 @@ if __name__ == "__main__":
 		word_embedding = get_pretrained_emb(args.pretrain_path, loader.vocab.vocabulary, args.embed_size)
 		loader.pretrain_embedding = word_embedding
 
-	model = ContextMRR_Sep(args, loader)
+	#model = ContextMRR_Sep(args, loader)
+	model = ContextMRR_Sep_Switched(args, loader)
 
 	if args.use_cuda:
 		model = model.cuda()
