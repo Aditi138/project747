@@ -27,7 +27,7 @@ class ContextMRR_Sep_Switched(nn.Module):
 
 		self.linearrelu = ffnLayer(4*hidden_size, 4*hidden_size)
 
-		output_layer_inputdim = 6*hidden_size
+		output_layer_inputdim = 8*hidden_size
 		self.output_layer = OutputLayer(output_layer_inputdim, hidden_size)
 
 		self.loss = torch.nn.CrossEntropyLoss()
@@ -44,6 +44,7 @@ class ContextMRR_Sep_Switched(nn.Module):
 		## Encode query and context
 		# (N, J, 2d)
 		query_encoded,query_encoded_hidden = self.contextual_embedding_layer(query_embedded, batch_query_length)
+		query_encoded_hidden = torch.cat([query_encoded_hidden[-2], query_encoded_hidden[-1]], dim=1)
 		query_encoded = self._dropout(query_encoded)
 		# (N, T, 2d)
 		context_encoded,_ = self.contextual_embedding_layer(context_embedded, batch_context_length)
@@ -76,7 +77,7 @@ class ContextMRR_Sep_Switched(nn.Module):
 		batch_candidates_hidden = torch.cat([batch_candidates_hidden[-2], batch_candidates_hidden[-1]], dim=1)
 		batch_candidates_hidden = self._dropout(batch_candidates_hidden)
 
-		context_answer_hidden_state = torch.cat([batch_candidates_hidden,batch_context_modeled], dim=1)
+		context_answer_hidden_state = torch.cat([batch_candidates_hidden,batch_context_modeled, query_encoded_hidden.expand(batch_size,query_encoded_hidden.size(1))], dim=1)
 		answer_scores = self.output_layer(context_answer_hidden_state)
 		answer_modeled = self._dropout(answer_scores)
 		answer_modeled = F.log_softmax(answer_modeled, dim=0)
@@ -97,6 +98,7 @@ class ContextMRR_Sep_Switched(nn.Module):
 		## Encode query and context
 		# (N, J, 2d)
 		query_encoded, query_encoded_hidden = self.contextual_embedding_layer(query_embedded, batch_query_length)
+		query_encoded_hidden = torch.cat([query_encoded_hidden[-2], query_encoded_hidden[-1]], dim=1)
 		query_encoded = self._dropout(query_encoded)
 		# (N, T, 2d)
 		context_encoded, _ = self.contextual_embedding_layer(context_embedded, batch_context_length)
@@ -130,7 +132,7 @@ class ContextMRR_Sep_Switched(nn.Module):
 		batch_candidates_hidden = torch.cat([batch_candidates_hidden[-2], batch_candidates_hidden[-1]], dim=1)
 		batch_candidates_hidden = self._dropout(batch_candidates_hidden)
 
-		context_answer_hidden_state = torch.cat([batch_candidates_hidden, batch_context_modeled], dim=1)
+		context_answer_hidden_state = torch.cat([batch_candidates_hidden, batch_context_modeled, query_encoded_hidden.expand(batch_size,query_encoded_hidden.size(1))], dim=1)
 		answer_scores = self.output_layer(context_answer_hidden_state)
 		answer_modeled = self._dropout(answer_scores)
 		answer_modeled = F.log_softmax(answer_modeled, dim=0)
@@ -150,10 +152,12 @@ class OutputLayer(nn.Module):
 		self.mlp = nn.Sequential(
 			nn.Linear(input_size, hidden_size),
 			nn.ReLU(),
+			nn.Dropout(0.2),
 			nn.Linear(hidden_size, hidden_size),
 			nn.ReLU(),
+			nn.Dropout(0.2),
 			nn.Linear(hidden_size, 1),
-			# nn.Sigmoid(), ## since loss is being replaced by cross entropy the exoected input into loss function
+
 		)
 
 	def forward(self, batch):
