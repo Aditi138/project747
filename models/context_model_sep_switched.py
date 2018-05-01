@@ -58,8 +58,9 @@ class ContextMRR_Sep_Switched(nn.Module):
 			query_encoded, context_encoded, batch_query_mask, batch_context_mask)
 
 		# (N,T,2d) => (N,1,4d)
-		#context_modelled = self.modeling_layer1
-		context_avg_pool = torch.cat([torch.max(context_aware_query_encoded, dim=1)[0], torch.mean(context_aware_query_encoded, dim=1)], dim=1)
+		context_modeled, context_modeled_hidden = self.modeling_layer1(context_aware_query_encoded, batch_context_length)
+		context_modeled = self._dropout(context_modeled)
+		context_avg_pool = torch.cat([torch.max(context_modeled, dim=1)[0], torch.mean(context_modeled, dim=1)], dim=1)
 
 		#(N, 1, 4d) => (N,1,4d)
 		query_aware_context_modeled = self.linearrelu(context_avg_pool)
@@ -78,7 +79,7 @@ class ContextMRR_Sep_Switched(nn.Module):
 		context_answer_hidden_state = torch.cat([batch_candidates_hidden,batch_context_modeled], dim=1)
 		answer_scores = self.output_layer(context_answer_hidden_state)
 		answer_modeled = self._dropout(answer_scores)
-		answer_modeled = F.softmax(answer_modeled, dim=0)
+		answer_modeled = F.log_softmax(answer_modeled, dim=0)
 
 		## unsort the answer scores
 		answer_modeled = torch.index_select(answer_modeled, 0, batch_candidate_unsort)
@@ -109,9 +110,11 @@ class ContextMRR_Sep_Switched(nn.Module):
 			query_encoded, context_encoded, batch_query_mask, batch_context_mask)
 
 		# (N,T,2d) => (N,1,4d)
+		context_modeled, context_modeled_hidden = self.modeling_layer1(context_aware_query_encoded,
+																	   batch_context_length)
+		context_modeled = self._dropout(context_modeled)
+		context_avg_pool = torch.cat([torch.max(context_modeled, dim=1)[0], torch.mean(context_modeled, dim=1)], dim=1)
 
-		context_avg_pool = torch.cat(
-			[torch.max(context_aware_query_encoded, dim=1)[0], torch.mean(context_aware_query_encoded, dim=1)], dim=1)
 
 		# (N, 1, 4d) => (N,1,4d)
 		query_aware_context_modeled = self.linearrelu(context_avg_pool)
@@ -134,7 +137,7 @@ class ContextMRR_Sep_Switched(nn.Module):
 
 		## unsort the answer scores
 		answer_modeled = torch.index_select(answer_modeled, 0, batch_candidate_unsort)
-		sorted, indices = torch.sort(F.log_softmax(answer_modeled.squeeze(0), dim=0), dim=0, descending=True)
+		sorted, indices = torch.sort(answer_modeled, dim=0, descending=True)
 		return indices
 
 
