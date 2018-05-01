@@ -726,9 +726,22 @@ class DataLoader():
         context_per_docid = {}
         for index,document in enumerate(documents):
             print(index)
-            sentences = document.document_tokens
+            original_sentences = document.document_tokens
             chunk_length = 40
             num_chunks = 10
+
+            ## each sentence should be fewer than 40 tokens long
+            sentences = []
+            for e, sent in enumerate(original_sentences):
+                if len(sent) > chunk_length:
+                    position = 0
+                    position_index = 0
+                    while position < len(sent):
+                        sentences.append(sent[position_index * chunk_length:(position_index + 1) * chunk_length])
+                        position_index += 1
+                        position += chunk_length
+                else:
+                    sentences.append(sent)
 
             chunk_storage = []
             concat_chunk_storage= []
@@ -935,20 +948,4 @@ class Vocabulary(object):
     def add_and_get_indices_POS(self, words):
         return [self.add_and_get_index_POS(str(word)) for word in words]
 
-    def add_and_get_index_NER(self, word):
-        if word in self.nertag_to_id:
-            return self.nertag_to_id[word]
-        else:
-            length = len(self.nertag_to_id)
-            self.nertag_to_id[word] = length
-            self.id_to_nertag[length] = word
-            return length
-
-    def add_and_get_index_POS(self, word):
-        if word in self.postag_to_id:
-            return self.postag_to_id[word]
-        else:
-            length = len(self.postag_to_id)
-            self.postag_to_id[word] = length
-            self.id_to_postag[length] = word
-            return length
+    de
