@@ -52,7 +52,8 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid ):
 			# query tokens
 			batch_query = variable(torch.FloatTensor(query_embed), volatile=True)
 			batch_query_length = np.array([batch['qlengths'][index]])
-			batch_question_mask = variable(torch.FloatTensor(batch['q_mask'][index]))
+			batch_question_mask = variable(torch.FloatTensor(np.array([1 for x in range(batch_query_length)])))
+
 
 
 			# Sort the candidates by length
@@ -161,7 +162,7 @@ def train_epochs(model, vocab):
 				# query tokens
 				batch_query = variable(torch.FloatTensor(query_embed))
 				batch_query_length = np.array([batch['qlengths'][index]])
-				batch_question_mask = variable(torch.FloatTensor(batch['q_mask'][index]))
+				batch_question_mask = variable(torch.FloatTensor(np.array([1 for x in range(batch_query_length)])))
 
 				# Sort the candidates by length (only required if using an RNN)
 				batch_candidate_lengths = np.array(batch_candidates["anslengths"][index])
@@ -260,7 +261,7 @@ if __name__ == "__main__":
 	parser.add_argument("--cuda", action="store_true", default=True)
 	parser.add_argument("--test", action="store_true", default=False)
 	parser.add_argument("--elmo", action="store_true", default=False)
-	parser.add_argument("--batch_length", type=int, default=1)
+	parser.add_argument("--batch_length", type=int, default=10)
 	parser.add_argument("--eval_interval", type=int, default=2)
 	parser.add_argument("--learning_rate", type=float, default=0.0001)
 	parser.add_argument("--dropout", type=float, default=0.2)
