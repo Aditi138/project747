@@ -71,12 +71,12 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid ):
 			# context tokens
 			## if using reduced context
 			context_embeddings =  context_per_docid[doc_id]
-			reduced_context_embeddings = []
-			ranges = batch_reduced_context_indices[index]
-			for r in ranges:
-			    reduced_context_embeddings += context_embeddings[r[0]:r[1]].tolist()
-			batch_context = variable(torch.FloatTensor(reduced_context_embeddings))
-			#batch_context = variable(torch.FloatTensor(context_per_docid[doc_id]))
+			#reduced_context_embeddings = []
+			#ranges = batch_reduced_context_indices[index]
+			#for r in ranges:
+			#    reduced_context_embeddings += context_embeddings[r[0]:r[1]].tolist()
+			#batch_context = variable(torch.FloatTensor(reduced_context_embeddings))
+			batch_context = variable(torch.FloatTensor(context_per_docid[doc_id]))
 
 			batch_context_length = np.array([batch_context.size(0)])
 			batch_context_mask = variable(torch.FloatTensor(np.array([1 for x in range(batch_context_length[0])])))
