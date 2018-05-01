@@ -4,6 +4,7 @@ from dataloaders.dataloader import DataLoader, create_batches, view_batch, make_
 from dataloaders.squad_dataloader import SquadDataloader
 from models.context_model import ContextMRR
 from models.context_model_sep import ContextMRR_Sep
+from models.context_model_sep_switched import  ContextMRR_Sep_Switched
 from dataloaders.utility import get_pretrained_emb
 import torch
 from torch import optim
@@ -51,7 +52,8 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid ):
 			# query tokens
 			batch_query = variable(torch.FloatTensor(query_embed), volatile=True)
 			batch_query_length = np.array([batch['qlengths'][index]])
-			batch_question_mask = variable(torch.FloatTensor(batch['q_mask'][index]))
+			batch_question_mask = variable(torch.FloatTensor(np.array([1 for x in range(batch_query_length)])))
+
 
 
 			# Sort the candidates by length
@@ -161,7 +163,7 @@ def train_epochs(model, vocab):
 				# query tokens
 				batch_query = variable(torch.FloatTensor(query_embed))
 				batch_query_length = np.array([batch['qlengths'][index]])
-				batch_question_mask = variable(torch.FloatTensor(batch['q_mask'][index]))
+				batch_question_mask = variable(torch.FloatTensor(np.array([1 for x in range(batch_query_length)])))
 
 				# Sort the candidates by length (only required if using an RNN)
 				batch_candidate_lengths = np.array(batch_candidates["anslengths"][index])
@@ -268,7 +270,7 @@ if __name__ == "__main__":
 	parser.add_argument("--cuda", action="store_true", default=True)
 	parser.add_argument("--test", action="store_true", default=False)
 	parser.add_argument("--elmo", action="store_true", default=False)
-	parser.add_argument("--batch_length", type=int, default=1)
+	parser.add_argument("--batch_length", type=int, default=10)
 	parser.add_argument("--eval_interval", type=int, default=2)
 	parser.add_argument("--learning_rate", type=float, default=0.0001)
 	parser.add_argument("--dropout", type=float, default=0.2)
@@ -339,7 +341,8 @@ if __name__ == "__main__":
 		word_embedding = get_pretrained_emb(args.pretrain_path, loader.vocab.vocabulary, args.embed_size)
 		loader.pretrain_embedding = word_embedding
 
-	model = ContextMRR_Sep(args, loader)
+	#model = ContextMRR_Sep(args, loader)
+	model = ContextMRR_Sep_Switched(args, loader)
 
 	if args.use_cuda:
 		model = model.cuda()

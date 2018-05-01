@@ -162,11 +162,10 @@ def create_single_batch_elmo(batch_data):
     chunk_indices = [data_point.chunk_indices for data_point in batch_data]
     batch_query_lengths = [len(data_point.question_tokens) for data_point in batch_data]
     maximum_query_length = max(batch_query_lengths)
-    query_length_mask = np.array([[int(x < batch_query_lengths[i])
-                                   for x in range(maximum_query_length)] for i in range(len(batch_data))])
+    #query_length_mask = np.array([[int(x < batch_query_lengths[i])
+    #                              for x in range(maximum_query_length)] for i in range(len(batch_data))])
 
-    queries_embed  = np.array([pad_seq_elmo(data_point.question_embed, maximum_query_length)
-                        for data_point in batch_data])
+    queries_embed  = [data_point.question_embed for data_point in batch_data]
 
     candidate_information = {}
     batch_candidate_answer_lengths = []
@@ -197,7 +196,6 @@ def create_single_batch_elmo(batch_data):
     batch['doc_ids'] = doc_ids
     batch['chunk_indices'] = chunk_indices
     batch['q_embed'] = queries_embed
-    batch['q_mask'] = query_length_mask
     batch['answer_indices'] = batch_answer_indices
     batch['qlengths'] = batch_query_lengths
     batch["candidates"] = candidate_information
