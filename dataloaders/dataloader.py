@@ -948,4 +948,3 @@ class Vocabulary(object):
     def add_and_get_indices_POS(self, words):
         return [self.add_and_get_index_POS(str(word)) for word in words]
 
-    de
