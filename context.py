@@ -46,7 +46,7 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid ):
 		batch_doc_ids = batch['doc_ids']
 		batch_candidates = batch["candidates"]
 		batch_answer_indices = batch['answer_indices']
-
+		batch_reduced_context_indices = batch['chunk_indices']
 		for index, query_embed in enumerate(batch['q_embed']):
 
 			# query tokens
@@ -70,13 +70,15 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid ):
 
 			# context tokens
 			## if using reduced context
-			context_embeddings =  context_per_docid[doc_id]
-			#reduced_context_embeddings = []
-			#ranges = batch_reduced_context_indices[index]
-			#for r in ranges:
-			#    reduced_context_embeddings += context_embeddings[r[0]:r[1]].tolist()
-			#batch_context = variable(torch.FloatTensor(reduced_context_embeddings))
-			batch_context = variable(torch.FloatTensor(context_per_docid[doc_id]))
+			if args.reduced:
+				context_embeddings =  context_per_docid[doc_id]
+				reduced_context_embeddings = []
+				ranges = batch_reduced_context_indices[index]
+				for r in ranges:
+				   reduced_context_embeddings += context_embeddings[r[0]:r[1]].tolist()
+				batch_context = variable(torch.FloatTensor(reduced_context_embeddings))
+			else:
+				batch_context = variable(torch.FloatTensor(context_per_docid[doc_id]))
 
 			batch_context_length = np.array([batch_context.size(0)])
 			batch_context_mask = variable(torch.FloatTensor(np.array([1 for x in range(batch_context_length[0])])))
@@ -191,13 +193,15 @@ def train_epochs(model, vocab):
 
 				# context tokens
 				## if using reduced context
-				context_embeddings =  train_context_per_docid[doc_id]
-				reduced_context_embeddings = []
-				# ranges = batch_reduced_context_indices[index]
-				# for r in ranges:
-				# 	reduced_context_embeddings += context_embeddings[r[0]:r[1]].tolist()
-				# batch_context = variable(torch.FloatTensor(reduced_context_embeddings))
-				batch_context = variable(torch.FloatTensor(train_context_per_docid[doc_id]))
+				if args.reduced:
+					context_embeddings =  train_context_per_docid[doc_id]
+					reduced_context_embeddings = []
+					ranges = batch_reduced_context_indices[index]
+					for r in ranges:
+						reduced_context_embeddings += context_embeddings[r[0]:r[1]].tolist()
+					batch_context = variable(torch.FloatTensor(reduced_context_embeddings))
+				else:
+					batch_context = variable(torch.FloatTensor(train_context_per_docid[doc_id]))
 
 				batch_context_length = np.array([batch_context.size(0)])
 				batch_context_mask =variable(torch.FloatTensor(np.array([1 for x in range(batch_context_length[0])])))
