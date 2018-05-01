@@ -725,9 +725,10 @@ class DataLoader():
         candidate_per_docid = {}
         context_per_docid = {}
         for index,document in enumerate(documents):
+            print(index)
             sentences = document.document_tokens
             chunk_length = 40
-            num_chunks = 5
+            num_chunks = 10
 
             chunk_storage = []
             concat_chunk_storage= []

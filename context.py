@@ -260,6 +260,7 @@ if __name__ == "__main__":
 	parser.add_argument("--test_path", type=str, default=None)
 	parser.add_argument("--summary_path", type=str, default=None)
 	parser.add_argument("--model_path", type=str, default=None)
+	parser.add_argument("--pickle_folder", type=str, default=None)
 	parser.add_argument("--job_size", type=int, default=5)
 	parser.add_argument("--pretrain_path", type=str, default=None, help="Path to the pre-trained word embeddings")
 	parser.add_argument("--max_documents", type=int, default=0, help="If greater than 0, load at most this many documents")
@@ -322,10 +323,18 @@ if __name__ == "__main__":
 			v_documents = pickle.load(fin)
 		with open(args.test_path, "r") as fin:
 			te_documents = pickle.load(fin)
+		print("Loading training documents")
 		train_documents, train_candidates_embed_docid, train_context_per_docid = loader.load_documents_split_sentences(t_documents)
+		print("Loading validation documents")
 		valid_documents, valid_candidates_embed_docid, valid_context_per_docid = loader.load_documents_split_sentences(v_documents)
+		print("Loading testing documents")
 		test_documents, test_candidates_embed_docid, test_context_per_docid = loader.load_documents_split_sentences(te_documents)
-
+		with open(args.pickle_folder + "train_reduced_summaries.pickle", "wb") as fout:
+			pickle.dump(train_documents, fout)
+		with open(args.pickle_folder + "valid_reduced_summaries.pickle", "wb") as fout:
+			pickle.dump(valid_documents, fout)
+		with open(args.pickle_folder + "test_reduced_summaries.pickle", "wb") as fout:
+			pickle.dump(test_documents, fout)
 	else:
 
 		loader = DataLoader(args)
