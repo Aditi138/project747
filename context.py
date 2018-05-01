@@ -2,9 +2,7 @@ import argparse
 import sys
 from dataloaders.dataloader import DataLoader, create_batches, view_batch, make_bucket_batches
 from dataloaders.squad_dataloader import SquadDataloader
-from models.context_model import ContextMRR
-from models.context_model_sep import ContextMRR_Sep
-from models.context_model_sep_switched import  ContextMRR_Sep_Switched
+from models.context_model_sep_bidaf_mlp import ContextMRR_Sep_Bidaf_MLP
 from dataloaders.utility import get_pretrained_emb
 import torch
 from torch import optim
@@ -320,7 +318,7 @@ if __name__ == "__main__":
 		loader.pretrain_embedding = word_embedding
 
 	#model = ContextMRR_Sep(args, loader)
-	model = ContextMRR_Sep_Switched(args, loader)
+	model = ContextMRR_Sep_Bidaf_MLP(args, loader)
 
 	if args.use_cuda:
 		model = model.cuda()
