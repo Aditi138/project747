@@ -63,12 +63,12 @@ class ContextMRR_Sep_Switched(nn.Module):
 		context_avg_pool = torch.cat([torch.max(context_modeled, dim=1)[0], torch.mean(context_modeled, dim=1)], dim=1)
 
 		#(N, 1, 4d) => (N,1,4d)
-		query_aware_context_modeled = self.linearrelu(context_avg_pool)
-		query_aware_context_modeled = self._dropout(query_aware_context_modeled)
+		# query_aware_context_modeled = self.linearrelu(context_avg_pool)
+		# query_aware_context_modeled = self._dropout(query_aware_context_modeled)
 
 
 		batch_size = batch_candidates_sorted.size(0)
-		batch_context_modeled = query_aware_context_modeled.expand(batch_size,query_aware_context_modeled.size(1))
+		batch_context_modeled = context_avg_pool.expand(batch_size,context_avg_pool.size(1))
 
 		batch_candidates_embedded = batch_candidates_sorted
 		# (N1, K, 2d)
@@ -117,11 +117,11 @@ class ContextMRR_Sep_Switched(nn.Module):
 
 
 		# (N, 1, 4d) => (N,1,4d)
-		query_aware_context_modeled = self.linearrelu(context_avg_pool)
-		query_aware_context_modeled = self._dropout(query_aware_context_modeled)
+		# query_aware_context_modeled = self.linearrelu(context_avg_pool)
+		# query_aware_context_modeled = self._dropout(query_aware_context_modeled)
 
 		batch_size = batch_candidates_sorted.size(0)
-		batch_context_modeled = query_aware_context_modeled.expand(batch_size, query_aware_context_modeled.size(1))
+		batch_context_modeled = context_avg_pool.expand(batch_size, context_avg_pool.size(1))
 
 		batch_candidates_embedded = batch_candidates_sorted
 		# (N1, K, 2d)
