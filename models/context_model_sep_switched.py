@@ -9,10 +9,6 @@ class ContextMRR_Sep_Switched(nn.Module):
 		super(ContextMRR_Sep_Switched, self).__init__()
 		hidden_size = args.hidden_size
 		embed_size = args.embed_size
-		word_vocab_size = loader.vocab.get_length()
-
-		## word embedding layer
-		#self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size) #, pretrain_embedding=loader.pretrain_embedding)
 
 		## dropout layer
 		if args.dropout > 0:
@@ -26,23 +22,12 @@ class ContextMRR_Sep_Switched(nn.Module):
 		## bidirectional attention flow between question and context
 		self.attention_flow_layer1 = BiDAF(2*hidden_size)
 
-		## modelling layer for question and context : this layer also converts the 8 dimensional input intp two dimensioanl output
-		modeling_layer_inputdim = 8 * hidden_size
+		modeling_layer_inputdim = 2 * hidden_size
 		self.modeling_layer1 = RecurrentContext(modeling_layer_inputdim, hidden_size, num_layers=1)
 
-		'''BIDAF 2'''
-		self.contextual_embedding_layer_2 = RecurrentContext(input_size=embed_size, hidden_size=hidden_size, num_layers=1)
+		self.linearrelu = ffnLayer(4*hidden_size, 4*hidden_size)
 
-		## bidirectional attention flow between [q+c] and answer
-		self.attention_flow_layer2 = BiDAF(2*hidden_size)
-
-		## modeling layer
-		modeling_layer_inputdim = 8*hidden_size
-		self.modeling_layer2 = RecurrentContext(modeling_layer_inputdim, hidden_size, num_layers=1)
-
-		## output layer
-		## current implementation: run an mlp on the concatenated hidden states of the answer modeling layer
-		output_layer_inputdim = 4*hidden_size
+		output_layer_inputdim = 6*hidden_size
 		self.output_layer = OutputLayer(output_layer_inputdim, hidden_size)
 
 		self.loss = torch.nn.CrossEntropyLoss()
@@ -68,56 +53,37 @@ class ContextMRR_Sep_Switched(nn.Module):
 		batch_query_mask = batch_query_mask.unsqueeze(0)
 		batch_context_mask = batch_context_mask.unsqueeze(0)
 
-		## BiDAF 1 to get ~U, ~h and G (8d) between context and query
-		# (N, T, 8d) , (N, T ,2d) , (N, 1, 2d)
-		#context_attention_encoded, query_aware_context_encoded, context_aware_query_encoded = self.attention_flow_layer1(query_encoded, context_encoded,batch_query_mask,batch_context_mask)
 
 		context_attention_encoded, context_aware_query_encoded, query_aware_context_encoded = self.attention_flow_layer1(
 			query_encoded, context_encoded, batch_query_mask, batch_context_mask)
 
-		## modelling layer 1
-		# (N, T, 8d) => (N, T, 2d)
-		context_modeled,context_modeled_hidden = self.modeling_layer1(context_attention_encoded, batch_context_length)
-	    #Take average pooling over the all the tokens
+		# (N,T,2d) => (N,1,4d)
+		#context_modelled = self.modeling_layer1
+		context_avg_pool = torch.cat([torch.max(context_aware_query_encoded, dim=1)[0], torch.mean(context_aware_query_encoded, dim=1)], dim=1)
 
-		#(N,T,2d) => (N,1,2d)
-		context_avg_pool = torch.mean(context_modeled, dim=1)
-
-		#context_modeled = torch.cat([query_encoded_hidden,context_modeled_hidden[-2], context_modeled_hidden[-1]], dim=1)
+		#(N, 1, 4d) => (N,1,4d)
+		query_aware_context_modeled = self.linearrelu(context_avg_pool)
+		query_aware_context_modeled = self._dropout(query_aware_context_modeled)
 
 
-		'''
-		BIDAF 2
-		'''
-		## BiDAF for answers
 		batch_size = batch_candidates_sorted.size(0)
-		# N=1 so (N, T, 2d) => (N1, T, 2d)
-		context_encoded_2, _ = self.contextual_embedding_layer_2(context_embedded, batch_context_length)
-		context_encoded_2 = self._dropout(context_encoded_2)
-		batch_context_modeled = context_encoded_2.expand(batch_size,context_encoded_2.size(1), context_encoded_2.size(2))
-		# (N1, K, d)
+		batch_context_modeled = query_aware_context_modeled.expand(batch_size,query_aware_context_modeled.size(1))
 
 		batch_candidates_embedded = batch_candidates_sorted
 		# (N1, K, 2d)
-		batch_candidates_encoded,batch_candidates_hidden = self.contextual_embedding_layer_2(batch_candidates_embedded, batch_candidate_lengths_sorted)
-		#batch_candidates_hidden = torch.cat([batch_candidates_hidden[-2], batch_candidates_hidden[-1]], dim=1)
-		batch_candidates_encoded = self._dropout(batch_candidates_encoded)
+		batch_candidates_encoded,batch_candidates_hidden = self.contextual_embedding_layer(batch_candidates_embedded, batch_candidate_lengths_sorted)
+		batch_candidates_hidden = torch.cat([batch_candidates_hidden[-2], batch_candidates_hidden[-1]], dim=1)
+		batch_candidates_hidden = self._dropout(batch_candidates_hidden)
 
-		answer_attention_encoded, context_aware_answer_encoded, answer_aware_context_encoded = self.attention_flow_layer2(
-			batch_context_modeled, batch_candidates_encoded, batch_context_mask, batch_candidate_masks_sorted)
-
-		## modelling layer 2
-		# (N1, K, 8d) => (N1, K, 2d)
-		answer_modeled, answer_hidden_state = self.modeling_layer2(answer_attention_encoded, batch_candidate_lengths_sorted)
-		answer_hidden_state = torch.cat([answer_hidden_state[-2], answer_hidden_state[-1]], dim=1)
-		answer_modeled = self._dropout(answer_hidden_state)
-
-		answer_scores = torch.mm(answer_modeled, context_avg_pool.transpose(0,1))
+		context_answer_hidden_state = torch.cat([batch_candidates_hidden,batch_context_modeled], dim=1)
+		answer_scores = self.output_layer(context_answer_hidden_state)
+		answer_modeled = self._dropout(answer_scores)
+		answer_modeled = F.softmax(answer_modeled, dim=0)
 
 		## unsort the answer scores
-		answer_scores_unsorted = torch.index_select(answer_scores, 0, batch_candidate_unsort)
-		loss = self.loss(answer_scores_unsorted.transpose(0,1), gold_index)
-		sorted, indices = torch.sort(F.log_softmax(answer_scores_unsorted.squeeze(0),dim=0), dim=0, descending=True)
+		answer_modeled = torch.index_select(answer_modeled, 0, batch_candidate_unsort)
+		loss = self.loss(answer_modeled.transpose(0,1), gold_index)
+		sorted, indices = torch.sort(answer_modeled, dim=0, descending=True)
 		return loss, indices
 
 
@@ -139,55 +105,36 @@ class ContextMRR_Sep_Switched(nn.Module):
 		batch_query_mask = batch_query_mask.unsqueeze(0)
 		batch_context_mask = batch_context_mask.unsqueeze(0)
 
-		## BiDAF 1 to get ~U, ~h and G (8d) between context and query
-		# (N, T, 8d) , (N, T ,2d) , (N, 1, 2d)
-		# context_attention_encoded, query_aware_context_encoded, context_aware_query_encoded = self.attention_flow_layer1(query_encoded, context_encoded,batch_query_mask,batch_context_mask)
-
 		context_attention_encoded, context_aware_query_encoded, query_aware_context_encoded = self.attention_flow_layer1(
 			query_encoded, context_encoded, batch_query_mask, batch_context_mask)
 
-		## modelling layer 1
-		# (N, T, 8d) => (N, T, 2d)
-		context_modeled, context_modeled_hidden = self.modeling_layer1(context_attention_encoded, batch_context_length)
-		# Take average pooling over the all the tokens
+		# (N,T,2d) => (N,1,4d)
 
-		# (N,T,2d) => (N,1,2d)
-		context_avg_pool = torch.mean(context_modeled, dim=1)
-		'''
-        BIDAF 2
-        '''
-		## BiDAF for answers
+		context_avg_pool = torch.cat(
+			[torch.max(context_aware_query_encoded, dim=1)[0], torch.mean(context_aware_query_encoded, dim=1)], dim=1)
+
+		# (N, 1, 4d) => (N,1,4d)
+		query_aware_context_modeled = self.linearrelu(context_avg_pool)
+		query_aware_context_modeled = self._dropout(query_aware_context_modeled)
+
 		batch_size = batch_candidates_sorted.size(0)
-		# N=1 so (N, T, 2d) => (N1, T, 2d)
-		context_encoded_2, _ = self.contextual_embedding_layer_2(context_embedded, batch_context_length)
-		context_encoded_2 = self._dropout(context_encoded_2)
-		batch_context_modeled = context_encoded_2.expand(batch_size, context_encoded_2.size(1),
-														 context_encoded_2.size(2))
-		# (N1, K, d)
+		batch_context_modeled = query_aware_context_modeled.expand(batch_size, query_aware_context_modeled.size(1))
 
 		batch_candidates_embedded = batch_candidates_sorted
 		# (N1, K, 2d)
-		batch_candidates_encoded, batch_candidates_hidden = self.contextual_embedding_layer_2(
-			batch_candidates_embedded, batch_candidate_lengths_sorted)
+		batch_candidates_encoded, batch_candidates_hidden = self.contextual_embedding_layer(batch_candidates_embedded,
+																							batch_candidate_lengths_sorted)
 		batch_candidates_hidden = torch.cat([batch_candidates_hidden[-2], batch_candidates_hidden[-1]], dim=1)
-		batch_candidates_encoded = self._dropout(batch_candidates_encoded)
+		batch_candidates_hidden = self._dropout(batch_candidates_hidden)
 
-		answer_attention_encoded, context_aware_answer_encoded, answer_aware_context_encoded = self.attention_flow_layer2(
-			batch_context_modeled, batch_candidates_encoded, batch_context_mask, batch_candidate_masks_sorted)
-
-		## modelling layer 2
-		# (N1, K, 8d) => (N1, K, 2d)
-		answer_modeled, answer_hidden_state = self.modeling_layer2(answer_attention_encoded,
-																						batch_candidate_lengths_sorted)
-		answer_hidden_state = torch.cat([answer_hidden_state[-2], answer_hidden_state[-1]],
-										dim=1)
-		answer_modeled = self._dropout(answer_hidden_state)
-
-		answer_scores = torch.mm(answer_modeled, context_avg_pool.transpose(0, 1))
+		context_answer_hidden_state = torch.cat([batch_candidates_hidden, batch_context_modeled], dim=1)
+		answer_scores = self.output_layer(context_answer_hidden_state)
+		answer_modeled = self._dropout(answer_scores)
+		answer_modeled = F.log_softmax(answer_modeled, dim=0)
 
 		## unsort the answer scores
-		answer_scores_unsorted = torch.index_select(answer_scores, 0, batch_candidate_unsort)
-		sorted, indices = torch.sort(F.log_softmax(answer_scores_unsorted.squeeze(0), dim=0), dim=0, descending=True)
+		answer_modeled = torch.index_select(answer_modeled, 0, batch_candidate_unsort)
+		sorted, indices = torch.sort(F.log_softmax(answer_modeled.squeeze(0), dim=0), dim=0, descending=True)
 		return indices
 
 
@@ -204,6 +151,20 @@ class OutputLayer(nn.Module):
 			nn.ReLU(),
 			nn.Linear(hidden_size, 1),
 			# nn.Sigmoid(), ## since loss is being replaced by cross entropy the exoected input into loss function
+		)
+
+	def forward(self, batch):
+		return self.mlp(batch)
+
+
+class ffnLayer(nn.Module):
+	def __init__(self, input_size, hidden_size):
+		super(ffnLayer, self).__init__()
+		self.mlp = nn.Sequential(
+			nn.Linear(input_size, hidden_size),
+			nn.ReLU(),
+			nn.Linear(hidden_size, hidden_size),
+			nn.ReLU()
 		)
 
 	def forward(self, batch):
