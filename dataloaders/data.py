@@ -64,12 +64,13 @@ class Data_Point:
     pos_for_question = []
     def __init__(self, question_tokens,answer_indices, candidates,metrics,
                  ner_for_question,pos_for_question,ner_for_candidates,pos_for_candidates,
-                 context_tokens):
+                 context_tokens, sentence_indices=None):
         self.question_tokens = question_tokens
         self.context_tokens = context_tokens
         self.answer_indices =answer_indices
         self.candidates = candidates
         self.metrics = metrics
+        self.sentence_indices = sentence_indices
 
         self.ner_for_question = ner_for_question
         self.pos_for_question = pos_for_question
@@ -79,7 +80,7 @@ class Data_Point:
 class Elmo_Data_Point:
 
     def __init__(self, question_tokens,question_embed,
-                 answer_indices, context_tokens, context_embed, candidates, candidates_embed, doc_id):
+                 answer_indices, context_tokens, context_embed, candidates, candidates_embed, doc_id, chunk_indices=None):
         self.question_tokens = question_tokens
         self.question_embed = question_embed
         self.context_tokens = context_tokens
@@ -88,6 +89,7 @@ class Elmo_Data_Point:
         self.candidates = candidates
         self.candidates_embed = candidates_embed
         self.doc_id = doc_id
+        self.chunk_indices = chunk_indices
 
 
 

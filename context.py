@@ -153,6 +153,7 @@ def train_epochs(model, vocab):
 			batch_query_lengths = batch['qlengths']
 			batch_candidates = batch["candidates"]
 			batch_doc_ids = batch['doc_ids']
+			batch_reduced_context_indices = batch['chunk_indices']
 			batch_answer_indices = batch['answer_indices']
 			batch_size = len(batch_query_lengths)
 			losses = variable(torch.zeros(batch_size))
@@ -179,7 +180,15 @@ def train_epochs(model, vocab):
 				batch_len = len(batch_candidate_lengths)
 
 				# context tokens
-				batch_context = variable(torch.FloatTensor(train_context_per_docid[doc_id]))
+				## if using reduced context
+				context_embeddings =  train_context_per_docid[doc_id]
+				reduced_context_embeddings = []
+				ranges = batch_reduced_context_indices[index]
+				for r in ranges:
+					reduced_context_embeddings += context_embeddings[r[0]:r[1]].tolist()
+				batch_context = variable(torch.FloatTensor(reduced_context_embeddings))
+				# batch_context = variable(torch.FloatTensor(train_context_per_docid[doc_id]))
+
 				batch_context_length = np.array([batch_context.size(0)])
 				batch_context_mask =variable(torch.FloatTensor(np.array([1 for x in range(batch_context_length[0])])))
 
@@ -272,6 +281,7 @@ if __name__ == "__main__":
 	parser.add_argument("--meteor_path", type=str, default=10)
 	parser.add_argument("--profile", action="store_true")
 	parser.add_argument("--squad", action="store_true")
+	parser.add_argument("--reduced", action="store_true")
 
 	args = parser.parse_args()
 
@@ -302,8 +312,20 @@ if __name__ == "__main__":
 		train_documents, train_candidates_embed_docid,train_context_per_docid = loader.load_documents_elmo(t_documents)
 		valid_documents,valid_candidates_embed_docid,valid_context_per_docid = loader.load_documents_elmo(v_documents)
 		test_documents, test_candidates_embed_docid,test_context_per_docid = loader.load_documents_elmo(te_documents)
+	elif args.reduced:
+		loader = DataLoader(args)
+		with open(args.train_path, "r") as fin:
+			t_documents = pickle.load(fin)
+		with open(args.valid_path, "r") as fin:
+			v_documents = pickle.load(fin)
+		with open(args.test_path, "r") as fin:
+			te_documents = pickle.load(fin)
+		train_documents, train_candidates_embed_docid, train_context_per_docid = loader.load_documents_split_sentences(t_documents)
+		valid_documents, valid_candidates_embed_docid, valid_context_per_docid = loader.load_documents_split_sentences(v_documents)
+		test_documents, test_candidates_embed_docid, test_context_per_docid = loader.load_documents_split_sentences(te_documents)
 
 	else:
+
 		loader = DataLoader(args)
 		train_documents = loader.load_documents(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
 		valid_documents = loader.load_documents(args.valid_path, summary_path=None, max_documents=args.max_documents)

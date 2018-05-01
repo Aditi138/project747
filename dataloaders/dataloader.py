@@ -20,7 +20,15 @@ import numpy as np
 from collections import defaultdict
 from test_metrics import Performance
 from multiprocessing import Pool
+import spacy
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+import re
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfTransformer
+from sklearn.metrics.pairwise import linear_kernel
 global vocab
+
 
 def view_batch(batch,vocab):
 
@@ -151,6 +159,7 @@ def create_single_batch(batch_data):
 
 def create_single_batch_elmo(batch_data):
     doc_ids  = [data_point.doc_id for data_point in batch_data]
+    chunk_indices = [data_point.chunk_indices for data_point in batch_data]
     batch_query_lengths = [len(data_point.question_tokens) for data_point in batch_data]
     maximum_query_length = max(batch_query_lengths)
     query_length_mask = np.array([[int(x < batch_query_lengths[i])
@@ -186,6 +195,7 @@ def create_single_batch_elmo(batch_data):
 
     batch = {}
     batch['doc_ids'] = doc_ids
+    batch['chunk_indices'] = chunk_indices
     batch['q_embed'] = queries_embed
     batch['q_mask'] = query_length_mask
     batch['answer_indices'] = batch_answer_indices
@@ -255,6 +265,8 @@ class DataLoader():
         self.args = args
         self.pretrain_embedding = None
         self.nlp = spacy.load('en')
+        self.stop_words = list(stopwords.words('english'))
+        self.lemmatizer = WordNetLemmatizer()
 
     # This function loads raw documents, summaries and queries, processes them, stores them in document class and finally saves to a pickle
     def process_data(self, input_folder, summary_path, qap_path, document_path, pickle_folder, small_number=-1, summary_only=False, interval=50):
@@ -709,51 +721,117 @@ class DataLoader():
 
         return data_points
 
-    def load_documents_split_sentences(self, path, summary_path=None, max_documents=0):
-
-        self.SOS_Token = self.vocab.get_index("<sos>")
-        self.EOS_Token = self.vocab.get_index("<eos>")
-
-        with open(path, "r") as fin:
-            if max_documents > 0:
-                documents = pickle.load(fin)[:max_documents]
-            else:
-                documents = pickle.load(fin)
-
+    def load_documents_split_sentences(self, documents):
         data_points = []
-
+        candidates_embed_docid = {}
+        candidate_per_docid = {}
+        context_per_docid = {}
         for index,document in enumerate(documents):
+            sentences = document.document_tokens
+            chunk_length = 40
+            num_chunks = 5
 
-            document_tokens_combined = " ".join(document.document_tokens)
-            doc = self.nlp(document_tokens_combined.decode('utf-8'))
-            sentences = list(doc.sents)
-            sentences_split_tokenwise = [[token.string.strip() for token in s] for s in sentences]
-            sentences_replaced_by_id = []
-            ner_sentences_replaced_by_id = self.vocab.add_and_get_indices_NER(document.ner_tokens[e])
-            pos_sentences_replaced_by_id = self.vocab.add_and_get_indices_POS(document.pos_tokens[e])
-
-            ner_sentence_wise = []
-            pos_sentence_wise = []
+            chunk_storage = []
+            concat_chunk_storage= []
+            # sentence_boundaries_storage = []
+            chunk_boundaries_storage = []
             e = 0
-            sentence_boundaries = []
-            previous_size = 0
+            rolling_index = 0
+            while e < len(sentences):
+                previous_size = 0
+                current_chunk_size = 0
+                current_chunk = []
+                sentence_boundaries = []
+                while e < len(sentences) and current_chunk_size < chunk_length:
+                    current_chunk += sentences[e]
+                    previous_size = current_chunk_size
+                    current_chunk_size += len(sentences[e])
+                    sentence_boundaries.append(previous_size)
+                    e += 1
+                ## guard against previous size being zero, guard against sentence size >= chunk_size, gaurd against e-=1 infinite loop
+                if abs(chunk_length - previous_size) < abs(current_chunk_size - chunk_length) and e != len(sentences):
+                    current_chunk = current_chunk[:previous_size]
+                    sentence_boundaries = sentence_boundaries[:-1]
+                    ## restart from the previous chunk in this case
+                    e -= 1
+                    if len(current_chunk) > 0:
+                        chunk_storage.append(current_chunk)
+                        concat_chunk_storage.append(" ".join(current_chunk))
+                        chunk_boundaries_storage.append([rolling_index, rolling_index + len(current_chunk)])
+                        rolling_index += len(current_chunk)
+                        # sentence_boundaries_storage.append(sentence_boundaries)
+                else:
+                    ## if out of sentences, use the last chunk as is
+                    if len(current_chunk) > 0:
+                        chunk_storage.append(current_chunk)
+                        concat_chunk_storage.append(" ".join(current_chunk))
+                        chunk_boundaries_storage.append([rolling_index, rolling_index + len(current_chunk)])
+                        rolling_index += len(current_chunk)
+                        # sentence_boundaries_storage.append(sentence_boundaries)
 
-            for e in range(len(sentences_split_tokenwise)):
-                sentence_boundaries.append(previous_size)
-                length = len(sentences_split_tokenwise[e])
-                sentences_replaced_by_id.append(self.vocab.add_and_get_indices(sentences_split_tokenwise[e]))
-                ner_sentence_wise.append(ner_sentences_replaced_by_id[previous_size:length])
-                pos_sentence_wise.append(pos_sentences_replaced_by_id[previous_size:length])
-                previous_size = length
+            top_chunks = []
+            top_chunks_ids = []
 
+            true_candidates = [document.candidates[i] for i in range(0, len(document.candidates), 2)]
 
-            for query in document.queries:
+            length = len(chunk_storage)
+            ## append queries to the end of the vector
+            for reference in true_candidates:
+                chunk_storage.append(reference)
+                concat_chunk_storage.append(" ".join(reference))
+
+            vectorizer = CountVectorizer(preprocessor=self.lemmatizer.lemmatize, stop_words=self.stop_words,
+                                         ngram_range=(1, 2))
+            transformer = TfidfTransformer(sublinear_tf=True)
+            counts = vectorizer.fit_transform(concat_chunk_storage)
+            tfidf = transformer.fit_transform(counts)
+            chunk_docs = tfidf[0:length]
+            reference_docs = tfidf[length:]
+            related_docs_indices = linear_kernel(reference_docs, chunk_docs).argsort()[:, -num_chunks:]
+            for idx in range(len(true_candidates)):
+                chunks_per_ref = []
+                doc_ids = related_docs_indices[idx][::-1]
+                doc_ids = sorted(doc_ids)
+                for doc_id in doc_ids:
+                    ## these have to be time ordered so that she can just concatenate
+                    chunks_per_ref.append(chunk_boundaries_storage[doc_id])
+                top_chunks.append(chunks_per_ref)
+                top_chunks_ids.append(doc_ids)
+
+            document_tokens = []
+            raw_tokens = []
+            for sent in document.document_tokens:
+                document_tokens += self.vocab.add_and_get_indices(sent)
+                raw_tokens += sent
+            context_per_docid[document.id] = np.concatenate(document.document_embed)
+
+            candidate_per_doc_per_answer = []
+            candidate_per_doc_per_answer_embed = []
+            i = 0
+            while i < len(document.candidates):
+                candidate_per_doc_per_answer.append(document.candidates[i])
+                candidate_per_doc_per_answer_embed.append(document.candidates_embed[i])
+                i += 2
+
+            for query in document.qaps:
                 query.question_tokens = self.vocab.add_and_get_indices(query.question_tokens)
-                query.ner_tokens = self.vocab.add_and_get_indices_NER(query.ner_tokens)
-                query.pos_tokens = self.vocab.add_and_get_indices_POS(query.pos_tokens)
-                data_points.append(Sentence_Splitting(sentences_replaced_by_id, sentence_boundaries,query.question_tokens, query.ner_tokens,query.pos_tokens, ner_sentence_wise, pos_sentence_wise ))
+                candidate_per_doc_per_answer[query.answer_indices[0] / 2] = self.vocab.add_and_get_indices(
+                    candidate_per_doc_per_answer[query.answer_indices[0] / 2])
 
-        return data_points
+            candidate_answer_lengths = [len(answer) for answer in candidate_per_doc_per_answer]
+            max_candidate_length = max(candidate_answer_lengths)
+            candidate_padded_answers_embed = np.array(
+                [pad_seq_elmo(answer, max_candidate_length) for answer in candidate_per_doc_per_answer_embed])
+
+            candidates_embed_docid[document.id] = candidate_padded_answers_embed
+
+            for idx, query in enumerate(document.qaps):
+                query.answer_indices[0] = query.answer_indices[0] / 2
+                data_points.append(Elmo_Data_Point
+                                   (query.question_tokens, query.query_embed, query.answer_indices,
+                                    [], [], candidate_per_doc_per_answer, [], document.id, top_chunks[idx]))
+
+        return data_points, candidates_embed_docid, context_per_docid
 
     def load_documents_elmo(self, documents):
         data_points = []
