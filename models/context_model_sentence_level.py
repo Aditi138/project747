@@ -22,7 +22,12 @@ class ContextMRR_Sentence_Level(nn.Module):
 		## bidirectional attention flow between question and context
 		self.attention_flow_layer1 = BiDAF(2*hidden_size)
 
-		modeling_layer_inputdim = 8 * hidden_size
+		c2q_linearLayer_dim = 8 * hidden_size
+		self.c2q_linearLayer = TimeDistributed(nn.Sequential(
+			torch.nn.Linear(c2q_linearLayer_dim, 2 * hidden_size),
+			torch.nn.ReLU()))
+
+		modeling_layer_inputdim = 2 * hidden_size
 		self.modeling_layer1 = RecurrentContext(modeling_layer_inputdim, hidden_size, num_layers=1)
 		self.hierarchial_layer1 = RecurrentContext(2*hidden_size, hidden_size, num_layers=1)
 
@@ -60,6 +65,9 @@ class ContextMRR_Sentence_Level(nn.Module):
 			query_encoded, context_encoded, batch_query_mask, batch_context_sentence_masks_sorted)
 
 		# (N,T,2d) => (N,1,4d)
+		context_attention_encoded = self.c2q_linearLayer(context_attention_encoded)
+		context_attention_encoded = self._dropout(context_attention_encoded)
+
 		context_modeled, context_modeled_hidden = self.modeling_layer1(context_attention_encoded, batch_context_lengths_sorted)
 		context_modeled_hidden = self._dropout(context_modeled_hidden)
 		context_modeled_hidden = torch.cat([context_modeled_hidden[-2], context_modeled_hidden[-1]], dim=1)
@@ -115,6 +123,9 @@ class ContextMRR_Sentence_Level(nn.Module):
 			query_encoded, context_encoded, batch_query_mask, batch_context_sentence_masks_sorted)
 
 		# (N,T,2d) => (N,1,4d)
+		context_attention_encoded = self.c2q_linearLayer(context_attention_encoded)
+		context_attention_encoded = self._dropout(context_attention_encoded)
+
 		context_modeled, context_modeled_hidden = self.modeling_layer1(context_attention_encoded,
 																	   batch_context_lengths_sorted)
 		context_modeled_hidden = self._dropout(context_modeled_hidden)
@@ -203,3 +214,36 @@ class LookupEncoder(nn.Module):
             self.word_embeddings.weight.data.copy_(torch.from_numpy(pretrain_embedding))
     def forward(self, batch):
         return self.word_embeddings(batch)
+
+class TimeDistributed(torch.nn.Module):
+	"""
+    Given an input shaped like ``(batch_size, time_steps, [rest])`` and a ``Module`` that takes
+    inputs like ``(batch_size, [rest])``, ``TimeDistributed`` reshapes the input to be
+    ``(batch_size * time_steps, [rest])``, applies the contained ``Module``, then reshapes it back.
+    Note that while the above gives shapes with ``batch_size`` first, this ``Module`` also works if
+    ``batch_size`` is second - we always just combine the first two dimensions, then split them.
+    """
+	def __init__(self, module):
+		super(TimeDistributed, self).__init__()
+		self._module = module
+
+	def forward(self, *inputs):  # pylint: disable=arguments-differ
+		reshaped_inputs = []
+		for input_tensor in inputs:
+			input_size = input_tensor.size()
+			if len(input_size) <= 2:
+				raise RuntimeError("No dimension to distribute: " + str(input_size))
+
+			# Squash batch_size and time_steps into a single axis; result has shape
+			#  (batch_size * time_steps, input_size).
+			squashed_shape = [-1] + [x for x in input_size[2:]]
+			reshaped_inputs.append(input_tensor.contiguous().view(*squashed_shape))
+
+		reshaped_outputs = self._module(*reshaped_inputs)
+
+		# Now get the output back into the right shape.
+        # (batch_size, time_steps, [hidden_size])
+		new_shape = [input_size[0], input_size[1]] + [x for x in reshaped_outputs.size()[1:]]
+		outputs = reshaped_outputs.contiguous().view(*new_shape)
+
+		return outputs
