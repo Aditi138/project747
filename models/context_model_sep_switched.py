@@ -56,7 +56,7 @@ class ContextMRR_Sep_Switched(nn.Module):
 
 
 		context_attention_encoded, context_aware_query_encoded, query_aware_context_encoded = self.attention_flow_layer1(
-			query_encoded, context_encoded, batch_query_mask, batch_context_mask)
+			query_encoded, context_encoded, batch_query_mask.unsqueeze(1), batch_context_mask)
 
 		# (N,T,2d) => (N,1,4d)
 		context_modeled, context_modeled_hidden = self.modeling_layer1(context_aware_query_encoded, batch_context_length)
@@ -109,7 +109,7 @@ class ContextMRR_Sep_Switched(nn.Module):
 		batch_context_mask = batch_context_mask.unsqueeze(0)
 
 		context_attention_encoded, context_aware_query_encoded, query_aware_context_encoded = self.attention_flow_layer1(
-			query_encoded, context_encoded, batch_query_mask, batch_context_mask)
+			query_encoded, context_encoded, batch_query_mask.unsqueeze(1), batch_context_mask)
 
 		# (N,T,2d) => (N,1,4d)
 		context_modeled, context_modeled_hidden = self.modeling_layer1(context_aware_query_encoded,

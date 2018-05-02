@@ -845,7 +845,7 @@ class DataLoader():
 
         return data_points, candidates_embed_docid, context_per_docid
 
-    def load_documents_elmo(self, documents):
+    def load_documents_elmo(self, documents, split=True):
         data_points = []
         candidates_embed_docid = {}
         candidate_per_docid = {}
@@ -862,14 +862,20 @@ class DataLoader():
                 raw_tokens += sent
                 sentence_lengths.append(len(sent))
             sentence_lengths_doc[document.id] = np.array(sentence_lengths)
-            #context_per_docid[document.id] = np.concatenate(document.document_embed)
+
+
+
             max_sentence_length = max(sentence_lengths)
             sentence_padded_embed = np.array(
                 [pad_seq_elmo(sent, max_sentence_length) for sent in document.document_embed])
             sentence_mask_doc_id[document.id] = np.array([[int(x < sentence_lengths[i])
                                                   for x in range(max_sentence_length)] for i in
                                                  range(len(sentence_lengths))])
-            context_per_docid[document.id] = sentence_padded_embed
+            if split:
+                context_per_docid[document.id] = sentence_padded_embed
+            else:
+                context_per_docid[document.id] = np.concatenate(document.document_embed)
+
 
             candidate_per_doc_per_answer = []
             candidate_per_doc_per_answer_embed = []
