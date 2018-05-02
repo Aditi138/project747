@@ -850,14 +850,26 @@ class DataLoader():
         candidates_embed_docid = {}
         candidate_per_docid = {}
         context_per_docid = {}
+        sentence_mask_doc_id = {}
+        sentence_lengths_doc = {}
         for index, document in enumerate(documents):
 
             document_tokens = []
             raw_tokens = []
+            sentence_lengths = []
             for sent in document.document_tokens:
                 document_tokens += self.vocab.add_and_get_indices(sent)
                 raw_tokens += sent
-            context_per_docid[document.id] = np.concatenate(document.document_embed)
+                sentence_lengths.append(len(sent))
+            sentence_lengths_doc[document.id] = np.array(sentence_lengths)
+            #context_per_docid[document.id] = np.concatenate(document.document_embed)
+            max_sentence_length = max(sentence_lengths)
+            sentence_padded_embed = np.array(
+                [pad_seq_elmo(sent, max_sentence_length) for sent in document.document_embed])
+            sentence_mask_doc_id[document.id] = np.array([[int(x < sentence_lengths[i])
+                                                  for x in range(max_sentence_length)] for i in
+                                                 range(len(sentence_lengths))])
+            context_per_docid[document.id] = sentence_padded_embed
 
             candidate_per_doc_per_answer = []
             candidate_per_doc_per_answer_embed = []
@@ -886,7 +898,7 @@ class DataLoader():
                                    (query.question_tokens, query.query_embed, query.answer_indices,
                                     [], [], candidate_per_doc_per_answer, [], document.id))
 
-        return data_points, candidates_embed_docid, context_per_docid
+        return data_points, candidates_embed_docid, context_per_docid, sentence_mask_doc_id, sentence_lengths_doc
 
 
 class Vocabulary(object):

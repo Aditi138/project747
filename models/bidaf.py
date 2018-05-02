@@ -78,7 +78,7 @@ class BiDAF(nn.Module):
 		#Query aware context representation.
 		c2q = torch.bmm(masked_softmax(S, U_mask), U)
 
-		masked_similarity = replace_masked_values(S, U_mask.unsqueeze(1), -1e7)
+		masked_similarity = replace_masked_values(S, U_mask, -1e7)
 		#print(masked_similarity.size())
 		mb = torch.max(masked_similarity, dim=-1)[0].squeeze(-1)
 		#print(mb.size())
