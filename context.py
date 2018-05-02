@@ -13,6 +13,7 @@ import numpy as np
 from time import time
 import random
 import pickle
+import codecs
 
 class Document_All_Embed(object):
     def __init__(self,id, qaps,candidates_embed, candidates, document_tokens, document_embed):
@@ -37,18 +38,20 @@ def get_random_batch_from_training(batches, num):
 	return small
 
 
-def evaluate(model, batches,  candidates_embed_docid, context_per_docid ):
+def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candidates_per_docid, fout=None):
 	mrr_value = []
 	model.train(False)
 	for iteration in range(len(batches)):
 
 		batch = batches[iteration]
 		batch_doc_ids = batch['doc_ids']
+		batch_q_tokens = batch['q_tokens']
 		batch_candidates = batch["candidates"]
 		batch_answer_indices = batch['answer_indices']
 		batch_reduced_context_indices = batch['chunk_indices']
 		for index, query_embed in enumerate(batch['q_embed']):
 
+			fout.write("\nQ: {0}".format(" ".join(batch_q_tokens[index])))
 			# query tokens
 			batch_query = variable(torch.FloatTensor(query_embed), volatile=True)
 			batch_query_length = np.array([batch['qlengths'][index]])
@@ -97,10 +100,15 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid ):
 				indices = indices.data
 
 			position_gold_sorted = (indices == batch_answer_indices[index]).nonzero().numpy()[0][0]
-
+			gold_index =  batch_answer_indices[index]
 			index = position_gold_sorted + 1
 
 			mrr_value.append(1.0 / (index))
+
+			candidates = candidates_per_docid[doc_id]
+			fout.write("\nRank: {0} / {1}   Gold: {2}\n".format(index, len(candidates)," ".join(candidates[indices[position_gold_sorted].numpy()[0]])))
+			for cand in range(10):
+				fout.write("C: {0}\n".format(" ".join(candidates[indices[cand].numpy()[0]])))
 
 	mean_rr = np.mean(mrr_value)
 	print("MRR :{0}".format(mean_rr))
@@ -109,6 +117,8 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid ):
 
 
 def train_epochs(model, vocab):
+
+	fout = codecs.open(args.debug_file, "w", encoding='utf-8')
 	clip_threshold = args.clip_threshold
 	eval_interval = args.eval_interval
 
@@ -130,6 +140,7 @@ def train_epochs(model, vocab):
 		print("Creating train batches")
 		train_batches = make_bucket_batches(train_documents, args.batch_length, vocab)
 		print("Starting epoch {}".format(epoch))
+		fout.write("==========Epoch {0}=========\n".format(epoch))
 
 		saved = False
 		for iteration in range(len(train_batches)):
@@ -138,7 +149,7 @@ def train_epochs(model, vocab):
 				print("iteration: {0} train loss: {1}".format(iteration + 1, train_loss / train_denom))
 
 				if iteration != 0:
-					average_rr = evaluate(model, valid_batches, valid_candidates_embed_docid, valid_context_per_docid)
+					average_rr = evaluate(model, valid_batches, valid_candidates_embed_docid, valid_context_per_docid, valid_candidate_per_docid, fout)
 					validation_history.append(average_rr)
 					train_average_rr = np.mean(mrr_value)
 					if (iteration + 1) % (eval_interval) == 0:
@@ -157,7 +168,7 @@ def train_epochs(model, vocab):
 							print("Early Stopping")
 							print("Testing started")
 							model = torch.load(args.model_path)
-							evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid )
+							evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid, None)
 							exit(0)
 
 			batch = train_batches[iteration]
@@ -276,6 +287,7 @@ if __name__ == "__main__":
 	parser.add_argument("--job_size", type=int, default=5)
 	parser.add_argument("--pretrain_path", type=str, default=None, help="Path to the pre-trained word embeddings")
 	parser.add_argument("--max_documents", type=int, default=0, help="If greater than 0, load at most this many documents")
+	parser.add_argument("--debug_file", type=str, default=None)
 
 	# Model parameters
 	parser.add_argument("--hidden_size", type=int, default=128)
@@ -324,9 +336,9 @@ if __name__ == "__main__":
 		with open(args.test_path, "r") as fin:
 			te_documents = pickle.load(fin)
 
-		train_documents, train_candidates_embed_docid,train_context_per_docid,_,_ = loader.load_documents_elmo(t_documents,split=False)
-		valid_documents,valid_candidates_embed_docid,valid_context_per_docid,_,_ = loader.load_documents_elmo(v_documents,split=False)
-		test_documents, test_candidates_embed_docid,test_context_per_docid,_,_ = loader.load_documents_elmo(te_documents,split=False)
+		train_documents, train_candidates_embed_docid,train_candidate_per_docid,train_context_per_docid,_,_ = loader.load_documents_elmo(t_documents,split=False)
+		valid_documents,valid_candidates_embed_docid,valid_candidate_per_docid,valid_context_per_docid,_,_ = loader.load_documents_elmo(v_documents,split=False)
+		test_documents, test_candidates_embed_docid,test_candidate_per_docid,test_context_per_docid,_,_ = loader.load_documents_elmo(te_documents,split=False)
 	elif args.reduced:
 		loader = DataLoader(args)
 		with open(args.train_path, "r") as fin:

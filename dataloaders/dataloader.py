@@ -166,6 +166,7 @@ def create_single_batch_elmo(batch_data):
     #                              for x in range(maximum_query_length)] for i in range(len(batch_data))])
 
     queries_embed  = [data_point.question_embed for data_point in batch_data]
+    question_tokens =  [data_point.question_tokens for data_point in batch_data]
 
     candidate_information = {}
     batch_candidate_answer_lengths = []
@@ -194,6 +195,7 @@ def create_single_batch_elmo(batch_data):
 
     batch = {}
     batch['doc_ids'] = doc_ids
+    batch['q_tokens'] = question_tokens
     batch['chunk_indices'] = chunk_indices
     batch['q_embed'] = queries_embed
     batch['answer_indices'] = batch_answer_indices
@@ -886,10 +888,10 @@ class DataLoader():
                 i += 2
 
 
-            for query in document.qaps:
-                query.question_tokens = self.vocab.add_and_get_indices(query.question_tokens)
-                candidate_per_doc_per_answer[query.answer_indices[0] / 2] = self.vocab.add_and_get_indices(
-                    candidate_per_doc_per_answer[query.answer_indices[0] / 2])
+            # for query in document.qaps:
+                # query.question_tokens = self.vocab.add_and_get_indices(query.question_tokens)
+                # candidate_per_doc_per_a   nswer[query.answer_indices[0] / 2] = self.vocab.add_and_get_indices(
+                #     candidate_per_doc_per_answer[query.answer_indices[0] / 2])
 
             candidate_answer_lengths = [len(answer) for answer in candidate_per_doc_per_answer]
             max_candidate_length = max(candidate_answer_lengths)
@@ -897,14 +899,14 @@ class DataLoader():
                 [pad_seq_elmo(answer, max_candidate_length) for answer in candidate_per_doc_per_answer_embed])
 
             candidates_embed_docid[document.id] = candidate_padded_answers_embed
-            # candidate_per_docid[document.id] = candidate_per_doc_per_answer
+            candidate_per_docid[document.id] = candidate_per_doc_per_answer
             for idx, query in enumerate(document.qaps):
                 query.answer_indices[0] = query.answer_indices[0] / 2
                 data_points.append(Elmo_Data_Point
                                    (query.question_tokens, query.query_embed, query.answer_indices,
                                     [], [], candidate_per_doc_per_answer, [], document.id))
 
-        return data_points, candidates_embed_docid, context_per_docid, sentence_mask_doc_id, sentence_lengths_doc
+        return data_points, candidates_embed_docid,candidate_per_docid, context_per_docid, sentence_mask_doc_id, sentence_lengths_doc
 
 
 class Vocabulary(object):
