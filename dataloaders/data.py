@@ -48,7 +48,7 @@ class Span_Data_Point:
     sentence_bleu = []
 
 
-    def __init__(self, question_tokens, context_tokens, span_indices, sentence_bleu,answer_tokens=None, gold_sentence_index= -1):
+    def __init__(self, question_tokens, context_tokens, span_indices, sentence_bleu = 0,answer_tokens=None, gold_sentence_index= -1):
         self.question_tokens = question_tokens
         self.context_tokens = context_tokens
         self.answer_tokens = answer_tokens
@@ -105,12 +105,19 @@ class Elmo_Data_Point:
         self.candidates_embed = candidates_embed
         self.doc_id = doc_id
 
+class Question:
+    def __init__(self, q_tokens, span_indices, para_id, article_id):
+        self.question_tokens = q_tokens
+        self.span_indices = span_indices
+        self.paragraph_id = para_id
+        self.article_id = article_id
+
 
 class Article:
-    def __init__(self):
-        pass
-    # list of questions, list of spans, list if indices into paragraphs
-    # paragraphs
+    def __init__(self, article_id, paragraphs, span_data_points):
+        self.article_id = article_id
+        self.paragraphs = paragraphs
+        self.span_data_points = span_data_points
 
 
 
