@@ -106,6 +106,13 @@ class Elmo_Data_Point:
         self.doc_id = doc_id
 
 
+class Article:
+    def __init__(self):
+        pass
+    # list of questions, list of spans, list if indices into paragraphs
+    # paragraphs
+
+
 
 
 
