@@ -77,3 +77,17 @@ class Data_Point:
         self.ner_for_candidates = ner_for_candidates
         self.pos_for_candidates = pos_for_candidates
 
+class Question:
+    def __init__(self, q_tokens, span_indices, gold_para_id, para_ids, article_id):
+        self.question_tokens = q_tokens
+        self.span_indices = span_indices
+        self.gold_paragraph_id = gold_para_id
+        self.top_paragraph_ids = para_ids
+        self.article_id = article_id
+
+
+class Article:
+    def __init__(self, article_id, paragraphs, span_data_points):
+        self.article_id = article_id
+        self.paragraphs = paragraphs
+        self.span_data_points = span_data_points

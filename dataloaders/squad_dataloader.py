@@ -9,6 +9,13 @@ import pickle
 import argparse
 from test_metrics import Performance
 import random, math
+from nltk.corpus import stopwords
+from nltk.stem import WordNetLemmatizer
+from gensim.summarization.bm25 import BM25
+import re
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfTransformer
+from sklearn.metrics.pairwise import linear_kernel
 
 class SquadDataloader():
 	def __init__(self, args):
@@ -16,6 +23,8 @@ class SquadDataloader():
 		self.stemmer = NltkPorterStemmer()
 		self.performance = Performance(args)
 		self.nlp =  spacy.load('en')
+		self.stop_words = list(stopwords.words('english'))
+		self.lemmatizer = WordNetLemmatizer()
 
 	def tokenize(self, text, chunk_length = 20, chunk= False):
 		# tokens = [self.stemmer.stem(token) for token in word_tokenize(text.lower())]
@@ -187,11 +196,46 @@ class SquadDataloader():
 				Data_Point(q_tokens, [19], anonymized_candidates_per_question, metrics, [], [], [], [], c_tokens))
 		return final_data_points
 
-	def pickle_data_articles(self, path, output_path):
+	def load_documents_with_paragraphs(self, path, summary_path=None, max_documents=0, num_paragraphs = 4):
+		final_data_points = []
+		articles = {}
+		with open(path, "rb") as fin:
+			if max_documents > 0:
+				data_points = pickle.load(fin)[:max_documents]
+			else:
+				data_points = pickle.load(fin)
+		for article in data_points:
+			articles[article.article_id] = article.paragraphs
+			combined_paragraphs = [" ".join(p) for p in article.paragraphs]
+			## process questions into final_data_points
+			for qap in article.span_data_points:
+				question_tokens = qap[0]
+				gold_span = qap[1]
+				article_id = qap[3]
+				gold_paragraph = qap[2]
+
+				## get top k paragraphs by tf-idf
+				length = len(combined_paragraphs)
+				combined_paragraphs.append(" ".join(question_tokens))
+				vectorizer = CountVectorizer(preprocessor=self.lemmatizer.lemmatize, stop_words=self.stop_words,
+											 ngram_range=(1, 2))
+				transformer = TfidfTransformer(sublinear_tf=True)
+				counts = vectorizer.fit_transform(combined_paragraphs)
+				tfidf = transformer.fit_transform(counts)
+				docs = tfidf[0:length]
+				reference = tfidf[length:]
+				related_docs_indices = linear_kernel(reference, docs).argsort()[:, -num_paragraphs:]
+
+				top_paragraph_ids = related_docs_indices[0][::-1]
+				final_data_points.append(Question(question_tokens, gold_span, gold_paragraph, top_paragraph_ids, article_id))
+		return final_data_points, articles
+
+
+	def pickle_data_articles(self, path, output_path, starting_article_id = 1):
 		data_points = []
 		with open(path) as data_file:
 			dataset = json.load(data_file)['data']
-		article_count = 1
+		article_count = starting_article_id
 		for article in dataset:
 			print(article_count)
 			article_id = article_count
@@ -231,6 +275,7 @@ class SquadDataloader():
 			data_points.append(Article(article_id, article_paragraphs, article_qaps))
 		with open(output_path, "wb") as fout:
 			pickle.dump(data_points, fout)
+		return article_count
 
 	def pickle_data(self, path, output_path):
 		data_points = []
@@ -396,6 +441,6 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 
 	squad_dataloader = SquadDataloader(args)
-	squad_dataloader.pickle_data_articles(args.train_path, args.t_output_path)
-	squad_dataloader.pickle_data_articles(args.valid_path, args.valid_output_path)
+	train_article_count = squad_dataloader.pickle_data_articles(args.train_path, args.t_output_path)
+	total_article_count = squad_dataloader.pickle_data_articles(args.valid_path, args.valid_output_path, train_article_count)
 	#data_points = squad_dataloader.load_docuements(args.t_output_path)
