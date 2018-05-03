@@ -124,7 +124,8 @@ def evaluate(model, batches, context_per_docid=None):
 				scores[i] = norm.pdf(gold_index[0] + 0.5 * (i - gold_index[0]))
 			for i in range(gold_index[-1] + 1, num_chunks):
 				scores[i] = norm.pdf(gold_index[-1] + (i - gold_index[-1]) * 0.5)
-			batch_scores.append(scores / np.sum(scores))
+			#batch_scores.append(scores / np.sum(scores))
+			batch_scores.append(np.ones(num_chunks))
 		batch_scores_variable = variable(torch.FloatTensor(batch_scores))
 
 		start_correct, end_correct, span_correct = model.eval(batch_query, batch_query_length, batch_question_mask,
@@ -309,7 +310,7 @@ def train_epochs(model, vocab):
 	all_end_correct = 0.0
 	all_span_correct = 0.0
 	coutn = 0
-	patience = 10
+	patience = 30
 
 	valid_batches = make_bucket_batches(valid_documents, args.batch_length, vocab)
 	test_batches = make_bucket_batches(test_documents, args.batch_length, vocab)
@@ -423,7 +424,8 @@ def train_epochs(model, vocab):
 					scores[i] = norm.pdf(gold_index[0] + 0.5*(i - gold_index[0]))
 				for i in range(gold_index[-1]+1, num_chunks):
 					scores[i] = norm.pdf(gold_index[-1] + (i - gold_index[-1])*0.5)
-				batch_scores.append(scores/np.sum(scores))
+				#batch_scores.append(scores/np.sum(scores))
+				batch_scores.append(np.ones(num_chunks))
 			batch_scores_variable = variable(torch.FloatTensor(batch_scores))
 
 			loss, start_correct, end_correct, span_correct = model(batch_query, batch_query_length, batch_question_mask,
