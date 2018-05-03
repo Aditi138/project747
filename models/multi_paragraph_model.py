@@ -41,10 +41,45 @@ def masked_softmax(vector, mask):
 		result = F.softmax(vector, dim=-1)
 	else:
 		# To limit numerical errors from large vector elements outside the mask, we zero these out.
-		result = torch.nn.functional.softmax(vector * mask, dim=-1)
+		result	 = torch.nn.functional.softmax(vector * mask, dim=-1)
 		result = result * mask
 		result = result / (result.sum(dim=1, keepdim=True) + 1e-13)
 	return result
+
+
+def masked_log_softmax(vector, mask):
+    """
+    ``torch.nn.functional.log_softmax(vector)`` does not work if some elements of ``vector`` should be
+    masked.  This performs a log_softmax on just the non-masked portions of ``vector``.  Passing
+    ``None`` in for the mask is also acceptable; you'll just get a regular log_softmax.
+    We assume that both ``vector`` and ``mask`` (if given) have shape ``(batch_size, vector_dim)``.
+    In the case that the input vector is completely masked, the return value of this function is
+    arbitrary, but not ``nan``.  You should be masking the result of whatever computation comes out
+    of this in that case, anyway, so the specific values returned shouldn't matter.  Also, the way
+    that we deal with this case relies on having single-precision floats; mixing half-precision
+    floats with fully-masked vectors will likely give you ``nans``.
+    If your logits are all extremely negative (i.e., the max value in your logit vector is -50 or
+    lower), the way we handle masking here could mess you up.  But if you've got logit values that
+    extreme, you've got bigger problems than this.
+    """
+    if mask is not None:
+        # vector + mask.log() is an easy way to zero out masked elements in logspace, but it
+        # results in nans when the whole vector is masked.  We need a very small value instead of a
+        # zero in the mask for these cases.  log(1 + 1e-45) is still basically 0, so we can safely
+        # just add 1e-45 before calling mask.log().  We use 1e-45 because 1e-46 is so small it
+        # becomes 0 - this is just the smallest value we can actually use.
+        vector = vector + (mask + 1e-45).log()
+    return torch.nn.functional.log_softmax(vector, dim=1)
+
+def masked_log_softmax_global(vector, mask):
+	input_flatten = vector.view(-1)  # flatten
+	mask_flatten = mask.view(-1)  # flatten
+	if mask is not None:
+		input_flatten = input_flatten + (mask_flatten + 1e-45).log()
+		result = torch.nn.functional.log_softmax(input_flatten, dim=0)
+		result_reshaped = result.view(vector.size(0), vector.size(1))
+		return result_reshaped
+
 
 def replace_masked_values(tensor, mask, replace_with):
 	"""
@@ -158,14 +193,12 @@ class MultiParagraph(nn.Module):
 
 		# Start prediction
 		span_start_logits = self._span_start_predictor(prediction).squeeze(-1)  # Shape: (batch_size, passage_length)
-		span_start_probs = masked_softmax(span_start_logits, batch_context_mask)  # Shape: (batch_size, passage_length)
 		span_start_logits = replace_masked_values(span_start_logits, batch_context_mask, -1e7)
 
 		span_end_representation = torch.cat([context_final_encoded,prediction],dim=1)   # Shape: (batch_size, passage_length, 2*GRU+hidden_dim)
 		encoded_span_end, _ = self._span_end_encoder(span_end_representation, batch_context_length[0])
 		encoded_span_end = self._dropout(encoded_span_end)
 		span_end_logits = self._span_end_predictor(encoded_span_end).squeeze(-1)
-		span_end_probs = masked_softmax(span_end_logits, batch_context_mask)
 		span_end_logits = replace_masked_values(span_end_logits, batch_context_mask, -1e7)
 
 
@@ -173,67 +206,73 @@ class MultiParagraph(nn.Module):
 
 		# Compute the loss for training.
 		if span_start is not None:
-			loss = F.nll_loss(masked_log_softmax(span_start_logits, batch_context_mask), span_start.squeeze(-1))
+			#loss = F.nll_loss(masked_log_softmax(span_start_logits, batch_context_mask), span_start.squeeze(-1))
+			loss = F.nll_loss(masked_log_softmax_global(span_start_logits, batch_context_mask), span_start.squeeze(-1))
 			self._span_start_accuracy.accuracy(span_start_logits, span_start.squeeze(-1))
-			loss += F.nll_loss(masked_log_softmax(span_end_logits, batch_context_mask), span_end.squeeze(-1))
+
+			#loss += F.nll_loss(masked_log_softmax(span_end_logits, batch_context_mask), span_end.squeeze(-1))
+			loss += F.nll_loss(masked_log_softmax_global(span_end_logits, batch_context_mask), span_end.squeeze(-1))
+
 			self._span_end_accuracy.accuracy(span_end_logits, span_end.squeeze(-1))
 			self._span_accuracy.accuracy(best_span, torch.stack([span_start, span_end], -1))
 
 			return loss, self._span_start_accuracy.correct_count, self._span_end_accuracy.correct_count, self._span_accuracy._correct_count
 
-	def eval(self,batch_query, batch_query_length,batch_query_mask,
-				batch_context, batch_context_length,batch_context_mask,
-			 batch_candidates_sorted, batch_candidate_lengths_sorted,batch_candidate_masks_sorted, batch_candidate_unsort):
+	def eval(self,batch_query, batch_query_length,batch_question_mask,
+			 batch_context, batch_context_length, batch_context_mask,
+				      span_start, span_end,identity_context):
 		## Embed query and context
-		# (N, J, d)
-		query_embedded = self.word_embedding_layer(batch_query.unsqueeze(0))
-		# (N, T, d)
-		context_embedded = self.word_embedding_layer(batch_context.unsqueeze(0))
+		query_embedded = self.word_embedding_layer(batch_query)  # (N, J, d)
+		context_embedded = self.word_embedding_layer(batch_context)  # (N, T, d)
 
 		## Encode query and context
-		# (N, J, 2d)
-		query_encoded, _ = self.contextual_embedding_layer(query_embedded, batch_query_length)
-		# (N, T, 2d)
-		context_encoded, _ = self.contextual_embedding_layer(context_embedded, batch_context_length)
+		query_encoded, _ = self.contextual_embedding_layer(query_embedded, batch_query_length)  # (N, J, 2d)
+		context_encoded, _ = self.contextual_embedding_layer(context_embedded, batch_context_length)  # (N, T, 2d)
 
 		## BiDAF 1 to get ~U, ~h and G (8d) between context and query
 		# (N, T, 8d) , (N, T ,2d) , (N, 1, 2d)
-		batch_query_mask = batch_query_mask.unsqueeze(0)
-		batch_context_mask = batch_context_mask.unsqueeze(0)
-
 		context_attention_encoded, query_aware_context_encoded, context_aware_query_encoded = self.attention_flow_layer1(
-			query_encoded, context_encoded,batch_query_mask,batch_context_mask)
+			query_encoded, context_encoded, batch_question_mask, batch_context_mask)
+
+		context_attention_encoded_LR = self.linearLayer(context_attention_encoded)  # (N, T, ld)
 
 		## modelling layer 1
-		# (N, T, 8d) => (N, T, 2d)
-		context_modeled, _ = self.modeling_layer1(context_attention_encoded, batch_context_length)
+		context_modeled, _ = self.modeling_layer1(context_attention_encoded_LR,
+												  batch_context_length)  # (N, T, ld) => (N, T, 2d)
 
-		## BiDAF for answers
-		batch_size = batch_candidates_sorted.size(0)
-		# N=1 so (N, T, 2d) => (N1, T, 2d)
-		batch_context_modeled = context_modeled.repeat(batch_size, 1, 1)
-		# (N1, K, d)
-		batch_candidates_embedded = self.word_embedding_layer(batch_candidates_sorted)
-		# (N1, K, 2d)
-		batch_candidates_encoded, _ = self.contextual_embedding_layer(batch_candidates_embedded,
-																	  batch_candidate_lengths_sorted)
-		answer_attention_encoded, context_aware_answer_encoded, answer_aware_context_encoded = self.attention_flow_layer2(
-			batch_context_modeled, batch_candidates_encoded,batch_context_mask,batch_candidate_masks_sorted)
+		##self-attention
+		context_post_self_attn, _, _ = self.attention_flow_layer2(context_modeled, context_modeled, batch_context_mask,
+																  batch_context_mask, direction=True,
+																  identity=identity_context)
+		context_self_attention_encoded_LR = self.linearLayer_2(context_post_self_attn)  # (N, T, ld)
 
-		## modelling layer 2
-		# (N1, K, 8d) => (N1, K, 2d)
-		answer_modeled, (answer_hidden_state, answer_cell_state) = self.modeling_layer2(answer_attention_encoded,
-																						batch_candidate_lengths_sorted,)
+		context_final_encoded = context_self_attention_encoded_LR + context_attention_encoded_LR  # (N, T, ld)
 
-		## output layer : concatenate hidden dimension of the final answer model layer and run through an MLP : (N1, 2d) => (N1, d)
-		# (N1, 2d) => (N1, 1)
-		answer_concat_hidden = torch.cat([answer_hidden_state[-2], answer_hidden_state[-1]], dim=1)
-		answer_scores = self.output_layer(answer_concat_hidden)
+		prediction, _ = self.modeling_layer2(context_final_encoded, batch_context_length)  # (N, T, 2*GRU_hidden_size)
+		prediction = self._dropout(prediction)  # Shape: (batch_size, passage_length, 2*GRU_hidden_size))
 
-		## unsort the answer scores
-		answer_scores_unsorted = torch.index_select(answer_scores, 0, batch_candidate_unsort)
-		sorted, indices = torch.sort(answer_scores_unsorted, dim=0, descending=True)
-		return indices
+		# Start prediction
+		span_start_logits = self._span_start_predictor(prediction).squeeze(-1)  # Shape: (batch_size, passage_length)
+		span_start_logits = replace_masked_values(span_start_logits, batch_context_mask, -1e7)
+
+		span_end_representation = torch.cat([context_final_encoded, prediction],
+											dim=1)  # Shape: (batch_size, passage_length, 2*GRU+hidden_dim)
+		encoded_span_end, _ = self._span_end_encoder(span_end_representation, batch_context_length[0])
+		encoded_span_end = self._dropout(encoded_span_end)
+		span_end_logits = self._span_end_predictor(encoded_span_end).squeeze(-1)
+		span_end_logits = replace_masked_values(span_end_logits, batch_context_mask, -1e7)
+
+
+		best_span = self.get_best_span(span_start_logits, span_end_logits)
+
+
+		if span_start is not None:
+			self._span_start_accuracy.accuracy(span_start_logits, span_start.squeeze(-1))
+			self._span_end_accuracy.accuracy(span_end_logits, span_end.squeeze(-1))
+			self._span_accuracy.accuracy(best_span, torch.stack([span_start, span_end], -1))
+
+			return self._span_start_accuracy.correct_count, self._span_end_accuracy.correct_count, self._span_accuracy._correct_count
+
 
 
 
