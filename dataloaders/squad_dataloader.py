@@ -231,11 +231,11 @@ class SquadDataloader():
 		return final_data_points, articles
 
 
-	def pickle_data_articles(self, path, output_path, starting_article_id = 1):
+	def pickle_data_articles(self, path, output_path):
 		data_points = []
 		with open(path) as data_file:
 			dataset = json.load(data_file)['data']
-		article_count = starting_article_id
+		article_count = 1
 		for article in dataset:
 			print(article_count)
 			article_id = article_count
@@ -275,7 +275,6 @@ class SquadDataloader():
 			data_points.append(Article(article_id, article_paragraphs, article_qaps))
 		with open(output_path, "wb") as fout:
 			pickle.dump(data_points, fout)
-		return article_count
 
 	def pickle_data(self, path, output_path):
 		data_points = []
@@ -441,6 +440,6 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 
 	squad_dataloader = SquadDataloader(args)
-	train_article_count = squad_dataloader.pickle_data_articles(args.train_path, args.t_output_path)
-	total_article_count = squad_dataloader.pickle_data_articles(args.valid_path, args.valid_output_path, train_article_count)
+	squad_dataloader.pickle_data_articles(args.train_path, args.t_output_path)
+	squad_dataloader.pickle_data_articles(args.valid_path, args.valid_output_path)
 	#data_points = squad_dataloader.load_docuements(args.t_output_path)

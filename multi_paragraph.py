@@ -437,9 +437,9 @@ if __name__ == "__main__":
 	#For running squad
 	loader = SquadDataloader(args)
 	start = time()
-	train_documents = loader.load_documents_with_paragraphs(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
-	valid_documents = loader.load_documents_with_paragraphs(args.valid_path, summary_path=None, max_documents=args.max_documents)
-	test_documents = loader.load_documents_with_paragraphs(args.test_path, summary_path=None, max_documents=args.max_documents)
+	train_documents, train_articles = loader.load_documents_with_paragraphs(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
+	valid_documents, valid_articles = loader.load_documents_with_paragraphs(args.valid_path, summary_path=None, max_documents=args.max_documents)
+	test_documents, test_articles = loader.load_documents_with_paragraphs(args.test_path, summary_path=None, max_documents=args.max_documents)
 
 	print("Train documents:{0} valid documents:{1} test documents:{2}".format(len(train_documents), len(valid_documents), len(test_documents)))
 	end = time()
