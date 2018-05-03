@@ -77,8 +77,7 @@ def masked_log_softmax_global(vector, mask):
 	if mask is not None:
 		input_flatten = input_flatten + (mask_flatten + 1e-45).log()
 		result = torch.nn.functional.log_softmax(input_flatten, dim=0)
-		result_reshaped = result.view(vector.size(0), vector.size(1))
-		return result_reshaped
+		return result
 
 
 def replace_masked_values(tensor, mask, replace_with):

@@ -6,7 +6,7 @@ from dataloaders.squad_dataloader import SquadDataloader
 from models.multi_paragraph_model import MultiParagraph, Accuracy, BooleanAccuracy
 import torch
 from torch import optim
-from dataloaders.utility import variable, view_data_point,view_span_data_point,get_pretrained_emb, pad_seq_elmo
+from dataloaders.utility import variable, view_data_point,view_span_data_point,get_pretrained_emb, pad_seq_elmo, pad_seq
 import numpy as np
 from time import time
 import random
@@ -29,10 +29,10 @@ class Query_Embed(object):
         self.answer_indices = answer_indices
         self.query_embed = query_embed
 
-def test_model(model, documents, vocab, context_per_docid):
+def test_model(model, documents, vocab, context_per_docid=None):
     test_batches = make_bucket_batches(documents, args.batch_length, vocab)
     print("Testing!")
-    start,end,span = evaluate(model, test_batches,te_context_per_docid)
+    start,end,span = evaluate(model, test_batches)
     print("Testing Accuracy: Start:{0} End:{1} Span:{2}".format(start, end, span))
 
 
@@ -44,7 +44,7 @@ def get_random_batch_from_training(batches, num):
 	return small
 
 
-def evaluate(model, batches,context_per_docid):
+def evaluate(model, batches,context_per_docid=None):
 	all_start_correct = 0.0
 	all_end_correct = 0.0
 	all_span_correct = 0.0
@@ -109,7 +109,7 @@ def evaluate(model, batches,context_per_docid):
 	return all_start_correct, all_end_correct, all_span_correct
 
 
-def train_epochs(model, vocab):
+def train_epochs(model, vocab,t_context_per_docid=None):
 	clip_threshold = args.clip_threshold
 	eval_interval = args.eval_interval
 
@@ -130,7 +130,7 @@ def train_epochs(model, vocab):
 	for epoch in range(args.num_epochs):
 
 		print("Creating train batches")
-		train_batches = make_bucket_batches(train_documents, args.batch_length, vocab)
+		random.shuffle(train_documents)
 		print("Starting epoch {}".format(epoch))
 
 		model._span_start_accuracy = Accuracy()
@@ -138,14 +138,37 @@ def train_epochs(model, vocab):
 		model._span_accuracy = BooleanAccuracy()
 		count = 0
 		saved = False
-		for iteration in range(len(train_batches)):
-			optimizer.zero_grad()
+		updates = 0
+		optimizer.zero_grad()
+		losses = variable(torch.zeros(args.batch_size))
+		processed = 0
+
+		for iteration in range(len(train_documents)):
+
+
+			if updates % args.batch_size == 0:
+				batch_size = losses.size(0)
+				mean_loss = torch.mean(losses)
+				mean_loss.backward()
+				torch.nn.utils.clip_grad_norm(model.parameters(), clip_threshold)
+				optimizer.step()
+				optimizer.zero_grad()
+				if args.use_cuda:
+					train_loss += loss.data.cpu().numpy()[0] * batch_size
+
+				else:
+					train_loss += loss.data.numpy()[0] * batch_size
+
+				train_denom += batch_size
+				count += batch_size
+
+
 			if (iteration + 1) % eval_interval == 0:
 				print("iteration {}".format(iteration + 1))
 				print("train loss: {}".format(train_loss / train_denom))
 
 				if iteration != 0:
-					start, end, span = evaluate(model, valid_batches, v_context_per_docid)
+					start, end, span = evaluate(model, valid_batches)
 					validation_history.append(span)
 
 					if (iteration + 1) % (eval_interval * 5) == 0:
@@ -168,19 +191,10 @@ def train_epochs(model, vocab):
 							if args.use_cuda:
 								model = model.cuda()
 							model.load_state_dict(torch.load(args.model_path))
-							evaluate(model, test_batches,te_context_per_docid)
+							evaluate(model, test_batches)
 							exit(0)
 
-			batch = train_batches[iteration]
-			#view_batch(batch,loader.vocab)
-			batch_query_lengths = batch['qlengths']
-
-			batch_start_indices = variable(torch.LongTensor(batch['start_indices']))
-			batch_end_indices = variable(torch.LongTensor(batch['end_indices']))
-			
-			batch_size = len(batch_query_lengths)
-
-
+			batch = train_documents[iteration]
 
 			if args.elmo:
 				batch_query= variable(torch.FloatTensor(batch['q_embed']))
@@ -197,30 +211,62 @@ def train_epochs(model, vocab):
 				batch_context = variable(torch.FloatTensor(batch_context_embed_padded))
 
 			else:
-				batch_query = variable(torch.LongTensor(batch['queries']))
-				batch_context = variable(torch.LongTensor(batch['contexts']))
+				batch_query = variable(torch.LongTensor(batch.question_tokens))
+				batch_query_length = np.array([len(batch.question_tokens)])
 
-			batch_query_length = np.array([batch['qlengths']])
-			batch_question_mask = variable(torch.FloatTensor(batch['q_mask']))
-			batch_context_length = np.array([batch['clengths']])
-			batch_context_mask =variable(torch.FloatTensor(batch['context_mask']))
+			batch_question_mask = variable(torch.FloatTensor([1 for i in len(batch.question_tokens)]))
 
+			all_paragraphs = np.array(train_articles[batch.article_id])
+			top_paragraphs = all_paragraphs[batch.top_paragraph_ids]
+			batch_context_lengths = [len(paragraph) for paragraph in top_paragraphs]
+			maximum_context_length = max(batch_context_lengths)
+			contexts = np.array(
+				[pad_seq(paragraph, maximum_context_length) for paragraph in top_paragraphs])
+			batch_context_mask = np.array([[int(x < batch_context_lengths[i])
+											for x in range(maximum_context_length)] for i in range(len(top_paragraphs))])
+
+
+
+			#Sort the paragraphs
+			context_sort = np.argsort(batch_context_lengths)[::-1].copy()
+			batch_context_sorted = variable(torch.LongTensor(contexts[context_sort, ...]))
+			batch_context_lengths_sorted = batch_context_lengths[context_sort]
+			batch_context_unsort = variable(torch.LongTensor(np.argsort(context_sort)))
+			batch_candidate_masks_sorted = variable(torch.FloatTensor(batch_context_mask[context_sort]))
+			paragraph_ids_sorted = np.array(batch.top_paragraph_ids)[context_sort]
+			offset_paragraph_index = np.where(paragraph_ids_sorted == batch.gold_paragraph_id)[0]
+			if len(offset_paragraph_index) == 0:
+				print("Gold paragraph not found in top k")
+				continue
+			offset_paragraph_index = offset_paragraph_index[0]
+			start_index = batch.span_indices[0]
+			end_index = batch.span_indices[1]
+
+			batch_start_indices = variable(torch.LongTensor([start_index + max(0,offset_paragraph_index-1) * maximum_context_length]))
+			batch_end_indices = variable(torch.LongTensor([end_index + max(0,offset_paragraph_index-1) * maximum_context_length]))
 
 			identity_context = variable(torch.eye(batch_context_mask.size(1)) * -20000)
 			
 			loss, start_correct, end_correct, span_correct = model(batch_query, batch_query_length,batch_question_mask,
-																   batch_context, batch_context_length, batch_context_mask,
-						 batch_start_indices, batch_end_indices,identity_context)
+																   batch_context_sorted, batch_context_lengths_sorted, batch_candidate_masks_sorted,
+																   batch_context_unsort,batch_start_indices, batch_end_indices,identity_context)
 
 			all_start_correct = start_correct
 			all_end_correct = end_correct
 			all_span_correct = span_correct
+			processed += 1
+
 			
-			loss = loss / batch_size
-			loss.backward()
+
+		#Handling last batch
+		if processed < len(train_documents):
+			batch_size = losses.size(0)
+			mean_loss = torch.mean(losses)
+
+			mean_loss.backward()
 			torch.nn.utils.clip_grad_norm(model.parameters(), clip_threshold)
 			optimizer.step()
-			
+			optimizer.zero_grad()
 			if args.use_cuda:
 				train_loss += loss.data.cpu().numpy()[0] * batch_size
 
@@ -229,6 +275,7 @@ def train_epochs(model, vocab):
 
 			train_denom += batch_size
 			count += batch_size
+
 
 		if not saved:
 			print("Saving model after epoch {0}".format(epoch))
@@ -242,7 +289,7 @@ def train_epochs(model, vocab):
 	if args.use_cuda:
 		model = model.cuda()
 	model.load_state_dict(torch.load(args.model_path))
-	evaluate(model, test_batches,te_context_per_docid)
+	evaluate(model, test_batches)
 
 if __name__ == "__main__":
 	reload(sys)
@@ -309,6 +356,6 @@ if __name__ == "__main__":
 
 	if args.test:
 		model.load_state_dict(torch.load(args.model_path))
-		test_model(model, test_documents, loader.vocab,te_context_per_docid)
+		test_model(model, test_documents, loader.vocab)
 	else:
 		train_epochs(model, loader.vocab)
