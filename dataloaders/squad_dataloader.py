@@ -196,60 +196,54 @@ class SquadDataloader():
 				Data_Point(q_tokens, [19], anonymized_candidates_per_question, metrics, [], [], [], [], c_tokens))
 		return final_data_points
 
-	def load_documents_with_paragraphs(self, path, summary_path=None, max_documents=0, num_paragraphs = 4):
-		final_data_points = []
-		articles = {}
-		with open(path, "rb") as fin:
+	def load_documents_with_paragraphs(self, qap_path, paragraph_path, max_documents=0, num_paragraphs = 4):
+		with open(qap_path, "rb") as fin:
 			if max_documents > 0:
 				data_points = pickle.load(fin)[:max_documents]
 			else:
 				data_points = pickle.load(fin)
-		for article in data_points:
-			articles[article.article_id] = article.paragraphs
-			combined_paragraphs = [" ".join(p) for p in article.paragraphs]
-			## process questions into final_data_points
-			for qap in article.span_data_points:
-				question_tokens = qap[0]
-				gold_span = qap[1]
-				article_id = qap[3]
-				gold_paragraph = qap[2]
-
-				## get top k paragraphs by tf-idf
-				length = len(combined_paragraphs)
-				combined_paragraphs.append(" ".join(question_tokens))
-				vectorizer = CountVectorizer(preprocessor=self.lemmatizer.lemmatize, stop_words=self.stop_words,
-											 ngram_range=(1, 2))
-				transformer = TfidfTransformer(sublinear_tf=True)
-				counts = vectorizer.fit_transform(combined_paragraphs)
-				tfidf = transformer.fit_transform(counts)
-				docs = tfidf[0:length]
-				reference = tfidf[length:]
-				related_docs_indices = linear_kernel(reference, docs).argsort()[:, -num_paragraphs:]
-
-				top_paragraph_ids = related_docs_indices[0][::-1]
-				final_data_points.append(Question(question_tokens, gold_span, gold_paragraph, top_paragraph_ids, article_id))
-		return final_data_points, articles
+		with open(paragraph_path, "rb") as fin:
+			if max_documents > 0:
+				articles = pickle.load(fin)[:max_documents]
+			else:
+				articles = pickle.load(fin)
+		for e, data in enumerate(data_points):
+			data_points[e].question_tokens = self.vocab.add_and_get_indices(data.question_tokens)
+			data_points[e].top_paragraph_ids = data.top_paragraph_ids[:num_paragraphs]
+		for key in articles.keys():
+			paragraphs = articles[key]
+			for e, p in enumerate(paragraphs):
+				paragraphs[e] = self.vocab.add_and_get_indices(p)
+			articles[key] = paragraphs
+		return data_points, articles
 
 
-	def pickle_data_articles(self, path, output_path):
+	def pickle_data_articles(self, path, output_path1, output_path2):
 		data_points = []
+		paragraph_dumps = {}
 		with open(path) as data_file:
 			dataset = json.load(data_file)['data']
 		article_count = 1
 		for article in dataset:
+			if article_count > 5:
+				break
 			print(article_count)
 			article_id = article_count
 			article_paragraphs = []
-			article_qaps = []
 			article_count += 1
-			paragraph_count = 0
 			for paragraph_json in article['paragraphs']:
 				paragraph = paragraph_json["context"]
 				tokenized_chunks, tokenized_paragraph = self.tokenize(paragraph)
 				copy_tokenized_paragraph = [token.text for token in tokenized_paragraph]
-				paragraph_id = paragraph_count
-				paragraph_count += 1
 				article_paragraphs.append(copy_tokenized_paragraph)
+			paragraph_count = 0
+			paragraph_dumps[article_id] = article_paragraphs
+			combined_paragraphs = [" ".join(p) for p in article_paragraphs]
+			for paragraph_json in article['paragraphs']:
+				paragraph_id = paragraph_count
+				paragraph = paragraph_json["context"]
+				paragraph_count += 1
+				tokenized_chunks, tokenized_paragraph = self.tokenize(paragraph)
 				for question_answer in paragraph_json['qas']:
 					question_text = question_answer["question"].strip().replace("\n", "")
 					_, question_tokens = self.tokenize(question_text)
@@ -271,10 +265,27 @@ class SquadDataloader():
 
 					## convert into normal format
 					question_tokens = [token.text for token in question_tokens]
-					article_qaps.append([question_tokens, [span_start, span_end], paragraph_id, article_id])
-			data_points.append(Article(article_id, article_paragraphs, article_qaps))
-		with open(output_path, "wb") as fout:
+					gold_paragraph = paragraph_id
+
+					## get top k paragraphs by tf-idf
+					length = len(combined_paragraphs)
+					combined_paragraphs.append(" ".join(question_tokens))
+					vectorizer = CountVectorizer(preprocessor=self.lemmatizer.lemmatize, stop_words=self.stop_words,
+												 ngram_range=(1, 2))
+					transformer = TfidfTransformer(sublinear_tf=True)
+					counts = vectorizer.fit_transform(combined_paragraphs)
+					tfidf = transformer.fit_transform(counts)
+					docs = tfidf[0:length]
+					reference = tfidf[length:]
+					related_docs_indices = linear_kernel(reference, docs).argsort()[:, -length:]
+					top_paragraph_ids = related_docs_indices[0][::-1]
+
+
+					data_points.append(Question(question_tokens, [span_start, span_end], gold_paragraph, top_paragraph_ids, article_id))
+		with open(output_path1, "wb") as fout:
 			pickle.dump(data_points, fout)
+		with open(output_path2, "wb") as fout:
+			pickle.dump(paragraph_dumps, fout)
 
 	def pickle_data(self, path, output_path):
 		data_points = []
@@ -433,13 +444,15 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 
 	parser.add_argument("--train_path", type=str, default="../../squad/train-v1.1.json")
-	parser.add_argument("--t_output_path", type=str, default="../../squad/train-v1.1-articles.pickle")
+	parser.add_argument("--train_output_path1", type=str, default="../../squad/train-v1.1-paragraphs.pickle")
+	parser.add_argument("--train_output_path2", type=str, default="../../squad/train-v1.1-qaps.pickle")
 	parser.add_argument("--valid_path", type=str, default="../../squad/dev-v1.1.json")
-	parser.add_argument("--valid_output_path", type=str, default="../../squad/dev-v1.1-articles.pickle")
+	parser.add_argument("--valid_output_path1", type=str, default="../../squad/dev-v1.1-paragraphs.pickle")
+	parser.add_argument("--valid_output_path2", type=str, default="../../squad/dev-v1.1-qaps.pickle")
 	parser.add_argument("--test_path", type=str, default=None)
 	args = parser.parse_args()
 
 	squad_dataloader = SquadDataloader(args)
-	squad_dataloader.pickle_data_articles(args.train_path, args.t_output_path)
-	squad_dataloader.pickle_data_articles(args.valid_path, args.valid_output_path)
+	squad_dataloader.pickle_data_articles(args.train_path, args.train_output_path2, args.train_output_path1)
+	squad_dataloader.pickle_data_articles(args.valid_path, args.valid_output_path1, args.valid_output_path2)
 	#data_points = squad_dataloader.load_docuements(args.t_output_path)
