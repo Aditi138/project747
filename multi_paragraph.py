@@ -287,37 +287,17 @@ if __name__ == "__main__":
 		vars(args)['use_cuda'] = False
 
 	#For running squad
-	#loader = SquadDataloader(args)
-	# start = time()
-	# train_documents = loader.load_docuements(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
-	# valid_documents = loader.load_docuements(args.valid_path, summary_path=None, max_documents=args.max_documents)
-	# test_documents = loader.load_docuements(args.test_path, summary_path=None, max_documents=args.max_documents)
-
-	loader = DataLoader(args)
+	loader = SquadDataloader(args)
 	start = time()
-	# train_documents = loader.load_documents_with_answer_spans(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
-	# valid_documents = loader.load_documents_with_answer_spans(args.valid_path, summary_path=None, max_documents=args.max_documents)
-	# test_documents = loader.load_documents_with_answer_spans(args.test_path, summary_path=None, max_documents=args.max_documents)
+	train_documents, train_articles = loader.load_documents_with_paragraphs(args.train_path, summary_path=args.summary_path, max_documents=args.max_documents)
+	valid_documents, valid_articles = loader.load_documents_with_paragraphs(args.valid_path, summary_path=None, max_documents=args.max_documents)
+	test_documents, test_articles = loader.load_documents_with_paragraphs(args.test_path, summary_path=None, max_documents=args.max_documents)
 
-	with open(args.train_path, "r") as fin:
-		t_documents = pickle.load(fin)
-	with open(args.valid_path, "r") as fin:
-		v_documents = pickle.load(fin)
-	with open(args.test_path, "r") as fin:
-		te_documents = pickle.load(fin)
-
-	train_documents, t_context_per_docid = loader.load_documents_with_answer_spans_elmo(t_documents)
-	valid_documents,  v_context_per_docid = loader.load_documents_with_answer_spans_elmo(v_documents)
-	test_documents, te_context_per_docid = loader.load_documents_with_answer_spans_elmo(te_documents)
-
-	# for i in range(20):
-	# 	view_span_data_point(valid_documents[i], loader.vocab)
-	#
 	print("Train documents:{0} valid documents:{1} test documents:{2}".format(len(train_documents), len(valid_documents), len(test_documents)))
 	end = time()
 	print(end - start)
 
-	model = SpanMRR(args, loader)
+	model = MultiParagraph(args, loader)
 
 	if args.use_cuda:
 		model = model.cuda()

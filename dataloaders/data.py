@@ -106,10 +106,11 @@ class Elmo_Data_Point:
         self.doc_id = doc_id
 
 class Question:
-    def __init__(self, q_tokens, span_indices, para_id, article_id):
+    def __init__(self, q_tokens, span_indices, gold_para_id, para_ids, article_id):
         self.question_tokens = q_tokens
         self.span_indices = span_indices
-        self.paragraph_id = para_id
+        self.gold_paragraph_id = gold_para_id
+        self.top_paragraph_ids = para_ids
         self.article_id = article_id
 
 
