@@ -59,7 +59,7 @@ class BiDAF(nn.Module):
 
 
 	## TODO: Add capability of sentence mask (scoring) for sentence selection model
-	def forward(self, U, H, U_mask, H_mask): #H:context U: query
+	def forward(self, U, H, U_mask, H_mask, direction=False ,identity=None): #H:context U: query
 		T = H.size(1)   #Context Length
 		J = U.size(1)  #Quesiton Length
 
@@ -81,7 +81,8 @@ class BiDAF(nn.Module):
 
 		S = self.similarity_layer(cat_data).view(-1, T, J) # (N, T, J, 1) => (N, T, J)
 
-
+		if direction:
+			S = S * identity
 		## compute ~U (context 2 query)
 		## softmax along J's dimension
 		## (N, T, 2d) = (N, T, J) X (N, J, 2d)
