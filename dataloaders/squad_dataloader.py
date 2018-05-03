@@ -1,7 +1,7 @@
 import json
 import os
 from nltk.tokenize import word_tokenize
-from data import Span_Data_Point, Data_Point
+from data import Span_Data_Point, Data_Point, Question, Article
 from nltk.stem import PorterStemmer as NltkPorterStemmer
 from collections import Counter, defaultdict
 import spacy
@@ -187,6 +187,51 @@ class SquadDataloader():
 				Data_Point(q_tokens, [19], anonymized_candidates_per_question, metrics, [], [], [], [], c_tokens))
 		return final_data_points
 
+	def pickle_data_articles(self, path, output_path):
+		data_points = []
+		with open(path) as data_file:
+			dataset = json.load(data_file)['data']
+		article_count = 1
+		for article in dataset:
+			print(article_count)
+			article_id = article_count
+			article_paragraphs = []
+			article_qaps = []
+			article_count += 1
+			paragraph_count = 0
+			for paragraph_json in article['paragraphs']:
+				paragraph = paragraph_json["context"]
+				tokenized_chunks, tokenized_paragraph = self.tokenize(paragraph)
+				copy_tokenized_paragraph = [token.text for token in tokenized_paragraph]
+				paragraph_id = paragraph_count
+				paragraph_count += 1
+				article_paragraphs.append(copy_tokenized_paragraph)
+				for question_answer in paragraph_json['qas']:
+					question_text = question_answer["question"].strip().replace("\n", "")
+					_, question_tokens = self.tokenize(question_text)
+					answer_texts = [answer['text'] for answer in question_answer['answers']]
+					span_starts = [answer['answer_start'] for answer in question_answer['answers']]
+					span_ends = [start + len(answer) for start, answer in zip(span_starts, answer_texts)]
+					token_spans = []
+					passage_offsets = [(token.idx, token.idx + len(token.text)) for token in tokenized_paragraph]
+					char_spans = zip(span_starts, span_ends)
+					for char_span_start, char_span_end in char_spans:
+						(span_start, span_end), error = self.char_span_to_token_span(passage_offsets,
+																					 (char_span_start, char_span_end))
+						## not logging errors
+						token_spans.append((span_start, span_end))
+					candidate_answers = Counter()
+					for span_start, span_end in token_spans:
+						candidate_answers[(span_start, span_end)] += 1
+					span_start, span_end = candidate_answers.most_common(1)[0][0]
+
+					## convert into normal format
+					question_tokens = [token.text for token in question_tokens]
+					article_qaps.append([question_tokens, [span_start, span_end], paragraph_id, article_id])
+			data_points.append(Article(article_id, article_paragraphs, article_qaps))
+		with open(output_path, "wb") as fout:
+			pickle.dump(data_points, fout)
+
 	def pickle_data(self, path, output_path):
 		data_points = []
 		chunk_length = 20
@@ -344,13 +389,13 @@ if __name__ == '__main__':
 	parser = argparse.ArgumentParser()
 
 	parser.add_argument("--train_path", type=str, default="../../squad/train-v1.1.json")
-	parser.add_argument("--t_output_path", type=str, default="../../squad/train-v1.1-sentwise.pickle")
+	parser.add_argument("--t_output_path", type=str, default="../../squad/train-v1.1-articles.pickle")
 	parser.add_argument("--valid_path", type=str, default="../../squad/dev-v1.1.json")
-	parser.add_argument("--valid_output_path", type=str, default="../../squad/dev-v1.1-sentwise.pickle")
+	parser.add_argument("--valid_output_path", type=str, default="../../squad/dev-v1.1-articles.pickle")
 	parser.add_argument("--test_path", type=str, default=None)
 	args = parser.parse_args()
 
 	squad_dataloader = SquadDataloader(args)
-	squad_dataloader.pickle_data(args.train_path, args.t_output_path)
-	squad_dataloader.pickle_data(args.valid_path, args.valid_output_path)
+	squad_dataloader.pickle_data_articles(args.train_path, args.t_output_path)
+	squad_dataloader.pickle_data_articles(args.valid_path, args.valid_output_path)
 	#data_points = squad_dataloader.load_docuements(args.t_output_path)
