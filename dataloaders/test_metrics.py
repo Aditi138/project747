@@ -22,6 +22,8 @@ class Performance():
 		#self.metoer_scorer = MeteorScorer(self.args.meteor_path)
 
 
+	def bleu(self, hypothesis, reference):
+		return nltk.translate.bleu_score.sentence_bleu([reference], hypothesis)
 
 	def computeMetrics(self, prediction, candidates):
 		self.prediction = self.clean_output(" ".join(prediction))
