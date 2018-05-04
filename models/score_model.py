@@ -23,7 +23,7 @@ class ChunkScore(nn.Module):
         combined_representation=torch.cat((chunks_encoded, question_expanded), 2).squeeze(dim=1)
         scores=self.modeling_layer(combined_representation).squeeze().unsqueeze(0)
         loss=self.loss_function(scores, gold_index)
-        return loss, scores.data.numpy()
+        return loss, scores.data.cpu().numpy()
 
 
 class EncoderBlock(nn.Module):

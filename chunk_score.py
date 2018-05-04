@@ -82,7 +82,7 @@ def train_epochs(model, train_data,train_articles,valid_data,valid_articles, arg
             loss, scores = model(chunks, question, gold_variable)
             if np.argmax(scores) == gold_index:
                 train_accuracy+=(1.0/eval_interval)
-            train_loss += loss.data.numpy()[0]/eval_interval
+            train_loss += loss.data.cpu().numpy()[0]/eval_interval
             loss.backward()
             torch.nn.utils.clip_grad_norm(model.parameters(), clip_threshold)
             optimizer.step()
