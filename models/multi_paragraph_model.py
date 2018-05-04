@@ -198,19 +198,20 @@ class MultiParagraph(nn.Module):
 		## modelling layer 1
 		context_modeled,_ = self.modeling_layer1(context_attention_encoded_LR, batch_context_length)  # (N, T, ld) => (N, T, 2d)
 		context_modeled = self._dropout(context_modeled)
-
+		prediction = context_modeled
+		context_final_encoded = context_attention_encoded_LR
 		##self-attention
-
+		'''
 		context_post_self_attn,_,_ = self.attention_flow_layer2(context_modeled,context_modeled, batch_context_mask,batch_context_mask, direction=True, identity=identity_context)
 		context_self_attention_encoded_LR = self.linearLayer_2(context_post_self_attn)  # (N, T, ld)
 
 		context_final_encoded = context_self_attention_encoded_LR + context_attention_encoded_LR  # (N, T, ld)
 		context_final_encoded = self._dropout(context_final_encoded)
-
+		
 
 		prediction,_ = self.modeling_layer2(context_final_encoded, batch_context_length)    # (N, T, 2*GRU_hidden_size)
 		prediction  = self._dropout(prediction)  # Shape: (batch_size, passage_length, 2*GRU_hidden_size))
-
+		'''
 		# Start prediction
 		span_start_logits = self._span_start_predictor(prediction).squeeze(-1)  # Shape: (batch_size, passage_length)
 		span_start_logits = replace_masked_values(span_start_logits, batch_context_mask, -1e7)
@@ -270,6 +271,9 @@ class MultiParagraph(nn.Module):
 		context_modeled, _ = self.modeling_layer1(context_attention_encoded_LR,
 												  batch_context_length)  # (N, T, ld) => (N, T, 2d)
 
+		prediction = context_modeled
+		context_final_encoded = context_attention_encoded_LR
+		'''
 		##self-attention
 		context_post_self_attn, _, _ = self.attention_flow_layer2(context_modeled, context_modeled, batch_context_mask,
 																  batch_context_mask, direction=True,
@@ -280,7 +284,7 @@ class MultiParagraph(nn.Module):
 
 		prediction, _ = self.modeling_layer2(context_final_encoded, batch_context_length)  # (N, T, 2*GRU_hidden_size)
 		prediction = self._dropout(prediction)  # Shape: (batch_size, passage_length, 2*GRU_hidden_size))
-
+		'''
 		# Start prediction
 		span_start_logits = self._span_start_predictor(prediction).squeeze(-1)  # Shape: (batch_size, passage_length)
 		span_start_logits = replace_masked_values(span_start_logits, batch_context_mask, -1e7)
