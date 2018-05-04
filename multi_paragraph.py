@@ -1,5 +1,6 @@
 import argparse
 import sys
+from copy import deepcopy
 
 from dataloaders.dataloader import create_batches, view_batch, make_bucket_batches, DataLoader
 from dataloaders.squad_dataloader import SquadDataloader
@@ -82,12 +83,18 @@ def evaluate(model, batches,context_per_docid=None):
 
 		batch_question_mask = variable(torch.FloatTensor([1 for i in range(len(batch.question_tokens))]))
 
-		all_paragraphs = np.array(valid_articles[batch.article_id])
-		top_paragraphs = all_paragraphs[batch.top_paragraph_ids]
+		all_paragraphs = deepcopy(valid_articles[batch.article_id])
+		top_paragraphs = np.array(all_paragraphs)[batch.top_paragraph_ids]
 		batch_context_lengths = np.array([len(paragraph) for paragraph in top_paragraphs])
 		maximum_context_length = max(batch_context_lengths)
-		contexts = np.array(
-			[pad_seq(paragraph, maximum_context_length) for paragraph in top_paragraphs])
+		contexts  = []
+		#print(iteration)
+
+		for paragraph in top_paragraphs:
+			contexts.append(pad_seq(paragraph, maximum_context_length))
+		contexts = np.array(contexts)
+		# contexts = np.array(
+		# 	[pad_seq(paragraph, maximum_context_length) for paragraph in top_paragraphs])
 		batch_context_mask = np.array([[int(x < batch_context_lengths[i])
 										for x in range(maximum_context_length)] for i in range(len(top_paragraphs))])
 		context_sort = np.argsort(batch_context_lengths)[::-1].copy()
@@ -235,8 +242,8 @@ def train_epochs(model, vocab,t_context_per_docid=None):
 
 			batch_question_mask = variable(torch.FloatTensor([1 for i in range(len(batch.question_tokens))]))
 
-			all_paragraphs = np.array(train_articles[batch.article_id])
-			top_paragraphs = all_paragraphs[batch.top_paragraph_ids]
+			all_paragraphs = deepcopy(train_articles[batch.article_id])
+			top_paragraphs = np.array(all_paragraphs)[batch.top_paragraph_ids]
 			batch_context_lengths = np.array([len(paragraph) for paragraph in top_paragraphs])
 			maximum_context_length = max(batch_context_lengths)
 			contexts = np.array(
@@ -372,7 +379,7 @@ if __name__ == "__main__":
 	loader = SquadDataloader(args)
 	start = time()
 	train_documents, train_articles = loader.load_documents_with_paragraphs(args.train_path, args.train_paragraph_path, max_documents=args.max_documents)
-	valid_documents, valid_articles = loader.load_documents_with_paragraphs(args.valid_path, args.valid_paragraph_path, max_documents=args.max_documents)
+ 	valid_documents, valid_articles = loader.load_documents_with_paragraphs(args.valid_path, args.valid_paragraph_path, max_documents=args.max_documents)
 	#test_documents, test_articles = loader.load_documents_with_paragraphs(args.test_path, args.valid_paragraph_path, max_documents=args.max_documents)
 
 	print("Train documents:{0} valid documents:{1} test documents:{2}".format(len(train_documents), len(valid_documents),0))
