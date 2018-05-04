@@ -29,7 +29,7 @@ class ChunkScore(nn.Module):
 class EncoderBlock(nn.Module):
     def __init__(self, embed_size, hidden_size, kernel_size):
         super(EncoderBlock, self).__init__()
-        self.convolution_layer=nn.Conv1d(embed_size, hidden_size, kernel_size)
+        self.convolution_layer=nn.Conv1d(embed_size, hidden_size, kernel_size, padding=(kernel_size-1)/2)
         self.activation = nn.ReLU()
 
     def forward(self, input):
