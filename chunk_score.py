@@ -112,6 +112,9 @@ if __name__ == "__main__":
     parser.add_argument("--job_size", type=int, default=5)
     parser.add_argument("--pretrain_path", type=str, default=None, help="Path to the pre-trained word embeddings")
     parser.add_argument("--max_documents", type=int, default=0, help="If greater than 0, load at most this many documents")
+    parser.add_argument("--max_valid", type=int, default=0, help="If greater than 0, load at most this many documents")
+
+
 
     # Model parameters
     parser.add_argument("--hidden_size", type=int, default=128)
@@ -123,7 +126,6 @@ if __name__ == "__main__":
     parser.add_argument("--dropout", type=float, default=0.2)
     parser.add_argument("--num_epochs", type=int, default=50)
     parser.add_argument("--clip_threshold", type=int, default=10)
-
 
     parser.add_argument("--meteor_path", type=str, default=10)
     parser.add_argument("--profile", action="store_true")
@@ -142,7 +144,7 @@ if __name__ == "__main__":
     start = time()
     loader = SquadDataloader(args)
     train_data, train_articles = loader.load_documents_with_paragraphs(args.train_path + "questions.pickle", args.train_path + "paragraphs.pickle", max_documents= args.max_documents)
-    valid_data, valid_articles = loader.load_documents_with_paragraphs(args.valid_path + "questions.pickle", args.valid_path + "paragraphs.pickle", max_documents=args.max_documents)
+    valid_data, valid_articles = loader.load_documents_with_paragraphs(args.valid_path + "questions.pickle", args.valid_path + "paragraphs.pickle", max_documents=args.max_valid)
     end = time()
 
     print("Time loading data: {}s".format(end - start))
