@@ -161,8 +161,9 @@ def train_epochs(model, vocab,t_context_per_docid=None):
 
 
 		for iteration in range(len(train_documents)):
+			optimizer.zero_grad()
 
-
+			'''
 			if (count + 1) % args.batch_length == 0:
 				batch_size = losses.size(0)
 				mean_loss = torch.mean(losses)
@@ -176,7 +177,8 @@ def train_epochs(model, vocab,t_context_per_docid=None):
 				else:
 					train_loss += loss.data.numpy()[0] * batch_size
 				l = 0
-				losses = variable(torch.zeros(args.batch_length))
+				losses = variable(torch.zeros(args.batch_length)
+			'''
 
 
 
@@ -268,7 +270,17 @@ def train_epochs(model, vocab,t_context_per_docid=None):
 																   batch_context_sorted, batch_context_lengths_sorted, batch_context_masks_sorted,
 																   batch_context_unsort,batch_start_indices, batch_end_indices,identity_context)
 
-			losses[l] = loss
+			loss.backward()
+			torch.nn.utils.clip_grad_norm(model.parameters(), clip_threshold)
+			optimizer.step()
+
+			if args.use_cuda:
+				train_loss += loss.data.cpu().numpy()[0] * 1
+
+			else:
+				train_loss += loss.data.numpy()[0] * 1
+
+			#losses[l] = loss
 			l+=1
 			all_start_correct = start_correct
 			all_end_correct = end_correct
