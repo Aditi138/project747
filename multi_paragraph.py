@@ -90,11 +90,8 @@ def evaluate(model, batches,context_per_docid=None):
 		contexts  = []
 		#print(iteration)
 
-		for paragraph in top_paragraphs:
-			contexts.append(pad_seq(paragraph, maximum_context_length))
-		contexts = np.array(contexts)
-		# contexts = np.array(
-		# 	[pad_seq(paragraph, maximum_context_length) for paragraph in top_paragraphs])
+		contexts = np.array(
+			[pad_seq(paragraph, maximum_context_length) for paragraph in top_paragraphs])
 		batch_context_mask = np.array([[int(x < batch_context_lengths[i])
 										for x in range(maximum_context_length)] for i in range(len(top_paragraphs))])
 		context_sort = np.argsort(batch_context_lengths)[::-1].copy()
@@ -170,7 +167,7 @@ def train_epochs(model, vocab,t_context_per_docid=None):
 		for iteration in range(len(train_documents)):
 			optimizer.zero_grad()
 
-			'''
+
 			if (count + 1) % args.batch_length == 0:
 				batch_size = losses.size(0)
 				mean_loss = torch.mean(losses)
@@ -184,9 +181,7 @@ def train_epochs(model, vocab,t_context_per_docid=None):
 				else:
 					train_loss += loss.data.numpy()[0] * batch_size
 				l = 0
-				losses = variable(torch.zeros(args.batch_length)
-			'''
-
+				losses = variable(torch.zeros(args.batch_length))
 
 
 			if (iteration + 1) % eval_interval == 0:
@@ -276,18 +271,18 @@ def train_epochs(model, vocab,t_context_per_docid=None):
 			loss, start_correct, end_correct, span_correct = model(batch_query, batch_query_length,batch_question_mask,
 																   batch_context_sorted, batch_context_lengths_sorted, batch_context_masks_sorted,
 																   batch_context_unsort,batch_start_indices, batch_end_indices,identity_context)
-
+			'''
 			loss.backward()
 			torch.nn.utils.clip_grad_norm(model.parameters(), clip_threshold)
 			optimizer.step()
-
 			if args.use_cuda:
 				train_loss += loss.data.cpu().numpy()[0] * 1
 
 			else:
 				train_loss += loss.data.numpy()[0] * 1
+			'''
 
-			#losses[l] = loss
+			losses[l] = loss
 			l+=1
 			all_start_correct = start_correct
 			all_end_correct = end_correct
