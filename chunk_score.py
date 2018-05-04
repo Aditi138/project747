@@ -37,7 +37,7 @@ def create_batches(data, articles):
     for point in data:
         batch={}
         batch["question"] = point.question_tokens
-        if len(point.question_tokens <3):
+        if len(point.question_tokens) <3:
             continue
         article_id=point.article_id
         batch["article"] = article_id
