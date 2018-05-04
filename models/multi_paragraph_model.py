@@ -72,12 +72,12 @@ def masked_log_softmax(vector, mask):
     return torch.nn.functional.log_softmax(vector, dim=1)
 
 def masked_log_softmax_global(vector, mask):
-	input_flatten = vector.view(-1)  # flatten
-	mask_flatten = mask.view(-1)  # flatten
+	input_flatten = vector.contiguous().view(-1)  # flatten
+	mask_flatten = mask.contiguous().view(-1)  # flatten
 	if mask is not None:
 		input_flatten = input_flatten + (mask_flatten + 1e-45).log()
 		result = torch.nn.functional.log_softmax(input_flatten, dim=0)
-		return result
+		return result.unsqueeze(0)
 
 
 def replace_masked_values(tensor, mask, replace_with):
@@ -96,13 +96,14 @@ def replace_masked_values(tensor, mask, replace_with):
 
 
 class MultiParagraph(nn.Module):
-	def __init__(self, args, vocab):
+	def __init__(self, args, loader):
 		super(MultiParagraph, self).__init__()
 		hidden_size = args.hidden_size
 		embed_size = args.embed_size
-		word_vocab_size = vocab.get_length()
+		word_vocab_size = loader.vocab.get_length()
 
-		GRU_hidden_size = 2 *hidden_size
+		GRU_hidden_size = hidden_size
+
 
 
 		if args.dropout > 0:
@@ -120,7 +121,7 @@ class MultiParagraph(nn.Module):
 		self.attention_flow_layer1 = BiDAF(2*GRU_hidden_size)
 
 		linearLayer_dim = 8 * GRU_hidden_size
-		linear_layer_output_dim = 2 * hidden_size
+		linear_layer_output_dim = 2 * GRU_hidden_size
 		self.linearLayer = TimeDistributed(nn.Sequential(
 			torch.nn.Linear(linearLayer_dim, linear_layer_output_dim),
 			torch.nn.ReLU()))
@@ -137,14 +138,14 @@ class MultiParagraph(nn.Module):
 			torch.nn.ReLU()))
 
 		## modeling layer_2
-		modeling_layer_inputdim = hidden_size
+		modeling_layer_inputdim = 2*GRU_hidden_size
 		self.modeling_layer2 = RecurrentContext(modeling_layer_inputdim, GRU_hidden_size)
 
 		span_start_input_dim = 2 * GRU_hidden_size
 		self._span_start_predictor = TimeDistributed(torch.nn.Linear(span_start_input_dim, 1))
 
 
-		span_end_input_dim = (2 * GRU_hidden_size) + hidden_size
+		span_end_input_dim = (2 * GRU_hidden_size) + (2 * GRU_hidden_size)
 		self._span_end_encoder = RecurrentContext(span_end_input_dim, GRU_hidden_size, num_layers=1)
 
 		span_end_dim = (2* GRU_hidden_size)
@@ -160,31 +161,47 @@ class MultiParagraph(nn.Module):
 		self._span_accuracy_valid = BooleanAccuracy()
 
 	def forward(self, batch_query, batch_query_length,batch_question_mask,
-					batch_context, batch_context_length, batch_context_mask,
+					batch_context, batch_context_length, batch_context_mask,batch_context_unsort,
 				span_start, span_end,identity_context):
 
 		## Embed query and context
-		query_embedded = self.word_embedding_layer(batch_query)  # (N, J, d)
+		query_embedded = self.word_embedding_layer(batch_query.unsqueeze(0))  # (N, J, d)
+		query_embedded  = self._dropout(query_embedded)
+
 		context_embedded = self.word_embedding_layer(batch_context) # (N, T, d)
+		context_embedded = self._dropout(context_embedded)
+
+		num_passages= context_embedded.size(0)
+		batch_question_mask = batch_question_mask.expand(num_passages, -1)
 
 		## Encode query and context
 		query_encoded,_ = self.contextual_embedding_layer(query_embedded, batch_query_length)  # (N, J, 2d)
+		query_encoded = self._dropout(query_encoded)
+
+		query_encoded = query_encoded.expand(num_passages, query_encoded.size(1), query_encoded.size(2))
 		context_encoded,_ = self.contextual_embedding_layer(context_embedded, batch_context_length) # (N, T, 2d)
+		context_encoded = self._dropout(context_encoded)
 
 		## BiDAF 1 to get ~U, ~h and G (8d) between context and query
 		# (N, T, 8d) , (N, T ,2d) , (N, 1, 2d)
+
 		context_attention_encoded, query_aware_context_encoded, context_aware_query_encoded = self.attention_flow_layer1(query_encoded, context_encoded,batch_question_mask,batch_context_mask)
+		context_attention_encoded = self._dropout(context_attention_encoded)
 
 		context_attention_encoded_LR = self.linearLayer(context_attention_encoded)  #(N, T, ld)
+		context_attention_encoded_LR = self._dropout(context_attention_encoded_LR)
 
 		## modelling layer 1
 		context_modeled,_ = self.modeling_layer1(context_attention_encoded_LR, batch_context_length)  # (N, T, ld) => (N, T, 2d)
+		context_modeled = self._dropout(context_modeled)
 
 		##self-attention
+
 		context_post_self_attn,_,_ = self.attention_flow_layer2(context_modeled,context_modeled, batch_context_mask,batch_context_mask, direction=True, identity=identity_context)
 		context_self_attention_encoded_LR = self.linearLayer_2(context_post_self_attn)  # (N, T, ld)
 
 		context_final_encoded = context_self_attention_encoded_LR + context_attention_encoded_LR  # (N, T, ld)
+		context_final_encoded = self._dropout(context_final_encoded)
 
 
 		prediction,_ = self.modeling_layer2(context_final_encoded, batch_context_length)    # (N, T, 2*GRU_hidden_size)
@@ -194,25 +211,30 @@ class MultiParagraph(nn.Module):
 		span_start_logits = self._span_start_predictor(prediction).squeeze(-1)  # Shape: (batch_size, passage_length)
 		span_start_logits = replace_masked_values(span_start_logits, batch_context_mask, -1e7)
 
-		span_end_representation = torch.cat([context_final_encoded,prediction],dim=1)   # Shape: (batch_size, passage_length, 2*GRU+hidden_dim)
-		encoded_span_end, _ = self._span_end_encoder(span_end_representation, batch_context_length[0])
+		span_end_representation = torch.cat([context_final_encoded,prediction],dim=2)   # Shape: (batch_size, passage_length, 2*GRU+hidden_dim)
+		span_end_representation  = self._dropout(span_end_representation)
+
+		encoded_span_end, _ = self._span_end_encoder(span_end_representation, batch_context_length)
 		encoded_span_end = self._dropout(encoded_span_end)
+
 		span_end_logits = self._span_end_predictor(encoded_span_end).squeeze(-1)
 		span_end_logits = replace_masked_values(span_end_logits, batch_context_mask, -1e7)
 
 
-		best_span = self.get_best_span(span_start_logits, span_end_logits)
+		flattened_span_start_logits = span_start_logits.contiguous().view(-1).unsqueeze(0)
+		flattened_span_end_logits = span_end_logits.contiguous().view(-1).unsqueeze(0)
+		best_span = self.get_best_span(flattened_span_start_logits, flattened_span_end_logits)
 
 		# Compute the loss for training.
 		if span_start is not None:
 			#loss = F.nll_loss(masked_log_softmax(span_start_logits, batch_context_mask), span_start.squeeze(-1))
 			loss = F.nll_loss(masked_log_softmax_global(span_start_logits, batch_context_mask), span_start.squeeze(-1))
-			self._span_start_accuracy.accuracy(span_start_logits, span_start.squeeze(-1))
+			self._span_start_accuracy.accuracy(flattened_span_start_logits, span_start.squeeze(-1))
 
 			#loss += F.nll_loss(masked_log_softmax(span_end_logits, batch_context_mask), span_end.squeeze(-1))
 			loss += F.nll_loss(masked_log_softmax_global(span_end_logits, batch_context_mask), span_end.squeeze(-1))
 
-			self._span_end_accuracy.accuracy(span_end_logits, span_end.squeeze(-1))
+			self._span_end_accuracy.accuracy(flattened_span_end_logits, span_end.squeeze(-1))
 			self._span_accuracy.accuracy(best_span, torch.stack([span_start, span_end], -1))
 
 			return loss, self._span_start_accuracy.correct_count, self._span_end_accuracy.correct_count, self._span_accuracy._correct_count
@@ -221,15 +243,20 @@ class MultiParagraph(nn.Module):
 			 batch_context, batch_context_length, batch_context_mask,
 				      span_start, span_end,identity_context):
 		## Embed query and context
-		query_embedded = self.word_embedding_layer(batch_query)  # (N, J, d)
+		query_embedded = self.word_embedding_layer(batch_query.unsqueeze(0))  # (N, J, d)
 		context_embedded = self.word_embedding_layer(batch_context)  # (N, T, d)
+
+		num_passages = context_embedded.size(0)
+		batch_question_mask = batch_question_mask.expand(num_passages, -1)
 
 		## Encode query and context
 		query_encoded, _ = self.contextual_embedding_layer(query_embedded, batch_query_length)  # (N, J, 2d)
+		query_encoded = query_encoded.expand(num_passages, query_encoded.size(1), query_encoded.size(2))
 		context_encoded, _ = self.contextual_embedding_layer(context_embedded, batch_context_length)  # (N, T, 2d)
 
 		## BiDAF 1 to get ~U, ~h and G (8d) between context and query
 		# (N, T, 8d) , (N, T ,2d) , (N, 1, 2d)
+
 		context_attention_encoded, query_aware_context_encoded, context_aware_query_encoded = self.attention_flow_layer1(
 			query_encoded, context_encoded, batch_question_mask, batch_context_mask)
 
@@ -255,25 +282,23 @@ class MultiParagraph(nn.Module):
 		span_start_logits = replace_masked_values(span_start_logits, batch_context_mask, -1e7)
 
 		span_end_representation = torch.cat([context_final_encoded, prediction],
-											dim=1)  # Shape: (batch_size, passage_length, 2*GRU+hidden_dim)
-		encoded_span_end, _ = self._span_end_encoder(span_end_representation, batch_context_length[0])
+											dim=2)  # Shape: (batch_size, passage_length, 2*GRU+hidden_dim)
+		encoded_span_end, _ = self._span_end_encoder(span_end_representation, batch_context_length)
 		encoded_span_end = self._dropout(encoded_span_end)
 		span_end_logits = self._span_end_predictor(encoded_span_end).squeeze(-1)
 		span_end_logits = replace_masked_values(span_end_logits, batch_context_mask, -1e7)
 
+		flattened_span_start_logits = span_start_logits.contiguous().view(-1).unsqueeze(0)
+		flattened_span_end_logits = span_end_logits.contiguous().view(-1).unsqueeze(0)
+		best_span = self.get_best_span(flattened_span_start_logits, flattened_span_end_logits)
 
-		best_span = self.get_best_span(span_start_logits, span_end_logits)
-
-
+		# Compute the loss for training.
 		if span_start is not None:
-			self._span_start_accuracy.accuracy(span_start_logits, span_start.squeeze(-1))
-			self._span_end_accuracy.accuracy(span_end_logits, span_end.squeeze(-1))
+			self._span_start_accuracy.accuracy(flattened_span_start_logits, span_start.squeeze(-1))
+			self._span_end_accuracy.accuracy(flattened_span_end_logits, span_end.squeeze(-1))
 			self._span_accuracy.accuracy(best_span, torch.stack([span_start, span_end], -1))
 
 			return self._span_start_accuracy.correct_count, self._span_end_accuracy.correct_count, self._span_accuracy._correct_count
-
-
-
 
 	def get_best_span(self,span_start_logits, span_end_logits):
 		if span_start_logits.dim() != 2 or span_end_logits.dim() != 2:

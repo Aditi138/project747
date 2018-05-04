@@ -59,15 +59,9 @@ def evaluate(model, batches,context_per_docid=None):
 	for iteration in range(len(batches)):
 
 		batch = batches[iteration]
-		# view_batch(batch,loader.vocab)
-		batch_query_lengths = batch['qlengths']
-
-		batch_start_indices = variable(torch.LongTensor(batch['start_indices']))
-		batch_end_indices = variable(torch.LongTensor(batch['end_indices']))
-
-		batch_size = len(batch_query_lengths)
-
-
+		# view_batch(batch,loader.vocab
+		if iteration % 500 == 0:
+			print("Processed :{0} documents".format(iteration))
 
 		if args.elmo:
 			batch_query = variable(torch.FloatTensor(batch['q_embed']))
@@ -83,25 +77,49 @@ def evaluate(model, batches,context_per_docid=None):
 
 			batch_context = variable(torch.FloatTensor(batch_context_embed_padded))
 		else:
-			batch_query = variable(torch.LongTensor(batch['queries']))
-			batch_context = variable(torch.LongTensor(batch['contexts']))
+			batch_query = variable(torch.LongTensor(batch.question_tokens))
+			batch_query_length = np.array([len(batch.question_tokens)])
 
-		batch_query_length = np.array([batch['qlengths']])
-		batch_question_mask = variable(torch.FloatTensor(batch['q_mask']))
-		batch_context_length = np.array([batch['clengths']])
-		batch_context_mask = variable(torch.FloatTensor(batch['context_mask']))
+		batch_question_mask = variable(torch.FloatTensor([1 for i in range(len(batch.question_tokens))]))
 
+		all_paragraphs = np.array(valid_articles[batch.article_id])
+		top_paragraphs = all_paragraphs[batch.top_paragraph_ids]
+		batch_context_lengths = np.array([len(paragraph) for paragraph in top_paragraphs])
+		maximum_context_length = max(batch_context_lengths)
+		contexts = np.array(
+			[pad_seq(paragraph, maximum_context_length) for paragraph in top_paragraphs])
+		batch_context_mask = np.array([[int(x < batch_context_lengths[i])
+										for x in range(maximum_context_length)] for i in range(len(top_paragraphs))])
+		context_sort = np.argsort(batch_context_lengths)[::-1].copy()
+		batch_context_sorted = variable(torch.LongTensor(contexts[context_sort, ...]))
+		batch_context_lengths_sorted = batch_context_lengths[context_sort]
+		batch_context_unsort = variable(torch.LongTensor(np.argsort(context_sort)))
+		batch_context_masks_sorted = variable(torch.FloatTensor(batch_context_mask[context_sort]))
+		paragraph_ids_sorted = np.array(batch.top_paragraph_ids)[context_sort]
+		offset_paragraph_index = np.where(paragraph_ids_sorted == batch.gold_paragraph_id)[0]
+		if len(offset_paragraph_index) == 0:
+			print("Gold paragraph not found in top k:{0} Gold:{1}" .format(batch.top_paragraph_ids,batch.gold_paragraph_id))
+			continue
+		offset_paragraph_index = offset_paragraph_index[0]
+		start_index = batch.span_indices[0]
+		end_index = batch.span_indices[1]
 
-		identity_context = variable(torch.eye(batch_context_mask.size(1)) * -20000)
+		batch_start_indices = variable(
+			torch.LongTensor([start_index + offset_paragraph_index * maximum_context_length]))
+		batch_end_indices = variable(torch.LongTensor([end_index + offset_paragraph_index * maximum_context_length]))
+
+		identity_context = variable(torch.eye(batch_context_masks_sorted.size(1)) * -20000)
 
 		start_correct, end_correct, span_correct = model.eval(batch_query, batch_query_length, batch_question_mask,
-															  batch_context, batch_context_length, batch_context_mask,
-															   batch_start_indices, batch_end_indices, identity_context)
+															   batch_context_sorted, batch_context_lengths_sorted,
+															   batch_context_masks_sorted,
+															    batch_start_indices,
+															   batch_end_indices, identity_context)
 
 		all_start_correct = start_correct
 		all_end_correct = end_correct
 		all_span_correct = span_correct
-		count += batch_size
+		count += 1
 
 	all_start_correct = (all_start_correct * 1.0)/ count
 	all_end_correct = (all_end_correct * 1.0) / count
@@ -121,11 +139,11 @@ def train_epochs(model, vocab,t_context_per_docid=None):
 	all_start_correct = 0.0
 	all_end_correct = 0.0
 	all_span_correct  = 0.0
-	coutn = 0
+	l = 0
 	patience = 10
 
-	valid_batches = make_bucket_batches(valid_documents, args.batch_length, vocab)
-	test_batches = make_bucket_batches(test_documents, args.batch_length, vocab)
+	valid_batches = valid_documents
+	#test_batches = make_bucket_batches(test_documents, args.batch_length, vocab)
 
 	for epoch in range(args.num_epochs):
 
@@ -138,15 +156,14 @@ def train_epochs(model, vocab,t_context_per_docid=None):
 		model._span_accuracy = BooleanAccuracy()
 		count = 0
 		saved = False
-		updates = 0
 		optimizer.zero_grad()
-		losses = variable(torch.zeros(args.batch_size))
-		processed = 0
+		losses = variable(torch.zeros(args.batch_length))
+
 
 		for iteration in range(len(train_documents)):
 
 
-			if updates % args.batch_size == 0:
+			if (count + 1) % args.batch_length == 0:
 				batch_size = losses.size(0)
 				mean_loss = torch.mean(losses)
 				mean_loss.backward()
@@ -158,9 +175,9 @@ def train_epochs(model, vocab,t_context_per_docid=None):
 
 				else:
 					train_loss += loss.data.numpy()[0] * batch_size
+				l = 0
+				losses = variable(torch.zeros(args.batch_length))
 
-				train_denom += batch_size
-				count += batch_size
 
 
 			if (iteration + 1) % eval_interval == 0:
@@ -191,7 +208,7 @@ def train_epochs(model, vocab,t_context_per_docid=None):
 							if args.use_cuda:
 								model = model.cuda()
 							model.load_state_dict(torch.load(args.model_path))
-							evaluate(model, test_batches)
+							evaluate(model, valid_batches)
 							exit(0)
 
 			batch = train_documents[iteration]
@@ -214,11 +231,11 @@ def train_epochs(model, vocab,t_context_per_docid=None):
 				batch_query = variable(torch.LongTensor(batch.question_tokens))
 				batch_query_length = np.array([len(batch.question_tokens)])
 
-			batch_question_mask = variable(torch.FloatTensor([1 for i in len(batch.question_tokens)]))
+			batch_question_mask = variable(torch.FloatTensor([1 for i in range(len(batch.question_tokens))]))
 
 			all_paragraphs = np.array(train_articles[batch.article_id])
 			top_paragraphs = all_paragraphs[batch.top_paragraph_ids]
-			batch_context_lengths = [len(paragraph) for paragraph in top_paragraphs]
+			batch_context_lengths = np.array([len(paragraph) for paragraph in top_paragraphs])
 			maximum_context_length = max(batch_context_lengths)
 			contexts = np.array(
 				[pad_seq(paragraph, maximum_context_length) for paragraph in top_paragraphs])
@@ -232,7 +249,7 @@ def train_epochs(model, vocab,t_context_per_docid=None):
 			batch_context_sorted = variable(torch.LongTensor(contexts[context_sort, ...]))
 			batch_context_lengths_sorted = batch_context_lengths[context_sort]
 			batch_context_unsort = variable(torch.LongTensor(np.argsort(context_sort)))
-			batch_candidate_masks_sorted = variable(torch.FloatTensor(batch_context_mask[context_sort]))
+			batch_context_masks_sorted = variable(torch.FloatTensor(batch_context_mask[context_sort]))
 			paragraph_ids_sorted = np.array(batch.top_paragraph_ids)[context_sort]
 			offset_paragraph_index = np.where(paragraph_ids_sorted == batch.gold_paragraph_id)[0]
 			if len(offset_paragraph_index) == 0:
@@ -242,24 +259,27 @@ def train_epochs(model, vocab,t_context_per_docid=None):
 			start_index = batch.span_indices[0]
 			end_index = batch.span_indices[1]
 
-			batch_start_indices = variable(torch.LongTensor([start_index + max(0,offset_paragraph_index-1) * maximum_context_length]))
-			batch_end_indices = variable(torch.LongTensor([end_index + max(0,offset_paragraph_index-1) * maximum_context_length]))
+			batch_start_indices = variable(torch.LongTensor([start_index + offset_paragraph_index * maximum_context_length]))
+			batch_end_indices = variable(torch.LongTensor([end_index + offset_paragraph_index * maximum_context_length]))
 
-			identity_context = variable(torch.eye(batch_context_mask.size(1)) * -20000)
+			identity_context = variable(torch.eye(batch_context_masks_sorted.size(1)) * -20000)
 			
 			loss, start_correct, end_correct, span_correct = model(batch_query, batch_query_length,batch_question_mask,
-																   batch_context_sorted, batch_context_lengths_sorted, batch_candidate_masks_sorted,
+																   batch_context_sorted, batch_context_lengths_sorted, batch_context_masks_sorted,
 																   batch_context_unsort,batch_start_indices, batch_end_indices,identity_context)
 
+			losses[l] = loss
+			l+=1
 			all_start_correct = start_correct
 			all_end_correct = end_correct
 			all_span_correct = span_correct
-			processed += 1
+			train_denom += 1
+			count += 1
 
 			
 
 		#Handling last batch
-		if processed < len(train_documents):
+		if count < len(train_documents):
 			batch_size = losses.size(0)
 			mean_loss = torch.mean(losses)
 
@@ -311,9 +331,10 @@ if __name__ == "__main__":
 	parser.add_argument("--hidden_size", type=int, default=10)
 	parser.add_argument("--embed_size", type=int, default=1024)
 	parser.add_argument("--cuda", action="store_true", default=True)
+	parser.add_argument("--elmo", action="store_true", default=False)
 	parser.add_argument("--test", action="store_true", default=False)
-	parser.add_argument("--batch_length", type=int, default=40)
-	parser.add_argument("--eval_interval", type=int, default=2)
+	parser.add_argument("--batch_length", type=int, default=10)
+	parser.add_argument("--eval_interval", type=int, default=20)
 	parser.add_argument("--learning_rate", type=float, default=0.5)
 	parser.add_argument("--num_epochs", type=int, default=20)
 	parser.add_argument("--clip_threshold", type=int, default=5)
@@ -340,9 +361,9 @@ if __name__ == "__main__":
 	start = time()
 	train_documents, train_articles = loader.load_documents_with_paragraphs(args.train_path, args.train_paragraph_path, max_documents=args.max_documents)
 	valid_documents, valid_articles = loader.load_documents_with_paragraphs(args.valid_path, args.valid_paragraph_path, max_documents=args.max_documents)
-	test_documents, test_articles = loader.load_documents_with_paragraphs(args.test_path, args.valid_paragraph_path, max_documents=args.max_documents)
+	#test_documents, test_articles = loader.load_documents_with_paragraphs(args.test_path, args.valid_paragraph_path, max_documents=args.max_documents)
 
-	print("Train documents:{0} valid documents:{1} test documents:{2}".format(len(train_documents), len(valid_documents), len(test_documents)))
+	print("Train documents:{0} valid documents:{1} test documents:{2}".format(len(train_documents), len(valid_documents),0))
 	end = time()
 	print(end - start)
 
