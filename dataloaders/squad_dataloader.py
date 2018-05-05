@@ -9,26 +9,26 @@ import re
 
 
 class SquadDataloader():
-	def __init__(self, args):
-		self.vocab = Vocabulary()
+    def __init__(self, args):
+        self.vocab = Vocabulary()
 
-	def load_documents_with_paragraphs(self, qap_path, paragraph_path, max_documents=0, num_paragraphs = 4):
-		with open(qap_path, "rb") as fin:
-			if max_documents > 0:
-				data_points = pickle.load(fin)[:max_documents]
-			else:
-				data_points = pickle.load(fin)
-		with open(paragraph_path, "rb") as fin:
-			articles = pickle.load(fin)
-		for e, data in enumerate(data_points):
-			data_points[e].question_tokens = self.vocab.add_and_get_indices(data.question_tokens)
-			data_points[e].top_paragraph_ids = data.top_paragraph_ids[:num_paragraphs]
-		for key in articles.keys():
-			paragraphs = articles[key]
-			for e, p in enumerate(paragraphs):
-				paragraphs[e] = self.vocab.add_and_get_indices(p)
-			articles[key] = paragraphs
-		return data_points, articles
+    def load_documents_with_paragraphs(self, qap_path, paragraph_path, max_documents=0, num_paragraphs = 4):
+        with open(qap_path, "rb") as fin:
+            if max_documents > 0:
+                data_points = pickle.load(fin)[:max_documents]
+            else:
+                data_points = pickle.load(fin)
+        with open(paragraph_path, "rb") as fin:
+            articles = pickle.load(fin)
+        for e, data in enumerate(data_points):
+            data_points[e].question_tokens = self.vocab.add_and_get_indices(data.question_tokens)
+            data_points[e].top_paragraph_ids = data.top_paragraph_ids[:num_paragraphs]
+        for key in articles.keys():
+            paragraphs = articles[key]
+            for e, p in enumerate(paragraphs):
+                paragraphs[e] = self.vocab.add_and_get_indices(p)
+            articles[key] = paragraphs
+        return data_points, articles
 
 class Vocabulary(object):
     def __init__(self, pad_token='pad', unk='unk', sos='<sos>',eos='<eos>' ):
