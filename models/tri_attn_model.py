@@ -93,15 +93,18 @@ class TriAttn(nn.Module):
 		#context_self_attention = self.self_attn_c(context_modeled, batch_context_mask)
 		c_hidden = weighted_avg(context_modeled, context_self_attention)
 
-		logits = torch.sum(self.query_answer_bilinear(q_hidden) * a_hidden, dim=-1)
-		logits += torch.sum(self.answer_context_bilinear(c_hidden) * a_hidden, dim=-1)
-		answer_scores = F.sigmoid(logits)
+		logits_qa = self.query_answer_bilinear(q_hidden) * a_hidden    #(N, 2d)
+		logits_ca = self.answer_context_bilinear(c_hidden) * a_hidden  # (N, 2d)
+		answer_scores = self.output_layer(torch.cat([logits_qa,logits_ca],dim=1))
+		# logits = torch.sum(self.query_answer_bilinear(q_hidden) * a_hidden, dim=-1)
+		# logits += torch.sum(self.answer_context_bilinear(c_hidden) * a_hidden, dim=-1)
+		#answer_scores = F.sigmoid(logits)
 
 
 		## unsort the answer scores
 		answer_scores = torch.index_select(answer_scores, 0, batch_candidate_unsort)
-		#loss = self.loss(answer_scores.transpose(0,1), gold_index)
-		loss = self.loss(answer_scores.unsqueeze(0), gold_index)
+		loss = self.loss(answer_scores.transpose(0,1), gold_index)
+		#loss = self.loss(answer_scores.unsqueeze(0), gold_index)
 		sorted, indices = torch.sort(answer_scores, dim=0, descending=True)
 		return loss, indices
 
@@ -158,9 +161,13 @@ class TriAttn(nn.Module):
 		# context_self_attention = self.self_attn_c(context_modeled, batch_context_mask)
 		c_hidden = weighted_avg(context_modeled, context_self_attention)
 
-		logits = torch.sum(self.query_answer_bilinear(q_hidden) * a_hidden, dim=-1)
-		logits += torch.sum(self.answer_context_bilinear(c_hidden) * a_hidden, dim=-1)
-		answer_scores = F.sigmoid(logits)
+		logits_qa = self.query_answer_bilinear(q_hidden) * a_hidden  # (N, 2d)
+		logits_ca = self.answer_context_bilinear(c_hidden) * a_hidden  # (N, 2d)
+		answer_scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=1))
+
+		#logits = torch.sum(self.query_answer_bilinear(q_hidden) * a_hidden, dim=-1)
+		#logits += torch.sum(self.answer_context_bilinear(c_hidden) * a_hidden, dim=-1)
+		#answer_scores = F.sigmoid(logits)
 
 		## unsort the answer scores
 		answer_scores = torch.index_select(answer_scores, 0, batch_candidate_unsort)
