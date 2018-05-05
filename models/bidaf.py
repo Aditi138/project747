@@ -2,6 +2,7 @@ import torch
 from torch import nn
 from torch.autograd import Variable
 import torch.nn.functional as F
+import math
 
 def masked_softmax(vector, mask):
 	"""
@@ -50,11 +51,20 @@ def last_dim_softmax(tensor,mask):
 
 
 class BiDAF(nn.Module):
-	def __init__(self, input_size):
+	def __init__(self, input_size, dropout=0.2):
 		super(BiDAF, self).__init__()
 		self.input_size = input_size
-		self.similarity_layer = nn.Linear(3*input_size, 1)
-		self.similarity_layer.bias.data.fill_(1)
+		self.linear = nn.Linear(input_size, input_size)
+		std = math.sqrt(6 / (input_size + 1))
+		self.linear.weight.data.uniform_(-std, std)
+		self.linear.bias.data.fill_(1)
+
+		self.activation = nn.ReLU()
+		self.dropout  = nn.Dropout(dropout)
+
+
+		#self.similarity_layer = nn.Linear(3*input_size, 1)
+		#self.similarity_layer.bias.data.fill_(1)
 
 
 
@@ -70,16 +80,22 @@ class BiDAF(nn.Module):
 		## shape of ctx_C: (N, T, 2d) and ctx_Q : # (N, J, 2d)
 		## make both matrices of shape (N, T, J, 2d) to compute S
 
-		expanded_U = U.unsqueeze(1).expand((U.size(0),H.size(1),U.size(1),U.size(2))) # (N, T, J, 2d)
-		expanded_H = H.unsqueeze(2).expand((H.size(0), H.size(1), U.size(1), H.size(2)))  # (N, T, J, 2d)
+		#expanded_U = U.unsqueeze(1).expand((U.size(0),H.size(1),U.size(1),U.size(2))) # (N, T, J, 2d)
+		#expanded_H = H.unsqueeze(2).expand((H.size(0), H.size(1), U.size(1), H.size(2)))  # (N, T, J, 2d)
+		#HU = torch.mul(expanded_H, expanded_U) # (N, T, J, 4d)
+		# cat_data = torch.cat([expanded_H, expanded_U, HU], 3) # (N, T, J, 6d)
+		# S = self.similarity_layer(cat_data).q(-1, T, J) # (N, T, J, 1) => (N, T, J)
 
-		#S = (expanded_H * expanded_U).sum(dim=-1)
+		H_Linear = self.linear(H)
+		H_Linear = self.activation(H_Linear)
+		H_Linear = self.dropout(H_Linear)
+		U_Linear = self.linear(U)
+		U_Linear = self.activation(U_Linear)
+		U_Linear = self.dropout(U_Linear)
+		S = H_Linear.bmm(U_Linear.transpose(2, 1))
 
-		HU = torch.mul(expanded_H, expanded_U) # (N, T, J, 4d)
 
-		cat_data = torch.cat([expanded_H, expanded_U, HU], 3) # (N, T, J, 6d)
 
-		S = self.similarity_layer(cat_data).view(-1, T, J) # (N, T, J, 1) => (N, T, J)
 
 		if direction:
 			S = S * identity
@@ -91,26 +107,106 @@ class BiDAF(nn.Module):
 		#Query aware context representation.
 
 		c2q = torch.bmm(last_dim_softmax(S, U_mask), U)
+		return c2q
 
 
 		#Context aware query representation
 		## compute ~h and expand to ~H
-		masked_similarity = replace_masked_values(S,U_mask.unsqueeze(1), -1e7)
-		b = masked_softmax(torch.max(masked_similarity, dim=-1)[0].squeeze(-1), H_mask)
+		# masked_similarity = replace_masked_values(S,U_mask.unsqueeze(1), -1e7)
+		# b = masked_softmax(torch.max(masked_similarity, dim=-1)[0].squeeze(-1), H_mask)
+        #
+		# ## (N, 1, 2d) = (N,1,T) * (N, T, 2d)
+		# q2c = torch.bmm(b.unsqueeze(1), H).squeeze(1)
+        #
+        #
+		# ## (N, 1, 2d) => (N, T, 2d)
+		# #tiled_q2c = q2c.repeat(1,T,1)
+		# tiled_q2c = q2c.unsqueeze(1).expand(batch_size, T, q2c.size(-1))
+        #
+		# ## G : concatenate H, ~U, H.~U and H.~H
+		# # (N,T,2d): (N,T,2d) : (N,T,2d) => (N,T,6d)
+		# #G = torch.cat((H, c2q, torch.mul(H,c2q), torch.mul(H, tiled_q2c)), dim=2)
+        #
+		# G = torch.cat([H,c2q,H * c2q,H*tiled_q2c],dim=-1)
+		# return G, c2q, q2c
 
-		## (N, 1, 2d) = (N,1,T) * (N, T, 2d)
-		q2c = torch.bmm(b.unsqueeze(1), H).squeeze(1)
+class LinearSeqAttn(nn.Module):
+	"""Self attention over a sequence:
+    * o_i = softmax(Wx_i) for x_i in X.
+    """
+	def __init__(self, input_size):
+		super(LinearSeqAttn, self).__init__()
+		self.linear = TimeDistributed(nn.Linear(input_size, 1))
+
+	def forward(self, x, x_mask):
+		"""
+        Args:
+            x: batch * len * hdim
+            x_mask: batch * len (1 for padding, 0 for true)
+        Output:
+            alpha: batch * len
+        """
+		scores = self.linear(x).squeeze(-1)
+		scores = masked_softmax(scores, x_mask)
+		return scores
+
+class BiLinearAttn(nn.Module):
+	def __init__(self, input_size, dropout=0.2):
+		super(BiLinearAttn, self).__init__()
+		self.input_size = input_size
+		self.linear = nn.Linear(input_size, input_size)
 
 
-		## (N, 1, 2d) => (N, T, 2d)
-		#tiled_q2c = q2c.repeat(1,T,1)
-		tiled_q2c = q2c.unsqueeze(1).expand(batch_size, T, q2c.size(-1))
+	## TODO: Add capability of sentence mask (scoring) for sentence selection model
+	def forward(self, U, H, U_mask): #H:context U: query
 
-		## G : concatenate H, ~U, H.~U and H.~H
-		# (N,T,2d): (N,T,2d) : (N,T,2d) => (N,T,6d)
-		#G = torch.cat((H, c2q, torch.mul(H,c2q), torch.mul(H, tiled_q2c)), dim=2)
+		wH = self.linear(H)
+		UwH = U.bmm(wH.unsqueeze(2)).squeeze(2)
+		scores = masked_softmax(UwH, U_mask)
+		return scores
 
-		G = torch.cat([H,c2q,H * c2q,H*tiled_q2c],dim=-1)
 
-		return G, c2q, q2c
 
+class TimeDistributed(torch.nn.Module):
+	"""
+    Given an input shaped like ``(batch_size, time_steps, [rest])`` and a ``Module`` that takes
+    inputs like ``(batch_size, [rest])``, ``TimeDistributed`` reshapes the input to be
+    ``(batch_size * time_steps, [rest])``, applies the contained ``Module``, then reshapes it back.
+    Note that while the above gives shapes with ``batch_size`` first, this ``Module`` also works if
+    ``batch_size`` is second - we always just combine the first two dimensions, then split them.
+    """
+	def __init__(self, module):
+		super(TimeDistributed, self).__init__()
+		self._module = module
+
+	def forward(self, *inputs):  # pylint: disable=arguments-differ
+		reshaped_inputs = []
+		for input_tensor in inputs:
+			input_size = input_tensor.size()
+			if len(input_size) <= 2:
+				raise RuntimeError("No dimension to distribute: " + str(input_size))
+
+			# Squash batch_size and time_steps into a single axis; result has shape
+			#  (batch_size * time_steps, input_size).
+			squashed_shape = [-1] + [x for x in input_size[2:]]
+			reshaped_inputs.append(input_tensor.contiguous().view(*squashed_shape))
+
+		reshaped_outputs = self._module(*reshaped_inputs)
+
+		# Now get the output back into the right shape.
+        # (batch_size, time_steps, [hidden_size])
+		new_shape = [input_size[0], input_size[1]] + [x for x in reshaped_outputs.size()[1:]]
+		outputs = reshaped_outputs.contiguous().view(*new_shape)
+
+		return outputs
+
+
+def weighted_avg(x, weights):
+    """Return a weighted average of x (a sequence of vectors).
+    Args:
+        x: batch * len * hdim
+        weights: batch * len, sum(dim = 1) = 1
+    Output:
+        x_avg: batch * hdim
+    """
+    return weights.unsqueeze(1).bmm(x).squeeze(1)
