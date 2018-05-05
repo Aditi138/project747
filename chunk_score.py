@@ -30,6 +30,14 @@ def evaluate(model, batches, articles, args):
     model.train(True)
     return accuracy
 
+def view_data(batch, articles):
+    article_id=batch["article"]
+    print(" ".join([loader.vocab.get_word(word_id) for word_id in batch["question"]]))
+    # print(" ".join([loader.vocab.get_word(word_id) for word_id in articles[article_id][batch["gold"]]]))
+    for paragraph_id in batch["paragraphs"]:
+        print(" ".join([loader.vocab.get_word(word_id) for word_id in articles[article_id][paragraph_id]]))
+    
+
 def create_batches(data, articles):
 
     batches=[]    

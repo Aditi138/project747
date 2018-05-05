@@ -29,14 +29,15 @@ class ChunkScore(nn.Module):
 class EncoderBlock(nn.Module):
     def __init__(self, embed_size, hidden_size, kernel_size):
         super(EncoderBlock, self).__init__()
-        self.convolution_layer=nn.Conv1d(embed_size, hidden_size, kernel_size, padding=(kernel_size-1)/2)
+        self.convolution_layer1=nn.Conv1d(embed_size, hidden_size, kernel_size, padding=(kernel_size-1)/2)
+        self.convolution_layer2=nn.Conv1d(hidden_size, hidden_size, kernel_size, padding=(kernel_size-1)/2)
         self.activation = nn.ReLU()
 
     def forward(self, input):
         input = input.transpose(1, 2)
-        input = self.convolution_layer(input)
+        input = self.convolution_layer1(input)
         input = self.activation(input)
-        input = self.convolution_layer(input)
+        input = self.convolution_layer2(input)
         input = self.activation(input)
         input1 = F.max_pool1d(input, kernel_size=input.size()[2])
         input2 = F.avg_pool1d(input, kernel_size=input.size()[2])
