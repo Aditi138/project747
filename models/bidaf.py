@@ -145,8 +145,7 @@ class LinearSeqAttn(nn.Module):
             alpha: batch * len
         """
 		scores = self.linear(x).squeeze(-1)
-		scores  = torch.nn.functional.softmax(scores, dim=-1)
-		#scores = masked_softmax(scores, x_mask)
+		scores = masked_softmax(scores, x_mask)
 		return scores
 
 class BiLinearAttn(nn.Module):

@@ -25,8 +25,8 @@ class TriAttn(nn.Module):
 		self.modeling_layer_a = RecurrentContext(modeling_layer_inputdim * 3, hidden_size)
 
 		self.self_attn_q = LinearSeqAttn(2 * hidden_size)
-		#self.self_attn_c = BiLinearAttn(2 * hidden_size,2 * hidden_size)
-		self.self_attn_c =  LinearSeqAttn(2 * hidden_size)
+		self.self_attn_c = BiLinearAttn(2 * hidden_size,2 * hidden_size)
+		#self.self_attn_c =  LinearSeqAttn(2 * hidden_size)
 		self.self_attn_a = LinearSeqAttn(2 * hidden_size)
 
 
@@ -89,13 +89,9 @@ class TriAttn(nn.Module):
 		answer_self_attention = self.self_attn_a(answer_modeled, batch_candidate_masks_sorted)
 		a_hidden = weighted_avg(answer_modeled,answer_self_attention )
 
-		#context_self_attention = self.self_attn_c(context_modeled, query_encoded_hidden, batch_context_mask)
-		context_self_attention = self.self_attn_c(context_modeled, batch_context_mask)
+		context_self_attention = self.self_attn_c(context_modeled, query_encoded_hidden, batch_context_mask)
+		#context_self_attention = self.self_attn_c(context_modeled, batch_context_mask)
 		c_hidden = weighted_avg(context_modeled, context_self_attention)
-		
-		#q_a = q_hidden * c_hidden
-		#answer_scores = torch.cat([q_a.expand(batch_size, q_a.size(1)), a_hidden], dim=1)
-		#answer_scores = self.output_layer(answer_scores)
 
 		logits = torch.sum(self.query_answer_bilinear(q_hidden) * a_hidden, dim=-1)
 		logits += torch.sum(self.answer_context_bilinear(c_hidden) * a_hidden, dim=-1)
@@ -158,18 +154,13 @@ class TriAttn(nn.Module):
 		answer_self_attention = self.self_attn_a(answer_modeled, batch_candidate_masks_sorted)
 		a_hidden = weighted_avg(answer_modeled, answer_self_attention)
 
-		# context_self_attention = self.self_attn_c(context_modeled, query_encoded_hidden, batch_context_mask)
-		context_self_attention = self.self_attn_c(context_modeled, batch_context_mask)
+		context_self_attention = self.self_attn_c(context_modeled, query_encoded_hidden, batch_context_mask)
+		# context_self_attention = self.self_attn_c(context_modeled, batch_context_mask)
 		c_hidden = weighted_avg(context_modeled, context_self_attention)
-
-		#q_a = q_hidden * c_hidden
-		#answer_scores = torch.cat([q_a.expand(batch_size, q_a.size(1)), a_hidden], dim=1)
-		#answer_scores = self.output_layer(answer_scores)
 
 		logits = torch.sum(self.query_answer_bilinear(q_hidden) * a_hidden, dim=-1)
 		logits += torch.sum(self.answer_context_bilinear(c_hidden) * a_hidden, dim=-1)
 		answer_scores = F.sigmoid(logits)
-
 
 		## unsort the answer scores
 		answer_scores = torch.index_select(answer_scores, 0, batch_candidate_unsort)
