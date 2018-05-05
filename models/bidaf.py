@@ -63,8 +63,8 @@ class BiDAF(nn.Module):
 		self.dropout  = nn.Dropout(dropout)
 
 
-		#self.similarity_layer = nn.Linear(3*input_size, 1)
-		#self.similarity_layer.bias.data.fill_(1)
+		self.similarity_layer = nn.Linear(3*input_size, 1)
+		self.similarity_layer.bias.data.fill_(1)
 
 
 
@@ -80,12 +80,13 @@ class BiDAF(nn.Module):
 		## shape of ctx_C: (N, T, 2d) and ctx_Q : # (N, J, 2d)
 		## make both matrices of shape (N, T, J, 2d) to compute S
 
-		#expanded_U = U.unsqueeze(1).expand((U.size(0),H.size(1),U.size(1),U.size(2))) # (N, T, J, 2d)
-		#expanded_H = H.unsqueeze(2).expand((H.size(0), H.size(1), U.size(1), H.size(2)))  # (N, T, J, 2d)
-		#HU = torch.mul(expanded_H, expanded_U) # (N, T, J, 4d)
-		# cat_data = torch.cat([expanded_H, expanded_U, HU], 3) # (N, T, J, 6d)
-		# S = self.similarity_layer(cat_data).q(-1, T, J) # (N, T, J, 1) => (N, T, J)
+		expanded_U = U.unsqueeze(1).expand((U.size(0),H.size(1),U.size(1),U.size(2))) # (N, T, J, 2d)
+		expanded_H = H.unsqueeze(2).expand((H.size(0), H.size(1), U.size(1), H.size(2)))  # (N, T, J, 2d)
+		HU = torch.mul(expanded_H, expanded_U) # (N, T, J, 4d)
+		cat_data = torch.cat([expanded_H, expanded_U, HU], 3) # (N, T, J, 6d)
+		S = self.similarity_layer(cat_data).view(-1, T, J) # (N, T, J, 1) => (N, T, J)
 
+		'''
 		H_Linear = self.linear(H)
 		H_Linear = self.activation(H_Linear)
 		H_Linear = self.dropout(H_Linear)
@@ -93,16 +94,13 @@ class BiDAF(nn.Module):
 		U_Linear = self.activation(U_Linear)
 		U_Linear = self.dropout(U_Linear)
 		S = H_Linear.bmm(U_Linear.transpose(2, 1))
+		'''
 
 
 
 
 		if direction:
 			S = S * identity
-		## compute ~U (context 2 query)
-		## softmax along J's dimension
-		## (N, T, 2d) = (N, T, J) X (N, J, 2d)
-
 
 		#Query aware context representation.
 
@@ -147,7 +145,8 @@ class LinearSeqAttn(nn.Module):
             alpha: batch * len
         """
 		scores = self.linear(x).squeeze(-1)
-		scores = masked_softmax(scores, x_mask)
+		scores  = torch.nn.functional.softmax(scores, dim=-1)
+		#scores = masked_softmax(scores, x_mask)
 		return scores
 
 class BiLinearAttn(nn.Module):

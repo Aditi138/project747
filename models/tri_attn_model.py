@@ -30,6 +30,8 @@ class TriAttn(nn.Module):
 
 
 		## output layer
+		output_layer_inputdim = 4 * hidden_size
+		self.output_layer = OutputLayer(output_layer_inputdim, hidden_size)
 		self.answer_context_bilinear = nn.Linear(2 * hidden_size, 2 * hidden_size)
 		self.query_answer_bilinear = nn.Linear(2 * hidden_size, 2 * hidden_size)
 		self.loss = torch.nn.CrossEntropyLoss()
@@ -58,17 +60,18 @@ class TriAttn(nn.Module):
 		batch_size = batch_candidates_encoded.size(0)
 
 		query_aware_context_encoded = self.attention_flow_c2q(query_encoded, context_encoded,batch_query_mask,batch_context_mask)
-		query_aware_answer_encoded = self.attention_flow_a2q(query_encoded.expand(batch_size, query_encoded.size(1), query_encoded.size(2)), batch_candidates_encoded,
-															 batch_query_mask.expand(batch_size, batch_query_mask.size(1)),batch_candidate_masks_sorted)
-		context_aware_answer_encoded = self.attention_flow_a2c(context_encoded.expand(batch_size, context_encoded.size(1), context_encoded.size(2)), batch_candidates_encoded,
-															   batch_context_mask.expand(batch_size, batch_context_mask.size(1)),batch_candidate_masks_sorted)
+		#query_aware_answer_encoded = self.attention_flow_a2q(query_encoded.expand(batch_size, query_encoded.size(1), query_encoded.size(2)), batch_candidates_encoded,
+		#													 batch_query_mask.expand(batch_size, batch_query_mask.size(1)),batch_candidate_masks_sorted)
+		#context_aware_answer_encoded = self.attention_flow_a2c(context_encoded.expand(batch_size, context_encoded.size(1), context_encoded.size(2)), batch_candidates_encoded,
+		#													   batch_context_mask.expand(batch_size, batch_context_mask.size(1)),batch_candidate_masks_sorted)
 
 
 		context_input_modelling = torch.cat([query_aware_context_encoded,context_encoded], dim=-1)
 		context_modeled,_ = self.modeling_layer_c(context_input_modelling, batch_context_length)    #(N, |C|, 2d)
 
-		answer_input_modelling = torch.cat([query_aware_answer_encoded, context_aware_answer_encoded,batch_candidates_encoded ], dim=-1)
-		answer_modeled, _ = self.modeling_layer_a(answer_input_modelling, batch_candidate_lengths_sorted) #(N, |A|, 2d)
+		answer_modeled = batch_candidates_encoded
+		#answer_input_modelling = torch.cat([query_aware_answer_encoded, context_aware_answer_encoded,batch_candidates_encoded ], dim=-1)
+		#answer_modeled, _ = self.modeling_layer_a(batch_candidates_encoded, batch_candidate_lengths_sorted) #(N, |A|, 2d)
 
 
 		query_self_attention = self.self_attn_q(query_encoded,batch_query_mask)
@@ -77,19 +80,22 @@ class TriAttn(nn.Module):
 		answer_self_attention = self.self_attn_a(answer_modeled, batch_candidate_masks_sorted)
 		a_hidden = weighted_avg(answer_modeled,answer_self_attention )
 
-		context_self_attention = self.self_attn_c(context_modeled, query_encoded_hidden, batch_context_mask)
+		#context_self_attention = self.self_attn_c(context_modeled, query_encoded_hidden, batch_context_mask)
+		context_self_attention = self.self_attn_a(context_modeled, batch_context_mask)
 		c_hidden = weighted_avg(context_modeled, context_self_attention)
 		
+		#q_a = q_hidden * c_hidden
+		answer_scores = torch.cat([q_hidden.expand(batch_size, q_hidden.size(1)), a_hidden], dim=1)
+		answer_scores = self.output_layer(answer_scores)
 
-
-		logits = torch.sum(self.query_answer_bilinear(q_hidden) * a_hidden, dim=-1)
-		logits += torch.sum(self.answer_context_bilinear(c_hidden) * a_hidden, dim=-1)
-		answer_scores = F.sigmoid(logits)
+		# logits = torch.sum(self.query_answer_bilinear(q_hidden) * a_hidden, dim=-1)
+		# logits += torch.sum(self.answer_context_bilinear(c_hidden) * a_hidden, dim=-1)
+		# answer_scores = F.softmax(logits,dim=-1)
 
 
 		## unsort the answer scores
 		answer_scores = torch.index_select(answer_scores, 0, batch_candidate_unsort)
-		loss = self.loss(answer_scores.unsqueeze(0), gold_index)
+		loss = self.loss(answer_scores.transpose(0,1), gold_index)
 		sorted, indices = torch.sort(answer_modeled, dim=0, descending=True)
 		return loss, indices
 
@@ -115,35 +121,46 @@ class TriAttn(nn.Module):
 		batch_size = batch_candidates_encoded.size(0)
 
 		query_aware_context_encoded = self.attention_flow_c2q(query_encoded, context_encoded, batch_query_mask,
-															  batch_context_mask)
+
+																					  batch_context_mask)
+		'''
 		query_aware_answer_encoded = self.attention_flow_a2q(
-			query_encoded.expand(batch_size, query_encoded.size(1), query_encoded.size(2)), batch_candidates_encoded,
+				query_encoded.expand(batch_size, query_encoded.size(1), query_encoded.size(2)), batch_candidates_encoded,
 			batch_query_mask.expand(batch_size, batch_query_mask.size(1)), batch_candidate_masks_sorted)
 		context_aware_answer_encoded = self.attention_flow_a2c(
 			context_encoded.expand(batch_size, context_encoded.size(1), context_encoded.size(2)),
 			batch_candidates_encoded,
 			batch_context_mask.expand(batch_size, batch_context_mask.size(1)), batch_candidate_masks_sorted)
+			'''
+
 
 		context_input_modelling = torch.cat([query_aware_context_encoded, context_encoded], dim=-1)
 		context_modeled, _ = self.modeling_layer_c(context_input_modelling, batch_context_length)  # (N, |C|, 2d)
 
+		answer_modeled = batch_candidates_encoded
+		'''
 		answer_input_modelling = torch.cat(
 			[query_aware_answer_encoded, context_aware_answer_encoded, batch_candidates_encoded], dim=-1)
 		answer_modeled, _ = self.modeling_layer_a(answer_input_modelling,
 												  batch_candidate_lengths_sorted)  # (N, |A|, 2d)
-
+		'''
 		query_self_attention = self.self_attn_q(query_encoded, batch_query_mask)
 		q_hidden = weighted_avg(query_encoded, query_self_attention)
 
 		answer_self_attention = self.self_attn_a(answer_modeled, batch_candidate_masks_sorted)
 		a_hidden = weighted_avg(answer_modeled, answer_self_attention)
 
-		context_self_attention = self.self_attn_c(context_modeled, query_encoded_hidden, batch_context_mask)
+		context_self_attention = self.self_attn_a(context_modeled, batch_context_mask)
+		#context_self_attention = self.self_attn_c(context_modeled, query_encoded_hidden, batch_context_mask)
 		c_hidden = weighted_avg(context_modeled, context_self_attention)
 
-		logits = torch.sum(self.query_answer_bilinear(q_hidden) * a_hidden, dim=-1)
-		logits += torch.sum(self.answer_context_bilinear(c_hidden) * a_hidden, dim=-1)
-		answer_scores = F.sigmoid(logits)
+		q_a = q_hidden * c_hidden
+		answer_scores = torch.cat([q_hidden.expand(batch_size, q_hidden.size(1)), a_hidden], dim=1)
+		answer_scores = self.output_layer(answer_scores)
+
+		# logits = torch.sum(self.query_answer_bilinear(q_hidden) * a_hidden, dim=-1)
+		# logits += torch.sum(self.answer_context_bilinear(c_hidden) * a_hidden, dim=-1)
+		# answer_scores = F.softmax(logits,dim=-1)
 
 		## unsort the answer scores
 		answer_scores = torch.index_select(answer_scores, 0, batch_candidate_unsort)
@@ -159,10 +176,12 @@ class OutputLayer(nn.Module):
 		self.mlp = nn.Sequential(
 			nn.Linear(input_size, hidden_size),
 			nn.ReLU(),
+			nn.Dropout(0.2),
 			nn.Linear(hidden_size, hidden_size),
 			nn.ReLU(),
+			nn.Dropout(0.2),
 			nn.Linear(hidden_size, 1),
-			nn.Sigmoid(),
+			# nn.Sigmoid(), ## since loss is being replaced by cross entropy the exoected input into loss function
 		)
 
 	def forward(self, batch):
