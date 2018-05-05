@@ -36,7 +36,11 @@ class EncoderBlock(nn.Module):
         input = input.transpose(1, 2)
         input = self.convolution_layer(input)
         input = self.activation(input)
-        input = F.max_pool1d(input, kernel_size=input.size()[2])
+        input = self.convolution_layer(input)
+        input = self.activation(input)
+        input1 = F.max_pool1d(input, kernel_size=input.size()[2])
+        input2 = F.avg_pool1d(input, kernel_size=input.size()[2])
+        input = torch.cat((input1, input2),  1)
         input = input.transpose(1, 2)
         return input
 
@@ -44,10 +48,11 @@ class EncoderBlock(nn.Module):
 class MLP(nn.Module):
     def __init__(self, hidden_size):
         super(MLP, self).__init__()
-        self.linear1 = nn.Linear(2 * hidden_size, hidden_size)
+        self.linear1 = nn.Linear(4 * hidden_size, 4 * hidden_size)
         self.activation = nn.ReLU()
-        self.linear2 = nn.Linear(hidden_size, hidden_size)
-        self.linear3 = nn.Linear(hidden_size, 1)
+        self.linear2 = nn.Linear(4 * hidden_size, 4 * hidden_size)
+        self.activation = nn.ReLU()
+        self.linear3 = nn.Linear(4 * hidden_size, 1)
 
     def forward(self, input):
         input = self.linear1(input)
