@@ -43,7 +43,8 @@ def create_batches(data, articles):
         batch["article"] = article_id
         paragraphs = set()
         paragraphs.add(point.gold_paragraph_id)
-        paragraphs = paragraphs | set(np.random.choice(len(articles[article_id]), size=min(2, len(articles[article_id])), replace=False))
+        sample_paragraphs=[i for i in range(len(articles[article_id])) if i!=point.gold_paragraph_id]
+        paragraphs = paragraphs | set(np.random.choice(sample_paragraphs, size=min(args.competing_paragraphs, len(articles[article_id])), replace=False))
         batch["paragraphs"] = list(paragraphs)
         # batch["paragraphs"] = [i for i in range(len(articles[article_id]))]
         batch["max_length"] = np.max([len(articles[article_id][paragraph_id]) for paragraph_id in batch["paragraphs"]])
@@ -119,6 +120,7 @@ if __name__ == "__main__":
 
 
     # Model parameters
+    parser.add_argument("--competing_paragraphs", type=int, default=1, help="number of paragraphs to consider in parallel to the gold paragraph")
     parser.add_argument("--hidden_size", type=int, default=128)
     parser.add_argument("--embed_size", type=int, default=128)
     parser.add_argument("--cuda", action="store_true", default=True)
