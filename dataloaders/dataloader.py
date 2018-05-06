@@ -788,9 +788,10 @@ class DataLoader():
 
             length = len(chunk_storage)
             ## append queries to the end of the vector
-            for reference in true_candidates:
+            for reference,question in zip(true_candidates, document.qaps):
                 chunk_storage.append(reference)
-                concat_chunk_storage.append(" ".join(reference))
+                concat_chunk_storage.append(" ".join(reference) +" "  +  " ".join(question.question_tokens))
+
 
             vectorizer = CountVectorizer(preprocessor=self.lemmatizer.lemmatize, stop_words=self.stop_words,
                                          ngram_range=(1, 2))

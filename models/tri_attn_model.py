@@ -47,7 +47,7 @@ class TriAttn(nn.Module):
 
 		## Encode query and context
 		# (N, J, 2d)
-		query_encoded, query_encoded_hidden= self.contextual_embedding_layer(query_embedded.unsqueeze(0), batch_query_length)
+		query_encoded, (query_encoded_hidden,_)= self.contextual_embedding_layer(query_embedded.unsqueeze(0), batch_query_length)
 		query_encoded_hidden = torch.cat([query_encoded_hidden[-2], query_encoded_hidden[-1]], dim =1)
 		query_encoded = self.dropout(query_encoded)
 		# (N, T, 2d)
@@ -115,7 +115,7 @@ class TriAttn(nn.Module):
 				):
 		## Encode query and context
 		# (N, J, 2d)
-		query_encoded, query_encoded_hidden = self.contextual_embedding_layer(query_embedded.unsqueeze(0),
+		query_encoded, (query_encoded_hidden,_) = self.contextual_embedding_layer(query_embedded.unsqueeze(0),
 																			  batch_query_length)
 		query_encoded_hidden = torch.cat([query_encoded_hidden[-2], query_encoded_hidden[-1]], dim=1)
 		query_encoded = self.dropout(query_encoded)
@@ -197,7 +197,7 @@ class RecurrentContext(nn.Module):
 	def __init__(self, input_size, hidden_size, num_layers=1):
 		# format of input output
 		super(RecurrentContext, self).__init__()
-		self.lstm_layer = nn.GRU(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers,
+		self.lstm_layer = nn.LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=num_layers,
 								  bidirectional=True, batch_first=True)
 
 	def forward(self, batch, batch_length):
