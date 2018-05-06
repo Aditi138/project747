@@ -71,7 +71,7 @@ def train_epochs(model, train_data,train_articles,valid_data,valid_articles, arg
     clip_threshold = args.clip_threshold
     eval_interval = args.eval_interval
 
-    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = optim.SGD(model.parameters(), lr=args.learning_rate)
 
     train_loss = 0
     train_accuracy = 0
@@ -134,7 +134,7 @@ if __name__ == "__main__":
     parser.add_argument("--cuda", action="store_true", default=True)
     parser.add_argument("--batch_length", type=int, default=10)
     parser.add_argument("--eval_interval", type=int, default=200)
-    parser.add_argument("--learning_rate", type=float, default=0.001)
+    parser.add_argument("--learning_rate", type=float, default=0.0001)
     parser.add_argument("--dropout", type=float, default=0.2)
     parser.add_argument("--num_epochs", type=int, default=50)
     parser.add_argument("--clip_threshold", type=int, default=10)
