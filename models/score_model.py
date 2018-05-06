@@ -13,11 +13,11 @@ class ChunkScore(nn.Module):
         self.modeling_layer = MLP(args.hidden_size)
         self.loss_function=nn.CrossEntropyLoss()
         
-    def forward(self, chunks, question, gold_index):
+    def forward(self, chunks, question, gold_index, mask):
 
         chunks_embedded = self.embedding_layer(chunks)
         question_embedded=self.embedding_layer(question)
-        chunks_encoded = self.chunk_encoder(chunks_embedded)
+        chunks_encoded = self.chunk_encoder(chunks_embedded, mask)
         question_encoded=self.question_encoder(question_embedded)
         question_expanded=question_encoded.expand(chunks_encoded.size())
         combined_representation=torch.cat((chunks_encoded, question_expanded), 2).squeeze(dim=1)
@@ -33,12 +33,14 @@ class EncoderBlock(nn.Module):
         self.convolution_layer2=nn.Conv1d(hidden_size, hidden_size, kernel_size, padding=(kernel_size-1)/2)
         self.activation = nn.ReLU()
 
-    def forward(self, input):
+    def forward(self, input, mask=None):
         input = input.transpose(1, 2)
         input = self.convolution_layer1(input)
         input = self.activation(input)
         input = self.convolution_layer2(input)
         input = self.activation(input)
+        # if mask is not None:
+        #     input=input*mask.unsqueeze(1)
         input1 = F.max_pool1d(input, kernel_size=input.size()[2])
         input2 = F.avg_pool1d(input, kernel_size=input.size()[2])
         input = torch.cat((input1, input2),  1)

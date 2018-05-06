@@ -24,7 +24,8 @@ def evaluate(model, batches, articles, args):
         question = variable(torch.LongTensor(np.array(batch["question"]))).unsqueeze(0)
         gold_index = batch["paragraphs"].index(batch["gold"])
         gold_variable = variable(torch.LongTensor([gold_index]))
-        loss, scores = model(chunks, question, gold_variable)
+        mask = variable(torch.FloatTensor(batch["mask"]))
+        loss, scores = model(chunks, question, gold_variable, mask)
         if np.argmax(scores) == gold_index:
             accuracy+=(1.0/len(batches))
     model.train(True)
@@ -55,7 +56,9 @@ def create_batches(data, articles):
         paragraphs = paragraphs | set(np.random.choice(sample_paragraphs, size=min(args.competing_paragraphs, len(articles[article_id])), replace=False))
         batch["paragraphs"] = list(paragraphs)
         # batch["paragraphs"] = [i for i in range(len(articles[article_id]))]
-        batch["max_length"] = np.max([len(articles[article_id][paragraph_id]) for paragraph_id in batch["paragraphs"]])
+        article_lengths=[len(articles[article_id][paragraph_id]) for paragraph_id in batch["paragraphs"]]
+        batch["max_length"] = np.max(article_lengths)
+        batch["mask"] =  np.array([[int(i < article_lengths[j]) for i in range(batch["max_length"])] for j in range(len(paragraphs))])
         batch["gold"] = point.gold_paragraph_id
         batches.append(batch)
 
@@ -90,7 +93,8 @@ def train_epochs(model, train_data,train_articles,valid_data,valid_articles, arg
             question = variable(torch.LongTensor(np.array(batch["question"]))).unsqueeze(0)
             gold_index = batch["paragraphs"].index(batch["gold"])
             gold_variable = variable(torch.LongTensor([gold_index]))
-            loss, scores = model(chunks, question, gold_variable)
+            mask = variable(torch.FloatTensor(batch["mask"]))
+            loss, scores = model(chunks, question, gold_variable, mask)
             if np.argmax(scores) == gold_index:
                 train_accuracy+=(1.0/eval_interval)
             train_loss += loss.data.cpu().numpy()[0]/eval_interval
