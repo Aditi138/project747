@@ -96,6 +96,7 @@ class TriAttn(nn.Module):
 		logits_qa = self.query_answer_bilinear(q_hidden) * a_hidden    #(N, 2d)
 		logits_ca = self.answer_context_bilinear(c_hidden) * a_hidden  # (N, 2d)
 		answer_scores = self.output_layer(torch.cat([logits_qa,logits_ca],dim=1))
+		
 		# logits = torch.sum(self.query_answer_bilinear(q_hidden) * a_hidden, dim=-1)
 		# logits += torch.sum(self.answer_context_bilinear(c_hidden) * a_hidden, dim=-1)
 		#answer_scores = F.sigmoid(logits)

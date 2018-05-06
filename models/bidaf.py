@@ -60,7 +60,7 @@ class BiDAF(nn.Module):
 		self.linear.bias.data.fill_(1)
 
 		self.activation = nn.ReLU()
-		self.dropout  = nn.Dropout(dropout)
+
 
 
 		self.similarity_layer = nn.Linear(3*input_size, 1)
@@ -79,7 +79,7 @@ class BiDAF(nn.Module):
 		## compute S from H and U
 		## shape of ctx_C: (N, T, 2d) and ctx_Q : # (N, J, 2d)
 		## make both matrices of shape (N, T, J, 2d) to compute S
-
+		'''
 		expanded_U = U.unsqueeze(1).expand((U.size(0),H.size(1),U.size(1),U.size(2))) # (N, T, J, 2d)
 		expanded_H = H.unsqueeze(2).expand((H.size(0), H.size(1), U.size(1), H.size(2)))  # (N, T, J, 2d)
 		HU = torch.mul(expanded_H, expanded_U) # (N, T, J, 4d)
@@ -89,12 +89,12 @@ class BiDAF(nn.Module):
 		'''
 		H_Linear = self.linear(H)
 		H_Linear = self.activation(H_Linear)
-		H_Linear = self.dropout(H_Linear)
+
 		U_Linear = self.linear(U)
 		U_Linear = self.activation(U_Linear)
-		U_Linear = self.dropout(U_Linear)
+		
 		S = H_Linear.bmm(U_Linear.transpose(2, 1))
-		'''
+
 
 
 
