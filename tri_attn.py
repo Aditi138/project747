@@ -49,7 +49,8 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 		batch_reduced_context_indices = batch['chunk_indices']
 		for index, query_embed in enumerate(batch['q_embed']):
 
-			fout.write("\nQ: {0}".format(" ".join(batch_q_tokens[index])))
+			if fout is not None:
+				fout.write("\nQ: {0}".format(" ".join(batch_q_tokens[index])))
 			# query tokens
 			batch_query = variable(torch.FloatTensor(query_embed), volatile=True)
 			batch_query_length = np.array([batch_query.size(0)])
@@ -104,9 +105,10 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 			mrr_value.append(1.0 / (index))
 
 			candidates = candidates_per_docid[doc_id]
-			fout.write("\nRank: {0} / {1}   Gold: {2}\n".format(index, len(candidates)," ".join(candidates[indices[position_gold_sorted].numpy()[0]])))
-			for cand in range(5):
-				fout.write("C: {0}\n".format(" ".join(candidates[indices[cand].numpy()[0]])))
+			if fout is not None:
+				fout.write("\nRank: {0} / {1}   Gold: {2}\n".format(index, len(candidates)," ".join(candidates[indices[position_gold_sorted].numpy()[0]])))
+				for cand in range(5):
+					fout.write("C: {0}\n".format(" ".join(candidates[indices[cand].numpy()[0]])))
 
 	mean_rr = np.mean(mrr_value)
 	print("MRR :{0}".format(mean_rr))
@@ -117,6 +119,7 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 def train_epochs(model, vocab):
 
 	fout = codecs.open(args.debug_file, "w", encoding='utf-8')
+	fout_test = codecs.open(args.debug_file+".test", "w", encoding='utf-8')
 	clip_threshold = args.clip_threshold
 	eval_interval = args.eval_interval
 
@@ -166,7 +169,7 @@ def train_epochs(model, vocab):
 							print("Early Stopping")
 							print("Testing started")
 							model = torch.load(args.model_path)
-							evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid, None)
+							evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid, fout_test)
 							exit(0)
 
 			batch = train_batches[iteration]
@@ -255,7 +258,7 @@ def train_epochs(model, vocab):
 
 	print("All epochs done")
 	model = torch.load(args.model_path)
-	evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid )
+	evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid, fout_test)
 
 def train_mrr(index, indices, batch_answer_indices):
 	if args.use_cuda:
