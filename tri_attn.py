@@ -301,7 +301,7 @@ if __name__ == "__main__":
 	parser.add_argument("--learning_rate", type=float, default=0.0001)
 	parser.add_argument("--dropout", type=float, default=0.2)
 	parser.add_argument("--num_epochs", type=int, default=10)
-	parser.add_argument("--clip_threshold", type=int, default=50)
+	parser.add_argument("--clip_threshold", type=int, default=10)
 	parser.add_argument("--num_layers", type=int, default=3)
 	parser.add_argument("--ner_dim", type=int, default=32)
 	parser.add_argument("--pos_dim", type=int, default=32)
