@@ -724,11 +724,12 @@ class DataLoader():
         candidates_embed_docid = {}
         candidate_per_docid = {}
         context_per_docid = {}
+        context_tokens_per_docid = {}
         for index, document in enumerate(documents):
             print(index)
             original_sentences = document.document_tokens
             chunk_length = 40
-            num_chunks = 5
+            num_chunks = 2
 
             ## each sentence should be fewer than 40 tokens long
             sentences = []
@@ -817,6 +818,7 @@ class DataLoader():
                 document_tokens += self.vocab.add_and_get_indices(sent)
                 raw_tokens += sent
             context_per_docid[document.id] = np.concatenate(document.document_embed)
+            context_tokens_per_docid[document.id] = raw_tokens
 
             candidate_per_doc_per_answer = []
             candidate_per_doc_per_answer_embed = []
@@ -845,7 +847,7 @@ class DataLoader():
                                    (query.question_tokens, query.query_embed, query.answer_indices,
                                     [], [], candidate_per_doc_per_answer, [], document.id, top_chunks[idx]))
 
-        return data_points, candidates_embed_docid, candidate_per_docid, context_per_docid
+        return data_points, candidates_embed_docid, candidate_per_docid, context_per_docid, context_tokens_per_docid
 
     def load_documents_elmo(self, documents, split=True):
         data_points = []

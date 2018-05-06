@@ -3,6 +3,7 @@ from torch import nn
 from torch.autograd import Variable
 import torch.nn.functional as F
 from bidaf import BiDAF, LinearSeqAttn,weighted_avg,BiLinearAttn
+import codecs
 
 class TriAttn(nn.Module):
 	def __init__(self, args, loader):
@@ -22,7 +23,7 @@ class TriAttn(nn.Module):
 		## modelling layer for question and context : this layer also converts the 8 dimensional input intp two dimensioanl output
 		modeling_layer_inputdim = 2 * hidden_size
 		self.modeling_layer_c = RecurrentContext(modeling_layer_inputdim * 2, hidden_size)
-		self.modeling_layer_a = RecurrentContext(modeling_layer_inputdim * 1, hidden_size)
+		self.modeling_layer_a = RecurrentContext(modeling_layer_inputdim * 3, hidden_size)
 
 		self.self_attn_q = LinearSeqAttn(2 * hidden_size)
 		self.self_attn_c = BiLinearAttn(2 * hidden_size,2 * hidden_size)
@@ -38,6 +39,7 @@ class TriAttn(nn.Module):
 		self.loss = torch.nn.CrossEntropyLoss()
 
 		self.dropout = torch.nn.Dropout(args.dropout)
+
 
 
 	def forward(self, query_embedded, batch_query_length,batch_query_mask,
@@ -64,13 +66,13 @@ class TriAttn(nn.Module):
 		batch_context_mask = batch_context_mask.unsqueeze(0)
 		batch_size = batch_candidates_encoded.size(0)
 
-		query_aware_context_encoded = self.attention_flow_c2q(query_encoded, context_encoded,batch_query_mask,batch_context_mask)
+		query_aware_context_encoded,_ = self.attention_flow_c2q(query_encoded, context_encoded,batch_query_mask,batch_context_mask)
 		query_aware_context_encoded = self.dropout(query_aware_context_encoded)
 
-		#query_aware_answer_encoded = self.attention_flow_a2q(query_encoded.expand(batch_size, query_encoded.size(1), query_encoded.size(2)), batch_candidates_encoded,
-		#														 batch_query_mask.expand(batch_size, batch_query_mask.size(1)),batch_candidate_masks_sorted)
-		#context_aware_answer_encoded = self.attention_flow_a2c(context_encoded.expand(batch_size, context_encoded.size(1), context_encoded.size(2)), batch_candidates_encoded,3
-		#													   batch_context_mask.expand(batch_size, batch_context_mask.size(1)),batch_candidate_masks_sorted)
+		query_aware_answer_encoded,_ = self.attention_flow_a2q(query_encoded.expand(batch_size, query_encoded.size(1), query_encoded.size(2)), batch_candidates_encoded,
+																 batch_query_mask.expand(batch_size, batch_query_mask.size(1)),batch_candidate_masks_sorted)
+		context_aware_answer_encoded,_ = self.attention_flow_a2c(context_encoded.expand(batch_size, context_encoded.size(1), context_encoded.size(2)), batch_candidates_encoded,
+															   batch_context_mask.expand(batch_size, batch_context_mask.size(1)),batch_candidate_masks_sorted)
 
 
 		context_input_modelling = torch.cat([query_aware_context_encoded,context_encoded], dim=-1)
@@ -78,7 +80,7 @@ class TriAttn(nn.Module):
 		context_modeled = self.dropout(context_modeled)
 
 		#answer_modeled = batch_candidates_encoded
-		answer_input_modelling = torch.cat([batch_candidates_encoded ], dim=-1)
+		answer_input_modelling = torch.cat([query_aware_answer_encoded,context_aware_answer_encoded,batch_candidates_encoded ], dim=-1)
 		answer_modeled, _ = self.modeling_layer_a(answer_input_modelling, batch_candidate_lengths_sorted) #(N, |A|, 2d)
 
 
@@ -133,14 +135,14 @@ class TriAttn(nn.Module):
 		batch_context_mask = batch_context_mask.unsqueeze(0)
 		batch_size = batch_candidates_encoded.size(0)
 
-		query_aware_context_encoded = self.attention_flow_c2q(query_encoded, context_encoded, batch_query_mask,
+		query_aware_context_encoded,c2q_attention_matrix = self.attention_flow_c2q(query_encoded, context_encoded, batch_query_mask,
 															  batch_context_mask)
 		query_aware_context_encoded = self.dropout(query_aware_context_encoded)
 
-		#query_aware_answer_encoded = self.attention_flow_a2q(query_encoded.expand(batch_size, query_encoded.size(1), query_encoded.size(2)), batch_candidates_encoded,
-		#													 batch_query_mask.expand(batch_size, batch_query_mask.size(1)),batch_candidate_masks_sorted)
-		#context_aware_answer_encoded = self.attention_flow_a2c(context_encoded.expand(batch_size, context_encoded.size(1), context_encoded.size(2)), batch_candidates_encoded,
-		#													   batch_context_mask.expand(batch_size, batch_context_mask.size(1)),batch_candidate_masks_sorted)
+		query_aware_answer_encoded,_ = self.attention_flow_a2q(query_encoded.expand(batch_size, query_encoded.size(1), query_encoded.size(2)), batch_candidates_encoded,
+															 batch_query_mask.expand(batch_size, batch_query_mask.size(1)),batch_candidate_masks_sorted)
+		context_aware_answer_encoded,_ = self.attention_flow_a2c(context_encoded.expand(batch_size, context_encoded.size(1), context_encoded.size(2)), batch_candidates_encoded,
+															   batch_context_mask.expand(batch_size, batch_context_mask.size(1)),batch_candidate_masks_sorted)
 
 
 		context_input_modelling = torch.cat([query_aware_context_encoded, context_encoded], dim=-1)
@@ -148,7 +150,7 @@ class TriAttn(nn.Module):
 		context_modeled = self.dropout(context_modeled)
 
 		#answer_modeled = batch_candidates_encoded
-		answer_input_modelling = torch.cat([batch_candidates_encoded ], dim=-1)
+		answer_input_modelling = torch.cat([query_aware_answer_encoded,context_aware_answer_encoded,batch_candidates_encoded ], dim=-1)
 		answer_modeled, _ = self.modeling_layer_a(answer_input_modelling, batch_candidate_lengths_sorted) #(N, |A|, 2d)
 
 
@@ -173,7 +175,7 @@ class TriAttn(nn.Module):
 		## unsort the answer scores
 		answer_scores = torch.index_select(answer_scores, 0, batch_candidate_unsort)
 		sorted, indices = torch.sort(answer_scores, dim=0, descending=True)
-		return indices
+		return indices,c2q_attention_matrix,sorted
 
 
 class OutputLayer(nn.Module):
