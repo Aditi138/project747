@@ -704,7 +704,7 @@ class DataLoader():
                 query.ner_tokens = self.vocab.add_and_get_indices_NER(query.ner_tokens)
                 query.pos_tokens = self.vocab.add_and_get_indices_POS(query.pos_tokens)
                 candidate_per_doc_per_answer_ner[query.answer_indices[0] / 2] = self.vocab.add_and_get_indices_NER(
-                    candidate_per_doc_per_answer_ner[query.answer_indices[0] / 2])
+                   candidate_per_doc_per_answer_ner[query.answer_indices[0] / 2])
                 candidate_per_doc_per_answer_pos[query.answer_indices[0] / 2] = self.vocab.add_and_get_indices_POS(
                     candidate_per_doc_per_answer_pos[query.answer_indices[0] / 2])
 
@@ -728,7 +728,7 @@ class DataLoader():
             print(index)
             original_sentences = document.document_tokens
             chunk_length = 40
-            num_chunks = 10
+            num_chunks = 5
 
             ## each sentence should be fewer than 40 tokens long
             sentences = []
@@ -826,9 +826,9 @@ class DataLoader():
                 i += 2
 
             for query in document.qaps:
-                query.question_tokens = self.vocab.add_and_get_indices(query.question_tokens)
-                candidate_per_doc_per_answer[query.answer_indices[0] / 2] = self.vocab.add_and_get_indices(
-                    candidate_per_doc_per_answer[query.answer_indices[0] / 2])
+                query.question_tokens = query.question_tokens
+                #candidate_per_doc_per_answer[query.answer_indices[0] / 2] = self.vocab.add_and_get_indices(
+                 #   candidate_per_doc_per_answer[query.answer_indices[0] / 2])
 
             candidate_answer_lengths = [len(answer) for answer in candidate_per_doc_per_answer]
             max_candidate_length = max(candidate_answer_lengths)
@@ -836,6 +836,7 @@ class DataLoader():
                 [pad_seq_elmo(answer, max_candidate_length) for answer in candidate_per_doc_per_answer_embed])
 
             candidates_embed_docid[document.id] = candidate_padded_answers_embed
+            candidate_per_docid[document.id] = candidate_per_doc_per_answer
 
             for idx, query in enumerate(document.qaps):
                 query.answer_indices[0] = query.answer_indices[0] / 2
@@ -843,7 +844,7 @@ class DataLoader():
                                    (query.question_tokens, query.query_embed, query.answer_indices,
                                     [], [], candidate_per_doc_per_answer, [], document.id, top_chunks[idx]))
 
-        return data_points, candidates_embed_docid, context_per_docid
+        return data_points, candidates_embed_docid, candidate_per_docid, context_per_docid
 
     def load_documents_elmo(self, documents, split=True):
         data_points = []

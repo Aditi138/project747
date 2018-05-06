@@ -346,17 +346,12 @@ if __name__ == "__main__":
 		with open(args.test_path, "r") as fin:
 			te_documents = pickle.load(fin)
 		print("Loading training documents")
-		train_documents, train_candidates_embed_docid, train_context_per_docid = loader.load_documents_split_sentences(t_documents)
+		train_documents, train_candidates_embed_docid, train_candidate_per_docid,train_context_per_docid = loader.load_documents_split_sentences(t_documents)
 		print("Loading validation documents")
-		valid_documents, valid_candidates_embed_docid, valid_context_per_docid = loader.load_documents_split_sentences(v_documents)
+		valid_documents, valid_candidates_embed_docid, valid_candidate_per_docid,valid_context_per_docid = loader.load_documents_split_sentences(v_documents)
 		print("Loading testing documents")
-		test_documents, test_candidates_embed_docid, test_context_per_docid = loader.load_documents_split_sentences(te_documents)
-		with open(args.pickle_folder + "train_reduced_summaries.pickle", "wb") as fout:
-			pickle.dump(train_documents, fout)
-		with open(args.pickle_folder + "valid_reduced_summaries.pickle", "wb") as fout:
-			pickle.dump(valid_documents, fout)
-		with open(args.pickle_folder + "test_reduced_summaries.pickle", "wb") as fout:
-			pickle.dump(test_documents, fout)
+		test_documents, test_candidates_embed_docid, test_candidate_per_docid,test_context_per_docid = loader.load_documents_split_sentences(te_documents)
+
 	else:
 
 		loader = DataLoader(args)
