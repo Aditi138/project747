@@ -25,7 +25,8 @@ def evaluate(model, batches, articles, args):
         gold_index = batch["paragraphs"].index(batch["gold"])
         gold_variable = variable(torch.LongTensor([gold_index]))
         mask = variable(torch.FloatTensor(batch["mask"]))
-        loss, scores = model(chunks, question, gold_variable, mask)
+        answer = variable(torch.LongTensor(batch["answer"])).unsqueeze(0)        
+        loss, scores = model(chunks, question, gold_variable, mask, answer)
         if np.argmax(scores) == gold_index:
             accuracy+=(1.0/len(batches))
     model.train(True)
@@ -50,12 +51,15 @@ def create_batches(data, articles):
             continue
         article_id=point.article_id
         batch["article"] = article_id
+
         paragraphs = set()
         paragraphs.add(point.gold_paragraph_id)
         sample_paragraphs=[i for i in range(len(articles[article_id])) if i!=point.gold_paragraph_id]
         paragraphs = paragraphs | set(np.random.choice(sample_paragraphs, size=min(args.competing_paragraphs, len(articles[article_id])), replace=False))
         batch["paragraphs"] = list(paragraphs)
-        # batch["paragraphs"] = [i for i in range(len(articles[article_id]))]
+
+        batch["answer"] = articles[article_id][point.gold_paragraph_id][point.span_indices[0]:point.span_indices[1] + 1]
+        
         article_lengths=[len(articles[article_id][paragraph_id]) for paragraph_id in batch["paragraphs"]]
         batch["max_length"] = np.max(article_lengths)
         batch["mask"] =  np.array([[int(i < article_lengths[j]) for i in range(batch["max_length"])] for j in range(len(paragraphs))])
@@ -74,7 +78,7 @@ def train_epochs(model, train_data,train_articles,valid_data,valid_articles, arg
     clip_threshold = args.clip_threshold
     eval_interval = args.eval_interval
 
-    optimizer = optim.SGD(model.parameters(), lr=args.learning_rate)
+    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
     train_loss = 0
     train_accuracy = 0
@@ -94,7 +98,8 @@ def train_epochs(model, train_data,train_articles,valid_data,valid_articles, arg
             gold_index = batch["paragraphs"].index(batch["gold"])
             gold_variable = variable(torch.LongTensor([gold_index]))
             mask = variable(torch.FloatTensor(batch["mask"]))
-            loss, scores = model(chunks, question, gold_variable, mask)
+            answer = variable(torch.LongTensor(batch["answer"])).unsqueeze(0)
+            loss, scores = model(chunks, question, gold_variable, mask, answer)
             if np.argmax(scores) == gold_index:
                 train_accuracy+=(1.0/eval_interval)
             train_loss += loss.data.cpu().numpy()[0]/eval_interval
@@ -138,7 +143,7 @@ if __name__ == "__main__":
     parser.add_argument("--cuda", action="store_true", default=True)
     parser.add_argument("--batch_length", type=int, default=10)
     parser.add_argument("--eval_interval", type=int, default=200)
-    parser.add_argument("--learning_rate", type=float, default=0.0001)
+    parser.add_argument("--learning_rate", type=float, default=0.001)
     parser.add_argument("--dropout", type=float, default=0.2)
     parser.add_argument("--num_epochs", type=int, default=50)
     parser.add_argument("--clip_threshold", type=int, default=10)
