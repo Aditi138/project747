@@ -157,12 +157,16 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 			mrr_value.append(1.0 / (index))
 
 
-			candidates = candidates_per_docid[doc_id]
+			if args.mcq:
+				candidates = [candidates_per_docid[doc_id][a] for a in all_candidates]
+			else:
+				candidates = candidates_per_docid[doc_id]
 			if fout is not None:
-				fout.write("\nRank: {0} / {1}   Gold: {2}\n".format(index, len(candidates)," ".join(candidates[indices[position_gold_sorted].numpy()[0]])))
+				fout.write("\nRank: {0} / {1}   Gold: {2}\n".format(index, len(candidates), " ".join(
+					candidates[indices[position_gold_sorted].numpy()[0]])))
 				for cand in range(10):
-					fout.write("C: {0} Score:{1}\n".format(" ".join(candidates[indices[cand].numpy()[0]]),str(answer_scores_sorted[cand][0] )))
-
+					fout.write("C: {0} Score:{1}\n".format(" ".join(candidates[indices[cand].numpy()[0]]),
+														   str(answer_scores_sorted[cand][0])))
 
 	mean_rr = np.mean(mrr_value)
 	print("MRR :{0}".format(mean_rr))
