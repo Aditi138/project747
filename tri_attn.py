@@ -99,7 +99,7 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 			batch_answer_indices[index] = gold_index
 			doc_id = batch_doc_ids[index]
 			batch_candidates_embed_sorted = variable(
-				torch.FloatTensor(valid_candidates_embed_docid[doc_id][candidate_sort, ...]))
+				torch.FloatTensor(candidates_embed_docid[doc_id][candidate_sort, ...]))
 
 			batch_len = len(batch_candidate_lengths)
 			negative_indices = list(range(batch_len))
@@ -358,7 +358,7 @@ def train_mrr(index, indices, batch_answer_indices):
 def test_model(model, documents,vocab):
     test_batches = create_batches(documents,args.batch_length,args.job_size, vocab)
     print("Testing!")
-    evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid, None)
+    evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid, test_context_tokens_per_docid, args.debug_file + ".test")
 
 if __name__ == "__main__":
 	reload(sys)
