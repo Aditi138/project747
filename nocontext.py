@@ -88,7 +88,7 @@ def evaluate(model, batches, candidates_embed_docid,file_name):
             batch_len = len(batch_candidate_lengths_sorted)
             batch_candidate_unsort = variable(torch.LongTensor(np.argsort(candidate_sort)), volatile=True)
 
-            indices = model.eval(batch_query, bathc_query_embed, batch_query_length,
+            indices= model.eval(batch_query, bathc_query_embed, batch_query_length,
                                  batch_candidates_sorted,batch_candidates_embed_sorted,
                                  batch_candidate_lengths_sorted,
                                  batch_candidate_unsort, batch_answer_indices[index],
@@ -97,10 +97,10 @@ def evaluate(model, batches, candidates_embed_docid,file_name):
             mrr,position_gold_sorted = computeMRR(indices, batch_answer_indices, index)
 	
             mrr_value.append(mrr)
-	    print(indices[position_gold_sorted])
-            fout.write("\nRank: {0} / {1}   Gold: {2}\n".format(index, batch_len," ".join(candidates[indices[position_gold_sorted].numpy()[0]])))
+	    idx = (position_gold_sorted + 1) 
+            fout.write("\nRank: {0} / {1}   Gold: {2}\n".format(idx, batch_len," ".join(candidates[batch_answer_indices[index]])))
 	    for cand in range(10):
-                fout.write("C: {0} Score:{1}\n".format(" ".join(candidates[indices[cand].numpy()[0]]),str(answer_scores_sorted[cand][0] )))
+                fout.write("C: {0}\n".format(" ".join(candidates[indices[cand].data.cpu().numpy()[0]])))
 
 
     mean_rr = np.mean(mrr_value)

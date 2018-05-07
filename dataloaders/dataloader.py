@@ -54,7 +54,7 @@ def make_bucket_batches(data, batch_size, vocab, multiple=False):
     # np.random.seed(2)
     for src_len in buckets:
         bucket = buckets[src_len]
-        np.random.shuffle(bucket)
+        #np.random.shuffle(bucket)
 
         #Sort bucket by context_tokens
         q_lengths = [len(data_point.question_tokens) for data_point in bucket]
@@ -225,7 +225,7 @@ def create_batches(data, batch_size, job_size,vocab, multiple=False):
     end_index = 0
     # shuffle the actual data
     temp_data = list(data)
-    random.shuffle(temp_data)
+    #random.shuffle(temp_data)
 
 
 
