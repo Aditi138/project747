@@ -23,7 +23,7 @@ class TriAttn(nn.Module):
 		## modelling layer for question and context : this layer also converts the 8 dimensional input intp two dimensioanl output
 		modeling_layer_inputdim = 2 * hidden_size
 		self.modeling_layer_c = RecurrentContext(modeling_layer_inputdim * 2, hidden_size)
-		self.modeling_layer_a = RecurrentContext(modeling_layer_inputdim * 2, hidden_size)
+		self.modeling_layer_a = RecurrentContext(modeling_layer_inputdim * 3, hidden_size)
 
 		self.self_attn_q = LinearSeqAttn(2 * hidden_size)
 		self.self_attn_c = BiLinearAttn(2 * hidden_size,2 * hidden_size)
@@ -80,7 +80,7 @@ class TriAttn(nn.Module):
 		context_modeled = self.dropout(context_modeled)
 
 		#answer_modeled = batch_candidates_encoded
-		answer_input_modelling = torch.cat([context_aware_answer_encoded,batch_candidates_encoded ], dim=-1)
+		answer_input_modelling = torch.cat([query_aware_answer_encoded,context_aware_answer_encoded,batch_candidates_encoded ], dim=-1)
 		answer_modeled, _ = self.modeling_layer_a(answer_input_modelling, batch_candidate_lengths_sorted) #(N, |A|, 2d)
 
 
@@ -150,7 +150,7 @@ class TriAttn(nn.Module):
 		context_modeled = self.dropout(context_modeled)
 
 		#answer_modeled = batch_candidates_encoded
-		answer_input_modelling = torch.cat([context_aware_answer_encoded,batch_candidates_encoded ], dim=-1)
+		answer_input_modelling = torch.cat([query_aware_answer_encoded,context_aware_answer_encoded,batch_candidates_encoded ], dim=-1)
 		answer_modeled, _ = self.modeling_layer_a(answer_input_modelling, batch_candidate_lengths_sorted) #(N, |A|, 2d)
 
 

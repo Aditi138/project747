@@ -52,8 +52,9 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 		for index, query_embed in enumerate(batch['q_embed']):
 
 			if fout is not None:
-				fout.write("\nQ: {0}".format(" ".join(batch_q_tokens[index])))
+				fout.write("\nQ: {0}".format(" ".join(batch_q_tokens[index][:-1])))
 			# query tokens
+			query_embed = query_embed[:-1]
 			batch_query = variable(torch.FloatTensor(query_embed), volatile=True)
 			batch_query_length = np.array([batch_query.size(0)])
 			batch_question_mask = variable(torch.FloatTensor(np.array([1 for x in range(batch_query_length)])))
@@ -117,10 +118,11 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 				   reduced_context_embeddings += context_embeddings[r[0]:r[1]].tolist()
 				   reduced_context += context_tokens_per_docid[doc_id][r[0]:r[1]]
 				batch_context = variable(torch.FloatTensor(reduced_context_embeddings))
-				s_file.write("@@".join(reduced_context) + "\n" + " ".join(batch_q_tokens[index])  + "\n")
+				s_file.write("@@".join(reduced_context) + "\n" + " ".join(batch_q_tokens[index][:-1])  + "\n")
 			else:
 				batch_context = variable(torch.FloatTensor(context_per_docid[doc_id]))
-				s_file.write(" ".join(context_tokens_per_docid[doc_id]) + "\n" + " ".join(batch_q_tokens[index])  + "\n")
+				s_file.write("@@".join(context_tokens_per_docid[doc_id]) + "\n" + " ".join(batch_q_tokens[index][:-1])  + "\n")
+
 
 
 			batch_context_length = np.array([batch_context.size(0)])
