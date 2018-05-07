@@ -61,15 +61,49 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 
 
 			# Sort the candidates by length
-			batch_candidate_lengths = np.array(batch_candidates["anslengths"][index])
-			batch_candidate_mask = np.array(batch_candidates['mask'][index])
-			candidate_sort = np.argsort(batch_candidate_lengths)[::-1].copy()
+			if args.mcq == False:
+				# Sort the candidates by length (only required if using an RNN)
+				batch_candidate_lengths = np.array(batch_candidates["anslengths"][index])
+				batch_candidate_mask = np.array(batch_candidates['mask'][index])
+				gold_index = batch_answer_indices[index]
+				candidate_sort = np.argsort(batch_candidate_lengths)[::-1].copy()
+				batch_candidate_unsort = variable(torch.LongTensor(np.argsort(candidate_sort)))
+				batch_candidate_masks_sorted = variable(torch.FloatTensor(batch_candidate_mask[candidate_sort]))
+				batch_candidate_lengths_sorted = batch_candidate_lengths[candidate_sort]
+			else:
+				num_mcq = 10
+				num_candidates = len(batch_candidates["anslengths"][index])
+				other_candidates = []
+				while len(other_candidates) != num_mcq - 1:
+					random_index = random.randint(0, num_candidates - 1)
+					if random_index != batch_answer_indices[index] and random_index not in other_candidates:
+						other_candidates.append(random_index)
+				all_candidates = other_candidates + [batch_answer_indices[index]]
+				np.random.shuffle(all_candidates)
 
+				gold_index = all_candidates.index(batch_answer_indices[index])
+
+				batch_candidate_lengths = np.array(batch_candidates['anslengths'][index])[all_candidates]
+				batch_candidate_mask = np.array(batch_candidates['mask'][index])[all_candidates]
+				all_candidates = np.array(all_candidates)
+				index_lookup = np.argsort(batch_candidate_lengths)[::-1].copy()
+				candidate_sort = all_candidates[index_lookup]
+				batch_candidate_unsort = variable(torch.LongTensor(np.argsort(index_lookup)))
+				changed_batch_candidate_masks = change_masks(batch_candidate_mask[index_lookup],
+															 np.max(batch_candidate_lengths))
+				batch_candidate_masks_sorted = variable(torch.FloatTensor(changed_batch_candidate_masks))
+				batch_candidate_lengths_sorted = batch_candidate_lengths[index_lookup]
+
+			gold_index_variable = variable(torch.LongTensor([gold_index]))
+			batch_answer_indices[index] = gold_index
 			doc_id = batch_doc_ids[index]
 			batch_candidates_embed_sorted = variable(
-				torch.FloatTensor(candidates_embed_docid[doc_id][candidate_sort, ...]))
-			batch_candidate_lengths_sorted = batch_candidate_lengths[candidate_sort]
-			batch_candidate_masks_sorted = variable(torch.FloatTensor(batch_candidate_mask[candidate_sort]))
+				torch.FloatTensor(valid_candidates_embed_docid[doc_id][candidate_sort, ...]))
+
+			batch_len = len(batch_candidate_lengths)
+			negative_indices = list(range(batch_len))
+			negative_indices.pop(gold_index)
+			negative_indices = variable(torch.LongTensor(negative_indices))
 
 
 			# context tokens
@@ -123,18 +157,28 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 			mrr_value.append(1.0 / (index))
 
 
-			candidates = candidates_per_docid[doc_id]
+			if args.mcq:
+				candidates = [candidates_per_docid[doc_id][a] for a in all_candidates]
+			else:
+				candidates = candidates_per_docid[doc_id]
 			if fout is not None:
-				fout.write("\nRank: {0} / {1}   Gold: {2}\n".format(index, len(candidates)," ".join(candidates[indices[position_gold_sorted].numpy()[0]])))
+				fout.write("\nRank: {0} / {1}   Gold: {2}\n".format(index, len(candidates), " ".join(
+					candidates[indices[position_gold_sorted].numpy()[0]])))
 				for cand in range(10):
-					fout.write("C: {0} Score:{1}\n".format(" ".join(candidates[indices[cand].numpy()[0]]),str(answer_scores_sorted[cand][0] )))
-
+					fout.write("C: {0} Score:{1}\n".format(" ".join(candidates[indices[cand].numpy()[0]]),
+														   str(answer_scores_sorted[cand][0])))
 
 	mean_rr = np.mean(mrr_value)
 	print("MRR :{0}".format(mean_rr))
 	model.train(True)
 	return mean_rr
 
+
+def change_masks(masks, max_length):
+	changed_masks = []
+	for mask in masks:
+		changed_masks.append(mask[:max_length])
+	return changed_masks
 
 def train_epochs(model, vocab):
 
@@ -206,21 +250,49 @@ def train_epochs(model, vocab):
 				batch_query_length = np.array([batch_query.size(0)])
 				batch_question_mask = variable(torch.FloatTensor(np.array([1 for x in range(batch_query_length[0])])))
 
-				# Sort the candidates by length (only required if using an RNN)
-				batch_candidate_lengths = np.array(batch_candidates["anslengths"][index])
-				batch_candidate_mask = np.array(batch_candidates['mask'][index])
-				candidate_sort = np.argsort(batch_candidate_lengths)[::-1].copy()
+				if args.mcq == False:
+					# Sort the candidates by length (only required if using an RNN)
+					batch_candidate_lengths = np.array(batch_candidates["anslengths"][index])
+					batch_candidate_mask = np.array(batch_candidates['mask'][index])
+					gold_index = batch_answer_indices[index]
+					candidate_sort = np.argsort(batch_candidate_lengths)[::-1].copy()
+					batch_candidate_unsort = variable(torch.LongTensor(np.argsort(candidate_sort)))
+					batch_candidate_masks_sorted = variable(torch.FloatTensor(batch_candidate_mask[candidate_sort]))
+					batch_candidate_lengths_sorted = batch_candidate_lengths[candidate_sort]
+				else:
+					num_mcq = 10
+					num_candidates = len(batch_candidates["anslengths"][index])
+					other_candidates = []
+					while len(other_candidates) != num_mcq - 1:
+						random_index = random.randint(0, num_candidates-1)
+						if random_index != batch_answer_indices[index] and random_index not in other_candidates:
+							other_candidates.append(random_index)
+					all_candidates = other_candidates + [batch_answer_indices[index]]
+					np.random.shuffle(all_candidates)
 
-				# get candidates_embed from doc_id
+					gold_index = all_candidates.index(batch_answer_indices[index])
+
+					batch_candidate_lengths = np.array(batch_candidates['anslengths'][index])[all_candidates]
+					batch_candidate_mask = np.array(batch_candidates['mask'][index])[all_candidates]
+					all_candidates = np.array(all_candidates)
+					index_lookup = np.argsort(batch_candidate_lengths)[::-1].copy()
+					candidate_sort = all_candidates[index_lookup]
+					batch_candidate_unsort = variable(torch.LongTensor(np.argsort(index_lookup)))
+					changed_batch_candidate_masks = change_masks(batch_candidate_mask[index_lookup], np.max(batch_candidate_lengths))
+					batch_candidate_masks_sorted = variable(torch.FloatTensor(changed_batch_candidate_masks))
+					batch_candidate_lengths_sorted = batch_candidate_lengths[index_lookup]
+
+				gold_index_variable = variable(torch.LongTensor([gold_index]))
+				batch_answer_indices[index] = gold_index
 				doc_id = batch_doc_ids[index]
 				batch_candidates_embed_sorted = variable(
 					torch.FloatTensor(train_candidates_embed_docid[doc_id][candidate_sort, ...]))
 
-				batch_candidate_lengths_sorted = batch_candidate_lengths[candidate_sort]
-				batch_candidate_unsort = variable(torch.LongTensor(np.argsort(candidate_sort)))
-				batch_candidate_masks_sorted = variable(torch.FloatTensor(batch_candidate_mask[candidate_sort]))
 
 				batch_len = len(batch_candidate_lengths)
+				negative_indices = list(range(batch_len))
+				negative_indices.pop(gold_index)
+				negative_indices = variable(torch.LongTensor(negative_indices))
 
 				# context tokens
 				## if using reduced context
@@ -237,18 +309,11 @@ def train_epochs(model, vocab):
 				batch_context_length = np.array([batch_context.size(0)])
 				batch_context_mask =variable(torch.FloatTensor(np.array([1 for x in range(batch_context_length[0])])))
 
-				gold_index = variable(torch.LongTensor([batch_answer_indices[index]]))
-				negative_indices = [idx for idx in range(batch_len)]
-				negative_indices.pop(batch_answer_indices[index])
-				negative_indices = variable(torch.LongTensor(negative_indices))
-
-
-
 				loss, indices = model(batch_query, batch_query_length,batch_question_mask,
 									batch_context, batch_context_length, batch_context_mask,
 									  batch_candidates_embed_sorted, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,
 										  batch_candidate_unsort,
-									gold_index
+									gold_index_variable
 									)
 
 				losses[index] = loss
@@ -330,6 +395,7 @@ if __name__ == "__main__":
 	parser.add_argument("--profile", action="store_true")
 	parser.add_argument("--squad", action="store_true")
 	parser.add_argument("--reduced", action="store_true")
+	parser.add_argument("--mcq", action="store_true", default=False)
 
 	args = parser.parse_args()
 
