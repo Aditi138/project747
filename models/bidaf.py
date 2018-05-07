@@ -105,7 +105,7 @@ class BiDAF(nn.Module):
 		#Query aware context representation.
 
 		c2q = torch.bmm(last_dim_softmax(S, U_mask), U)
-		return c2q
+		return c2q,S
 
 
 		#Context aware query representation

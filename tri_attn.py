@@ -36,9 +36,11 @@ def get_random_batch_from_training(batches, num):
 	return small
 
 
-def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candidates_per_docid, fout=None):
+def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candidates_per_docid, context_tokens_per_docid, file):
 	mrr_value = []
 	model.train(False)
+	s_file =  codecs.open(args.s_file,"w", encoding='utf-8')
+	fout = codecs.open(file, "w", encoding='utf-8')
 	for iteration in range(len(batches)):
 
 		batch = batches[iteration]
@@ -49,7 +51,8 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 		batch_reduced_context_indices = batch['chunk_indices']
 		for index, query_embed in enumerate(batch['q_embed']):
 
-			fout.write("\nQ: {0}".format(" ".join(batch_q_tokens[index])))
+			if fout is not None:
+				fout.write("\nQ: {0}".format(" ".join(batch_q_tokens[index])))
 			# query tokens
 			batch_query = variable(torch.FloatTensor(query_embed), volatile=True)
 			batch_query_length = np.array([batch_query.size(0)])
@@ -108,12 +111,17 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 			if args.reduced:
 				context_embeddings =  context_per_docid[doc_id]
 				reduced_context_embeddings = []
+				reduced_context = []
 				ranges = batch_reduced_context_indices[index]
 				for r in ranges:
 				   reduced_context_embeddings += context_embeddings[r[0]:r[1]].tolist()
+				   reduced_context += context_tokens_per_docid[doc_id][r[0]:r[1]]
 				batch_context = variable(torch.FloatTensor(reduced_context_embeddings))
+				s_file.write("@@".join(reduced_context) + "\n" + " ".join(batch_q_tokens[index])  + "\n")
 			else:
 				batch_context = variable(torch.FloatTensor(context_per_docid[doc_id]))
+				s_file.write(" ".join(context_tokens_per_docid[doc_id]) + "\n" + " ".join(batch_q_tokens[index])  + "\n")
+
 
 			batch_context_length = np.array([batch_context.size(0)])
 			batch_context_mask = variable(torch.FloatTensor(np.array([1 for x in range(batch_context_length[0])])))
@@ -121,26 +129,40 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 			batch_len = len(batch_candidate_lengths_sorted)
 			batch_candidate_unsort = variable(torch.LongTensor(np.argsort(candidate_sort)), volatile=True)
 
-			indices = model.eval(batch_query, batch_query_length,batch_question_mask,
+			indices,c2q_attention_matrix,answer_scores_sorted = model.eval(batch_query, batch_query_length,batch_question_mask,
 								 batch_context, batch_context_length,batch_context_mask,
 								 batch_candidates_embed_sorted, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,batch_candidate_unsort)
 
 			if args.use_cuda:
 				indices = indices.data.cpu()
+				c2q_attention_matrix = c2q_attention_matrix.data.cpu()
+				answer_scores_sorted = answer_scores_sorted.data.cpu()
 
 			else:
 				indices = indices.data
+				c2q_attention_matrix = c2q_attention_matrix.data.numpy()
+				answer_scores_sorted = answer_scores_sorted.data.numpy()
 
+			rows = c2q_attention_matrix.shape[1]
+			cols = c2q_attention_matrix.shape[2]
+
+			for row in c2q_attention_matrix.tolist()[0]:
+				s_file.write(" ".join([str(c) for c in row]) + " ")
+			s_file.write("\n")
+			s_file.write(str(rows) + " " + str(cols) + "\n\n")
 			position_gold_sorted = (indices == batch_answer_indices[index]).nonzero().numpy()[0][0]
 			gold_index =  batch_answer_indices[index]
 			index = position_gold_sorted + 1
 
 			mrr_value.append(1.0 / (index))
 
+
 			candidates = candidates_per_docid[doc_id]
-			fout.write("\nRank: {0} / {1}   Gold: {2}\n".format(index, len(candidates)," ".join(candidates[indices[position_gold_sorted].numpy()[0]])))
-			for cand in range(5):
-				fout.write("C: {0}\n".format(" ".join(candidates[indices[cand].numpy()[0]])))
+			if fout is not None:
+				fout.write("\nRank: {0} / {1}   Gold: {2}\n".format(index, len(candidates)," ".join(candidates[indices[position_gold_sorted].numpy()[0]])))
+				for cand in range(10):
+					fout.write("C: {0} Score:{1}\n".format(" ".join(candidates[indices[cand].numpy()[0]]),str(answer_scores_sorted[cand][0] )))
+
 
 	mean_rr = np.mean(mrr_value)
 	print("MRR :{0}".format(mean_rr))
@@ -156,7 +178,7 @@ def change_masks(masks, max_length):
 
 def train_epochs(model, vocab):
 
-	fout = codecs.open(args.debug_file, "w", encoding='utf-8')
+
 	clip_threshold = args.clip_threshold
 	eval_interval = args.eval_interval
 
@@ -178,7 +200,7 @@ def train_epochs(model, vocab):
 		print("Creating train batches")
 		train_batches = make_bucket_batches(train_documents, args.batch_length, vocab)
 		print("Starting epoch {}".format(epoch))
-		fout.write("==========Epoch {0}=========\n".format(epoch))
+
 
 		saved = False
 		for iteration in range(len(train_batches)):
@@ -187,7 +209,7 @@ def train_epochs(model, vocab):
 				print("iteration: {0} train loss: {1}".format(iteration + 1, train_loss / train_denom))
 
 				if iteration != 0:
-					average_rr = evaluate(model, valid_batches, valid_candidates_embed_docid, valid_context_per_docid, valid_candidate_per_docid, fout)
+					average_rr = evaluate(model, valid_batches, valid_candidates_embed_docid, valid_context_per_docid, valid_candidate_per_docid, valid_context_tokens_per_docid,args.debug_file)
 					validation_history.append(average_rr)
 					train_average_rr = np.mean(mrr_value)
 					if (iteration + 1) % (eval_interval) == 0:
@@ -206,7 +228,7 @@ def train_epochs(model, vocab):
 							print("Early Stopping")
 							print("Testing started")
 							model = torch.load(args.model_path)
-							evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid, None)
+							evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid, test_context_tokens_per_docid, args.debug_file+".test")
 							exit(0)
 
 			batch = train_batches[iteration]
@@ -316,7 +338,7 @@ def train_epochs(model, vocab):
 
 	print("All epochs done")
 	model = torch.load(args.model_path)
-	evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid )
+	evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid, test_context_tokens_per_docid,args.debug_file+".test")
 
 def train_mrr(index, indices, batch_answer_indices):
 	if args.use_cuda:
@@ -330,7 +352,7 @@ def train_mrr(index, indices, batch_answer_indices):
 def test_model(model, documents,vocab):
     test_batches = create_batches(documents,args.batch_length,args.job_size, vocab)
     print("Testing!")
-    evaluate(model, test_batches)
+    evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid, None)
 
 if __name__ == "__main__":
 	reload(sys)
@@ -347,6 +369,7 @@ if __name__ == "__main__":
 	parser.add_argument("--pretrain_path", type=str, default=None, help="Path to the pre-trained word embeddings")
 	parser.add_argument("--max_documents", type=int, default=0, help="If greater than 0, load at most this many documents")
 	parser.add_argument("--debug_file", type=str, default="./debug_outputs.txt")
+	parser.add_argument("--s_file", type=str, default="./attention.txt")
 
 	# Model parameters
 	parser.add_argument("--hidden_size", type=int, default=128)
@@ -408,11 +431,11 @@ if __name__ == "__main__":
 		with open(args.test_path, "r") as fin:
 			te_documents = pickle.load(fin)
 		print("Loading training documents")
-		train_documents, train_candidates_embed_docid, train_candidate_per_docid,train_context_per_docid = loader.load_documents_split_sentences(t_documents)
+		train_documents, train_candidates_embed_docid, train_candidate_per_docid,train_context_per_docid,train_context_tokens_per_docid = loader.load_documents_split_sentences(t_documents)
 		print("Loading validation documents")
-		valid_documents, valid_candidates_embed_docid, valid_candidate_per_docid,valid_context_per_docid = loader.load_documents_split_sentences(v_documents)
+		valid_documents, valid_candidates_embed_docid, valid_candidate_per_docid,valid_context_per_docid,valid_context_tokens_per_docid = loader.load_documents_split_sentences(v_documents)
 		print("Loading testing documents")
-		test_documents, test_candidates_embed_docid, test_candidate_per_docid,test_context_per_docid = loader.load_documents_split_sentences(te_documents)
+		test_documents, test_candidates_embed_docid, test_candidate_per_docid,test_context_per_docid,test_context_tokens_per_docid = loader.load_documents_split_sentences(te_documents)
 
 	else:
 
