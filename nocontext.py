@@ -1,5 +1,6 @@
 import argparse
 import sys
+import codecs
 
 from dataloaders.dataloader import DataLoader, create_batches, view_batch
 from models.nocontext_model import NoContext
@@ -35,10 +36,10 @@ def computeMRR(indices, batch_answer_indices, index):
         indices = indices.data
 
     position_gold_sorted = (indices == batch_answer_indices[index]).nonzero().numpy()[0][0]
-
+    print(position_gold_sorted)
     index = position_gold_sorted + 1
 
-    return (1.0 / (index))
+    return (1.0 / (index)),position_gold_sorted
 
 
 def get_random_batch_from_training(batches, num):
@@ -52,12 +53,13 @@ def get_random_batch_from_training(batches, num):
 def test_model(model, documents, vocab):
     test_batches = create_batches(documents, args.batch_length, args.job_size, vocab)
     print("Testing!")
-    evaluate(model, test_batches)
+    evaluate(model, test_batches,test_candidates_embed_docid,args.debug_file+".test")
 
 
-def evaluate(model, batches, candidates_embed_docid):
+def evaluate(model, batches, candidates_embed_docid,file_name):
     mrr_value = []
     model.train(False)
+    fout = codecs.open(file_name, "w", encoding='utf-8')
     for iteration in range(len(batches)):
 
         batch = batches[iteration]
@@ -67,6 +69,7 @@ def evaluate(model, batches, candidates_embed_docid):
 
         for index, query in enumerate(batch['queries']):
             # query tokens
+	    fout.write("\nQ: {0}".format(" ".join(batch['queries'][index])))
             batch_query = variable(torch.LongTensor(query), volatile=True)
             batch_query_length = [batch['qlengths'][index]]
             bathc_query_embed = variable(torch.FloatTensor(batch['q_embed'][index]))
@@ -90,8 +93,15 @@ def evaluate(model, batches, candidates_embed_docid):
                                  batch_candidate_lengths_sorted,
                                  batch_candidate_unsort, batch_answer_indices[index],
                                   batch_len)
+ 	    candidates = batch_candidates["answers"][index]
+            mrr,position_gold_sorted = computeMRR(indices, batch_answer_indices, index)
+	
+            mrr_value.append(mrr)
+	    print(indices[position_gold_sorted])
+            fout.write("\nRank: {0} / {1}   Gold: {2}\n".format(index, batch_len," ".join(candidates[indices[position_gold_sorted].numpy()[0]])))
+	    for cand in range(10):
+                fout.write("C: {0} Score:{1}\n".format(" ".join(candidates[indices[cand].numpy()[0]]),str(answer_scores_sorted[cand][0] )))
 
-            mrr_value.append(computeMRR(indices, batch_answer_indices, index))
 
     mean_rr = np.mean(mrr_value)
     print("MRR :{0}".format(mean_rr))
@@ -256,6 +266,7 @@ if __name__ == "__main__":
     parser.add_argument("--num_layers", type=int, default=1)
     parser.add_argument("--ner_dim", type=int, default=32)
     parser.add_argument("--pos_dim", type=int, default=32)
+    parser.add_argument("--debug_file", type=str, default="./debug_outputs.txt")
     parser.add_argument("--dropout", type=float, default=0.5)
     parser.add_argument("--meteor_path", type=str, default=10)
 
@@ -278,9 +289,9 @@ if __name__ == "__main__":
     with open(args.test_path, "r") as fin:
         te_documents = pickle.load(fin)
 
-    train_documents, train_candidates_embed_docid = loader.load_documents_elmo(t_documents)
-    valid_documents, valid_candidates_embed_docid = loader.load_documents_elmo(v_documents)
-    test_documents, test_candidates_embed_docid = loader.load_documents_elmo(te_documents)
+    train_documents, train_candidates_embed_docid,_ = loader.load_documents_elmo(t_documents)
+    valid_documents, valid_candidates_embed_docid,valid_candidate_per_doc_per_answer = loader.load_documents_elmo(v_documents)
+    test_documents, test_candidates_embed_docid,test_candidate_per_doc_per_answer = loader.load_documents_elmo(te_documents)
 
     end = time()
     print(end - start)

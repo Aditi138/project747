@@ -858,10 +858,10 @@ class DataLoader():
                 i += 2
 
             candidate_per_doc = list(candidate_per_doc_per_answer)
-            for query in document.qaps:
-                query.question_tokens = self.vocab.add_and_get_indices(query.question_tokens)
-                candidate_per_doc_per_answer[query.answer_indices[0] / 2] = self.vocab.add_and_get_indices(
-                    candidate_per_doc_per_answer[query.answer_indices[0] / 2])
+            #for query in document.qaps:
+            #    query.question_tokens = self.vocab.add_and_get_indices(query.question_tokens)
+            #    candidate_per_doc_per_answer[query.answer_indices[0] / 2] = self.vocab.add_and_get_indices(
+            #        candidate_per_doc_per_answer[query.answer_indices[0] / 2])
 
             candidate_answer_lengths = [len(answer) for answer in candidate_per_doc_per_answer]
             max_candidate_length = max(candidate_answer_lengths)
@@ -875,7 +875,7 @@ class DataLoader():
                                    (query.question_tokens,query.query_embed, query.answer_indices,
                                     [], [], candidate_per_doc_per_answer,[], document.id))
 
-        return data_points,candidates_embed_docid,context_per_docid
+        return data_points,candidates_embed_docid,candidate_per_doc_per_answer
 
     def load_documents_with_answer_spans_elmo(self, documents):
         data_points = []
