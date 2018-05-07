@@ -5,7 +5,7 @@ from models.score_model import ChunkScore
 from dataloaders.utility import get_pretrained_emb
 import torch
 from torch import optim
-from dataloaders.utility import variable, view_data_point, pad_seq
+from dataloaders.utility import variable, view_data_point, pad_seq, view_span_squad_data_point
 import numpy as np
 from time import time
 import random
@@ -19,14 +19,24 @@ def evaluate(model, batches, articles, args):
     for iteration in range(len(batches)):
         batch=batches[iteration]
         article_id=batch["article"]
-        chunks= [pad_seq(articles[article_id][idd], batch["max_length"]) for idd in batch["paragraphs"]]
-        chunks=variable(torch.LongTensor(chunks))
+        chunks = np.array([pad_seq(articles[article_id][idd], batch["max_length"]) for idd in batch["paragraphs"]])
+
         question = variable(torch.LongTensor(np.array(batch["question"]))).unsqueeze(0)
-        gold_index = batch["paragraphs"].index(batch["gold"])
+        question_len = np.array([question.size(1)])
+        batch_paragraphs = np.array(batch["paragraphs"])
+
+        context_len = np.array([len(articles[article_id][idd]) for idd in batch["paragraphs"]])
+        candidate_sort = np.argsort(context_len)[::-1].copy()
+        candidate_lengths_sorted = context_len[candidate_sort]
+        chunks = variable(torch.LongTensor(chunks[candidate_sort, ...]))
+        gold_index = np.where(batch_paragraphs[candidate_sort, ...] == batch["gold"])[0][0]
         gold_variable = variable(torch.LongTensor([gold_index]))
+
+
         mask = variable(torch.FloatTensor(batch["mask"]))
-        answer = variable(torch.LongTensor(batch["answer"])).unsqueeze(0)        
-        loss, scores = model(chunks, question, gold_variable, mask, answer)
+        answer = variable(torch.LongTensor(batch["answer"])).unsqueeze(0)
+        answer_len = np.array([answer.size(1)])
+        loss, scores = model(chunks, question, gold_variable, candidate_lengths_sorted,question_len, answer_len, answer)
         if np.argmax(scores) == gold_index:
             accuracy+=(1.0/len(batches))
     model.train(True)
@@ -78,7 +88,7 @@ def train_epochs(model, train_data,train_articles,valid_data,valid_articles, arg
     clip_threshold = args.clip_threshold
     eval_interval = args.eval_interval
 
-    optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+    optimizer = optim.SGD(model.parameters(), lr=args.learning_rate)
 
     train_loss = 0
     train_accuracy = 0
@@ -92,14 +102,25 @@ def train_epochs(model, train_data,train_articles,valid_data,valid_articles, arg
             optimizer.zero_grad()
             batch = train_batches[i]
             article_id=batch["article"]
-            chunks= [pad_seq(train_articles[article_id][idd], batch["max_length"]) for idd in batch["paragraphs"]]
-            chunks=variable(torch.LongTensor(chunks))
+            chunks= np.array([pad_seq(train_articles[article_id][idd], batch["max_length"]) for idd in batch["paragraphs"]])
+
             question = variable(torch.LongTensor(np.array(batch["question"]))).unsqueeze(0)
-            gold_index = batch["paragraphs"].index(batch["gold"])
+            question_len = np.array([question.size(1)])
+            batch_paragraphs = np.array(batch["paragraphs"])
+
+
+            context_len = np.array([len(train_articles[article_id][idd]) for idd in  batch["paragraphs"]])
+            candidate_sort = np.argsort(context_len)[::-1].copy()
+            candidate_lengths_sorted = context_len[candidate_sort]
+            chunks = variable(torch.LongTensor(chunks[candidate_sort,...]))
+            gold_index = np.where(batch_paragraphs[candidate_sort,...] == batch["gold"])[0][0]
             gold_variable = variable(torch.LongTensor([gold_index]))
+
+
             mask = variable(torch.FloatTensor(batch["mask"]))
             answer = variable(torch.LongTensor(batch["answer"])).unsqueeze(0)
-            loss, scores = model(chunks, question, gold_variable, mask, answer)
+            answer_len = np.array([answer.size(1)])
+            loss, scores = model(chunks, question, gold_variable, candidate_lengths_sorted,question_len, answer_len, answer)
             if np.argmax(scores) == gold_index:
                 train_accuracy+=(1.0/eval_interval)
             train_loss += loss.data.cpu().numpy()[0]/eval_interval
@@ -143,9 +164,10 @@ if __name__ == "__main__":
     parser.add_argument("--cuda", action="store_true", default=True)
     parser.add_argument("--batch_length", type=int, default=10)
     parser.add_argument("--eval_interval", type=int, default=200)
-    parser.add_argument("--learning_rate", type=float, default=0.001)
+    parser.add_argument("--learning_rate", type=float, default=0.015)
     parser.add_argument("--dropout", type=float, default=0.2)
     parser.add_argument("--num_epochs", type=int, default=50)
+    parser.add_argument("--num_layers", type=int, default=2)
     parser.add_argument("--clip_threshold", type=int, default=10)
 
     parser.add_argument("--meteor_path", type=str, default=10)
@@ -164,9 +186,13 @@ if __name__ == "__main__":
 
     start = time()
     loader = SquadDataloader(args)
-    train_data, train_articles = loader.load_documents_with_paragraphs(args.train_path + "questions.pickle", args.train_path + "paragraphs.pickle", max_documents= args.max_documents)
-    valid_data, valid_articles = loader.load_documents_with_paragraphs(args.valid_path + "questions.pickle", args.valid_path + "paragraphs.pickle", max_documents=args.max_valid)
+    train_data, train_articles = loader.load_documents_with_paragraphs(args.train_path + "qaps.pickle", args.train_path + "paragraphs.pickle", max_documents= args.max_documents)
+    valid_data, valid_articles = loader.load_documents_with_paragraphs(args.valid_path + "qaps.pickle", args.valid_path + "paragraphs.pickle", max_documents=args.max_valid)
     end = time()
+    print("Vocabulary length: {0}".format(loader.vocab.get_length() ))
+
+    # for i in range(10):
+    #     view_span_squad_data_point(train_data[i], loader.vocab, train_articles[train_data[i].article_id][train_data[i].gold_paragraph_id])
 
     print("Time loading data: {}s".format(end - start))
 

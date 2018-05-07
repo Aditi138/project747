@@ -61,6 +61,16 @@ def view_span_data_point(data_point, vocab):
     ansnwer_from_context = data_point.context_tokens[data_point.span_indices[0]:data_point.span_indices[1] + 1]
     print(" ".join([vocab.get_word(id) for id in ansnwer_from_context]))
 
+
+def view_span_squad_data_point(data_point, vocab, paragraph):
+    print(" ".join([vocab.get_word(id) for id in data_point.question_tokens]))
+    #print(" ".join([vocab.get_word(id) for id in data_point.answer_tokens]))
+    print(" ".join([vocab.get_word(id) for id in paragraph]))
+    ansnwer_from_context = paragraph[data_point.span_indices[0]:data_point.span_indices[1] + 1]
+    print(" ".join([vocab.get_word(id) for id in ansnwer_from_context]))
+
+
+
 def get_pretrained_emb(embedding_path, word_to_id, dim):
     word_emb = []
     print("Loading pretrained embeddings from {0}".format(embedding_path))
