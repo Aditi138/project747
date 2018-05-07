@@ -52,9 +52,9 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 		for index, query_embed in enumerate(batch['q_embed']):
 
 			if fout is not None:
-				fout.write("\nQ: {0}".format(" ".join(batch_q_tokens[index][:-1])))
+				fout.write("\nQ: {0}".format(" ".join(batch_q_tokens[index])))
 			# query tokens
-			query_embed = query_embed[:-1]
+#			query_embed = query_embed[:-1]
 			batch_query = variable(torch.FloatTensor(query_embed), volatile=True)
 			batch_query_length = np.array([batch_query.size(0)])
 			batch_question_mask = variable(torch.FloatTensor(np.array([1 for x in range(batch_query_length)])))
@@ -118,10 +118,10 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 				   reduced_context_embeddings += context_embeddings[r[0]:r[1]].tolist()
 				   reduced_context += context_tokens_per_docid[doc_id][r[0]:r[1]]
 				batch_context = variable(torch.FloatTensor(reduced_context_embeddings))
-				s_file.write("@@".join(reduced_context) + "\n" + " ".join(batch_q_tokens[index][:-1])  + "\n")
+				s_file.write("@@".join(reduced_context) + "\n" + " ".join(batch_q_tokens[index])  + "\n")
 			else:
 				batch_context = variable(torch.FloatTensor(context_per_docid[doc_id]))
-				s_file.write("@@".join(context_tokens_per_docid[doc_id]) + "\n" + " ".join(batch_q_tokens[index][:-1])  + "\n")
+				s_file.write("@@".join(context_tokens_per_docid[doc_id]) + "\n" + " ".join(batch_q_tokens[index])  + "\n")
 
 
 
@@ -426,8 +426,8 @@ if __name__ == "__main__":
 			te_documents = pickle.load(fin)
 
 		train_documents, train_candidates_embed_docid,train_candidate_per_docid,train_context_per_docid,_,_ = loader.load_documents_elmo(t_documents,split=False)
-		valid_documents,valid_candidates_embed_docid,valid_candidate_per_docid,valid_context_per_docid,_,_ = loader.load_documents_elmo(v_documents,split=False)
-		test_documents, test_candidates_embed_docid,test_candidate_per_docid,test_context_per_docid,_,_ = loader.load_documents_elmo(te_documents,split=False)
+		valid_documents,valid_candidates_embed_docid,valid_candidate_per_docid,valid_context_per_docid,valid_context_tokens_per_docid,_ = loader.load_documents_elmo(v_documents,split=False)
+		test_documents, test_candidates_embed_docid,test_candidate_per_docid,test_context_per_docid,test_context_tokens_per_docid,_ = loader.load_documents_elmo(te_documents,split=False)
 	elif args.reduced:
 		loader = DataLoader(args)
 		with open(args.train_path, "r") as fin:

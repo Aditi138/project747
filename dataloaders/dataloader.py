@@ -67,7 +67,7 @@ def make_bucket_batches(data, batch_size, vocab):
     # np.random.seed(2)
     for src_len in buckets:
         bucket = buckets[src_len]
-        np.random.shuffle(bucket)
+        #np.random.shuffle(bucket)
 
         num_batches = int(np.ceil(len(bucket) * 1.0 / batch_size))
         for i in range(num_batches):
@@ -210,7 +210,7 @@ def create_batches(data, batch_size, job_size, vocab):
     end_index = 0
     # shuffle the actual data
     temp_data = list(data)
-    random.shuffle(temp_data)
+    #random.shuffle(temp_data)
 
     # question_lengths = [len(data_point.question_tokens) for data_point in temp_data]
     # # within batch, sort data by length
@@ -856,6 +856,7 @@ class DataLoader():
         context_per_docid = {}
         sentence_mask_doc_id = {}
         sentence_lengths_doc = {}
+	context_tokens_per_docid = {}
         for index, document in enumerate(documents):
 
             document_tokens = []
@@ -880,6 +881,7 @@ class DataLoader():
 
             candidate_per_doc_per_answer = []
             candidate_per_doc_per_answer_embed = []
+	    context_tokens_per_docid[document.id] = raw_tokens
             i = 0
             while i < len(document.candidates):
                 candidate_per_doc_per_answer.append(document.candidates[i])
@@ -905,7 +907,7 @@ class DataLoader():
                                    (query.question_tokens, query.query_embed, query.answer_indices,
                                     [], [], candidate_per_doc_per_answer, [], document.id))
 
-        return data_points, candidates_embed_docid, candidate_per_docid, context_per_docid, sentence_mask_doc_id, sentence_lengths_doc
+        return data_points, candidates_embed_docid, candidate_per_docid, context_per_docid, context_tokens_per_docid, sentence_lengths_doc
 
 
 class Vocabulary(object):
