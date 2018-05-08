@@ -35,6 +35,7 @@ To train the tri-attention model, run with the following parameters:-
           --debug_file ${MODEL_NAME}.debug  \
           --hidden_size 128  2>&1 | tee ${MODEL_NAME}.test.log
 ```
+To run with the reduced summary specify argument ``` --reduced ``` and remove the argument ```--elmo ```.
 We pre-compute the ElMo embeddings for our dataset, to get the input run - 
 ```
 python -u precompute_elmo.py 
