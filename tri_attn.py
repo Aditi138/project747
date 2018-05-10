@@ -427,6 +427,7 @@ if __name__ == "__main__":
 	parser.add_argument("--pos_dim", type=int, default=32)
 
 	parser.add_argument("--meteor_path", type=str, default=10)
+	parser.add_argument("--seed", type=int, default=1234)
 	parser.add_argument("--profile", action="store_true")
 	parser.add_argument("--squad", action="store_true")
 	parser.add_argument("--reduced", action="store_true", default=True)
