@@ -13,6 +13,8 @@ import random
 import pickle
 import codecs
 
+
+
 class Document_All_Embed(object):
     def __init__(self,id, qaps,candidates_embed, candidates, document_tokens, document_embed):
         self.id = id
@@ -432,8 +434,10 @@ if __name__ == "__main__":
 	parser.add_argument("--mcq", action="store_true", default=False)
 
 	args = parser.parse_args()
-
-	torch.manual_seed(2)
+	
+	torch.manual_seed(args.seed)
+	np.random.seed(args.seed)
+	random.seed(args.seed)
 
 	if args.cuda and torch.cuda.is_available():
 		vars(args)['use_cuda'] = True
