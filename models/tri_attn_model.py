@@ -251,8 +251,11 @@ class LookupEncoder(nn.Module):
 		super(LookupEncoder, self).__init__()
 		self.embedding_dim = embedding_dim
 		self.word_embeddings = nn.Embedding(vocab_size, embedding_dim)
+
 		if pretrain_embedding is not None:
 			self.word_embeddings.weight.data.copy_(torch.from_numpy(pretrain_embedding))
+
+		self.word_embeddings.weight.requires_grad = False
 
 	def forward(self, batch):
 		return self.word_embeddings(batch)
