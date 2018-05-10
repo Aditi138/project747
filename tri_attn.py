@@ -52,12 +52,14 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 		for index, query_embed in enumerate(batch['q_embed']):
 
 			if fout is not None:
-				fout.write("\nQ: {0}".format(" ".join(batch_q_tokens[index][:-1])))
+				fout.write("\nQ: {0}".format(" ".join(batch_q_tokens[index])))
 			# query tokens
+
 			if args.emb_elmo:
 				batch_query = variable(torch.FloatTensor(query_embed))
 			else:
 				batch_query = variable(torch.LongTensor(query_embed))
+
 
 			batch_query_length = np.array([batch_query.size(0)])
 			batch_question_mask = variable(torch.FloatTensor(np.array([1 for x in range(batch_query_length)])))
@@ -102,12 +104,14 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 			batch_answer_indices[index] = gold_index
 			doc_id = batch_doc_ids[index]
 
+
 			if args.emb_elmo:
 				batch_candidates_embed_sorted = variable(
 					torch.FloatTensor(candidates_embed_docid[doc_id][candidate_sort, ...]))
 			else:
 				batch_candidates_embed_sorted = variable(
 					torch.LongTensor(candidates_embed_docid[doc_id][candidate_sort, ...]))
+
 
 			batch_len = len(batch_candidate_lengths)
 			negative_indices = list(range(batch_len))
@@ -126,6 +130,7 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 				   reduced_context_embeddings += context_embeddings[r[0]:r[1]]
 				   reduced_context += context_tokens_per_docid[doc_id][r[0]:r[1]]
 
+
 				if args.emb_elmo:
 					batch_context = variable(torch.FloatTensor(reduced_context_embeddings))
 				else:
@@ -138,8 +143,6 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 				else:
 					batch_context = variable(torch.LongTensor(context_per_docid[doc_id]))
 				s_file.write("@@".join(context_tokens_per_docid[doc_id]) + "\n" + " ".join(batch_q_tokens[index][:-1])  + "\n")
-
-
 
 			batch_context_length = np.array([batch_context.size(0)])
 			batch_context_mask = variable(torch.FloatTensor(np.array([1 for x in range(batch_context_length[0])])))
@@ -385,7 +388,7 @@ def train_mrr(index, indices, batch_answer_indices):
 def test_model(model, documents,vocab):
     test_batches = create_batches(documents,args.batch_length,args.job_size, vocab)
     print("Testing!")
-    evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid, None)
+    evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid, test_context_tokens_per_docid, args.debug_file + ".test")
 
 if __name__ == "__main__":
 	reload(sys)
