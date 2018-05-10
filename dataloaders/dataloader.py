@@ -28,6 +28,7 @@ import re
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.metrics.pairwise import linear_kernel
+from copy import  deepcopy
 
 global vocab
 
@@ -817,29 +818,48 @@ class DataLoader():
             for sent in document.document_tokens:
                 document_tokens += self.vocab.add_and_get_indices(sent)
                 raw_tokens += sent
-            context_per_docid[document.id] = np.concatenate(document.document_embed)
+
+            if self.args.reduced and self.args.emb_elmo:
+                context_per_docid[document.id] = np.concatenate(document.document_embed)
+            else:
+                context_per_docid[document.id] = self.vocab.add_and_get_indices(raw_tokens)
+
+
             context_tokens_per_docid[document.id] = raw_tokens
 
             candidate_per_doc_per_answer = []
+
             candidate_per_doc_per_answer_embed = []
             i = 0
             while i < len(document.candidates):
                 candidate_per_doc_per_answer.append(document.candidates[i])
-                candidate_per_doc_per_answer_embed.append(document.candidates_embed[i])
+                if self.args.reduced  and self.args.emb_elmo:
+                    candidate_per_doc_per_answer_embed.append(document.candidates_embed[i])
                 i += 2
 
+            candidate_per_doc_per_answer_raw_tokens = deepcopy(candidate_per_doc_per_answer)
             for query in document.qaps:
+                if self.args.reduced  and self.args.emb_elmo:
+                    query.query_embed = query.query_embed
+                else:
+                    query.query_embed = self.vocab.add_and_get_indices(query.question_tokens)
+
                 query.question_tokens = query.question_tokens
-                #candidate_per_doc_per_answer[query.answer_indices[0] / 2] = self.vocab.add_and_get_indices(
-                 #   candidate_per_doc_per_answer[query.answer_indices[0] / 2])
+                candidate_per_doc_per_answer[query.answer_indices[0] / 2] = self.vocab.add_and_get_indices(
+                    candidate_per_doc_per_answer[query.answer_indices[0] / 2])
 
             candidate_answer_lengths = [len(answer) for answer in candidate_per_doc_per_answer]
             max_candidate_length = max(candidate_answer_lengths)
-            candidate_padded_answers_embed = np.array(
+
+            if self.args.reduced  and self.args.emb_elmo:
+                candidate_padded_answers_embed = np.array(
                 [pad_seq_elmo(answer, max_candidate_length) for answer in candidate_per_doc_per_answer_embed])
+            else:
+                candidate_padded_answers_embed = np.array([pad_seq(answer, max_candidate_length) for answer in candidate_per_doc_per_answer ])
+
 
             candidates_embed_docid[document.id] = candidate_padded_answers_embed
-            candidate_per_docid[document.id] = candidate_per_doc_per_answer
+            candidate_per_docid[document.id] = candidate_per_doc_per_answer_raw_tokens
 
             for idx, query in enumerate(document.qaps):
                 query.answer_indices[0] = query.answer_indices[0] / 2

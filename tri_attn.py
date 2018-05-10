@@ -54,8 +54,11 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 			if fout is not None:
 				fout.write("\nQ: {0}".format(" ".join(batch_q_tokens[index][:-1])))
 			# query tokens
-			query_embed = query_embed[:-1]
-			batch_query = variable(torch.FloatTensor(query_embed), volatile=True)
+			if args.emb_elmo:
+				batch_query = variable(torch.FloatTensor(query_embed))
+			else:
+				batch_query = variable(torch.LongTensor(query_embed))
+
 			batch_query_length = np.array([batch_query.size(0)])
 			batch_question_mask = variable(torch.FloatTensor(np.array([1 for x in range(batch_query_length)])))
 
@@ -98,8 +101,13 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 			gold_index_variable = variable(torch.LongTensor([gold_index]))
 			batch_answer_indices[index] = gold_index
 			doc_id = batch_doc_ids[index]
-			batch_candidates_embed_sorted = variable(
-				torch.FloatTensor(valid_candidates_embed_docid[doc_id][candidate_sort, ...]))
+
+			if args.emb_elmo:
+				batch_candidates_embed_sorted = variable(
+					torch.FloatTensor(candidates_embed_docid[doc_id][candidate_sort, ...]))
+			else:
+				batch_candidates_embed_sorted = variable(
+					torch.LongTensor(candidates_embed_docid[doc_id][candidate_sort, ...]))
 
 			batch_len = len(batch_candidate_lengths)
 			negative_indices = list(range(batch_len))
@@ -115,12 +123,20 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 				reduced_context = []
 				ranges = batch_reduced_context_indices[index]
 				for r in ranges:
-				   reduced_context_embeddings += context_embeddings[r[0]:r[1]].tolist()
+				   reduced_context_embeddings += context_embeddings[r[0]:r[1]]
 				   reduced_context += context_tokens_per_docid[doc_id][r[0]:r[1]]
-				batch_context = variable(torch.FloatTensor(reduced_context_embeddings))
+
+				if args.emb_elmo:
+					batch_context = variable(torch.FloatTensor(reduced_context_embeddings))
+				else:
+					batch_context = variable(torch.LongTensor(reduced_context_embeddings))
+
 				s_file.write("@@".join(reduced_context) + "\n" + " ".join(batch_q_tokens[index][:-1])  + "\n")
 			else:
-				batch_context = variable(torch.FloatTensor(context_per_docid[doc_id]))
+				if args.emb_elmo:
+					batch_context = variable(torch.FloatTensor(context_per_docid[doc_id]))
+				else:
+					batch_context = variable(torch.LongTensor(context_per_docid[doc_id]))
 				s_file.write("@@".join(context_tokens_per_docid[doc_id]) + "\n" + " ".join(batch_q_tokens[index][:-1])  + "\n")
 
 
@@ -248,7 +264,11 @@ def train_epochs(model, vocab):
 			losses = variable(torch.zeros(batch_size))
 			for index, query_embed in enumerate(batch['q_embed']):
 				# query tokens
-				batch_query = variable(torch.FloatTensor(query_embed))
+				if args.emb_elmo:
+					batch_query = variable(torch.FloatTensor(query_embed))
+				else:
+					batch_query = variable(torch.LongTensor(query_embed))
+
 				batch_query_length = np.array([batch_query.size(0)])
 				batch_question_mask = variable(torch.FloatTensor(np.array([1 for x in range(batch_query_length[0])])))
 
@@ -287,8 +307,12 @@ def train_epochs(model, vocab):
 				gold_index_variable = variable(torch.LongTensor([gold_index]))
 				batch_answer_indices[index] = gold_index
 				doc_id = batch_doc_ids[index]
-				batch_candidates_embed_sorted = variable(
+				if args.emb_elmo:
+					batch_candidates_embed_sorted = variable(
 					torch.FloatTensor(train_candidates_embed_docid[doc_id][candidate_sort, ...]))
+				else:
+					batch_candidates_embed_sorted = variable(
+						torch.LongTensor(train_candidates_embed_docid[doc_id][candidate_sort, ...]))
 
 
 				batch_len = len(batch_candidate_lengths)
@@ -303,8 +327,11 @@ def train_epochs(model, vocab):
 					reduced_context_embeddings = []
 					ranges = batch_reduced_context_indices[index]
 					for r in ranges:
-						reduced_context_embeddings += context_embeddings[r[0]:r[1]].tolist()
-					batch_context = variable(torch.FloatTensor(reduced_context_embeddings))
+						reduced_context_embeddings += context_embeddings[r[0]:r[1]]
+					if args.emb_elmo:
+						batch_context = variable(torch.FloatTensor(reduced_context_embeddings))
+					else:
+						batch_context = variable(torch.LongTensor(reduced_context_embeddings))
 				else:
 					batch_context = variable(torch.FloatTensor(train_context_per_docid[doc_id]))
 
@@ -386,7 +413,8 @@ if __name__ == "__main__":
 	parser.add_argument("--batch_length", type=int, default=10)
 	parser.add_argument("--eval_interval", type=int, default=2)
 	parser.add_argument("--learning_rate", type=float, default=0.0001)
-	parser.add_argument("--dropout", type=float, default=0.2)
+	parser.add_argument("--dropout", type=float, default=0.4)
+	parser.add_argument("--dropout_emb", type=float, default=0.4)
 	parser.add_argument("--num_epochs", type=int, default=10)
 	parser.add_argument("--clip_threshold", type=int, default=10)
 	parser.add_argument("--num_layers", type=int, default=3)
@@ -396,7 +424,8 @@ if __name__ == "__main__":
 	parser.add_argument("--meteor_path", type=str, default=10)
 	parser.add_argument("--profile", action="store_true")
 	parser.add_argument("--squad", action="store_true")
-	parser.add_argument("--reduced", action="store_true")
+	parser.add_argument("--reduced", action="store_true", default=True)
+	parser.add_argument("--emb_elmo", action="store_true",default=False)
 	parser.add_argument("--mcq", action="store_true", default=False)
 
 	args = parser.parse_args()
@@ -428,6 +457,20 @@ if __name__ == "__main__":
 		train_documents, train_candidates_embed_docid,train_candidate_per_docid,train_context_per_docid,_,_ = loader.load_documents_elmo(t_documents,split=False)
 		valid_documents,valid_candidates_embed_docid,valid_candidate_per_docid,valid_context_per_docid,_,_ = loader.load_documents_elmo(v_documents,split=False)
 		test_documents, test_candidates_embed_docid,test_candidate_per_docid,test_context_per_docid,_,_ = loader.load_documents_elmo(te_documents,split=False)
+
+		# fout = codecs.open("manual_check.txt", "w", encoding='utf-8')
+		# for i in range(20):
+		# 	q = "Q:" + " ".join(train_documents[i].question_tokens)
+		# 	p = " ".join(train_context_tokens_per_docid[train_documents[i].doc_id])
+		# 	c = [" ".join(c) for c in train_documents[i].candidates]
+		# 	idx = train_documents[i].answer_indices[0]
+		# 	correct = " ".join(train_documents[i].candidates[idx])
+		# 	fout.write(q + "\n")
+		# 	for cc in c:
+		# 		fout.write("C:" + cc + "\n")
+		# 	fout.write("Correct:{0}".format(idx) + "\n\n")
+		#exit(0)
+
 	elif args.reduced:
 		loader = DataLoader(args)
 		with open(args.train_path, "r") as fin:
@@ -442,6 +485,26 @@ if __name__ == "__main__":
 		valid_documents, valid_candidates_embed_docid, valid_candidate_per_docid,valid_context_per_docid,valid_context_tokens_per_docid = loader.load_documents_split_sentences(v_documents)
 		print("Loading testing documents")
 		test_documents, test_candidates_embed_docid, test_candidate_per_docid,test_context_per_docid,test_context_tokens_per_docid = loader.load_documents_split_sentences(te_documents)
+
+		# fout = codecs.open("manual_check.txt","w", encoding='utf-8')
+		# for i in range(20):
+		# 	q = "Q:" + " ".join(train_documents[i].question_tokens)
+		# 	doc_id = train_documents[i].doc_id
+		# 	context = train_context_tokens_per_docid[doc_id]
+		# 	reduced_context_ = []
+		# 	ranges = train_documents[i].chunk_indices
+		# 	for r in ranges:
+		# 		reduced_context_ += context[r[0]:r[1]]
+		# 	p = " ".join(reduced_context_)
+		# 	c = [" ".join(c) for c in train_documents[i].candidates]
+		# 	idx = train_documents[i].answer_indices[0]
+		# 	correct = " ".join(train_documents[i].candidates[idx])
+		# 	fout.write(q + "\n")
+		# 	fout.write(p + "\n")
+		# 	for cc in c:
+		# 		fout.write("C:"+ cc+ "\n")
+		# 	fout.write("Correct:{0}".format(idx) + "\n\n")
+		# exit(0)
 
 	else:
 
