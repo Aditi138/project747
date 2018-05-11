@@ -54,17 +54,11 @@ class BiDAF(nn.Module):
 	def __init__(self, input_size, dropout=0.2):
 		super(BiDAF, self).__init__()
 		self.input_size = input_size
+		self.elmo_size = 1024
 		self.linear = nn.Linear(input_size, input_size)
-		std = math.sqrt(6 / (input_size + 1))
-		self.linear.weight.data.uniform_(-std, std)
-		self.linear.bias.data.fill_(1)
-
 		self.activation = nn.ReLU()
 
 
-
-		self.similarity_layer = nn.Linear(3*input_size, 1)
-		self.similarity_layer.bias.data.fill_(1)
 
 
 

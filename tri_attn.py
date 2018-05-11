@@ -128,23 +128,22 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 				reduced_context_embeddings = []
 				reduced_context = []
 				ranges = batch_reduced_context_indices[index]
-				for r in ranges:
-				   reduced_context_embeddings += context_embeddings[r[0]:r[1]]
-				   reduced_context += context_tokens_per_docid[doc_id][r[0]:r[1]]
-
-
 				if args.emb_elmo:
+					for r in ranges:
+						reduced_context_embeddings += context_embeddings[r[0]:r[1]].tolist()
 					batch_context = variable(torch.FloatTensor(reduced_context_embeddings))
 				else:
+					for r in ranges:
+						reduced_context_embeddings += context_embeddings[r[0]:r[1]]
 					batch_context = variable(torch.LongTensor(reduced_context_embeddings))
 
-				s_file.write("@@".join(reduced_context) + "\n" + " ".join(batch_q_tokens[index][:-1])  + "\n")
+				s_file.write("@@".join(reduced_context) + "\n" + " ".join(batch_q_tokens[index])  + "\n")
 			else:
 				if args.emb_elmo:
 					batch_context = variable(torch.FloatTensor(context_per_docid[doc_id]))
 				else:
 					batch_context = variable(torch.LongTensor(context_per_docid[doc_id]))
-				s_file.write("@@".join(context_tokens_per_docid[doc_id]) + "\n" + " ".join(batch_q_tokens[index][:-1])  + "\n")
+				s_file.write("@@".join(context_tokens_per_docid[doc_id]) + "\n" + " ".join(batch_q_tokens[index])  + "\n")
 
 			batch_context_length = np.array([batch_context.size(0)])
 			batch_context_mask = variable(torch.FloatTensor(np.array([1 for x in range(batch_context_length[0])])))
@@ -332,11 +331,14 @@ def train_epochs(model, vocab):
 					context_embeddings =  train_context_per_docid[doc_id]
 					reduced_context_embeddings = []
 					ranges = batch_reduced_context_indices[index]
-					for r in ranges:
-						reduced_context_embeddings += context_embeddings[r[0]:r[1]]
+
 					if args.emb_elmo:
+						for r in ranges:
+							reduced_context_embeddings += context_embeddings[r[0]:r[1]].tolist()
 						batch_context = variable(torch.FloatTensor(reduced_context_embeddings))
 					else:
+						for r in ranges:
+							reduced_context_embeddings += context_embeddings[r[0]:r[1]]
 						batch_context = variable(torch.LongTensor(reduced_context_embeddings))
 				else:
 					batch_context = variable(torch.FloatTensor(train_context_per_docid[doc_id]))
@@ -454,6 +456,7 @@ if __name__ == "__main__":
 		train_documents = loader.load_documents_with_candidates(args.train_path)
 		valid_documents = loader.load_documents_with_candidates(args.valid_path)
 		test_documents = loader.load_documents_with_candidates(args.valid_path)
+
 	elif args.elmo:
 		loader = DataLoader(args)
 		with open(args.train_path, "r") as fin:
