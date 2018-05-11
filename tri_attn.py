@@ -209,7 +209,8 @@ def train_epochs(model, vocab):
 	clip_threshold = args.clip_threshold
 	eval_interval = args.eval_interval
 
-	optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+	#optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
+	optimizer = optim.Adam(filter(lambda p: p.requires_grad,model.parameters()), lr=args.learning_rate)
 	train_loss = 0
 	train_denom = 0
 	validation_history = []

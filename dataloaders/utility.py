@@ -77,6 +77,7 @@ def get_pretrained_emb(embedding_path, word_to_id, dim):
 
     not_covered = 0
     for word, id in word_to_id.iteritems():
+	word = str(word)
         if word in pretrain_word_emb:
             word_emb[id] = pretrain_word_emb[word]
         elif word.lower() in pretrain_word_emb:
