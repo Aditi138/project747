@@ -720,7 +720,7 @@ class DataLoader():
 
         return data_points
 
-    def load_documents_split_sentences(self, documents):
+    def load_documents_split_sentences(self, documents,train=False):
         data_points = []
         candidates_embed_docid = {}
         candidate_per_docid = {}
@@ -792,8 +792,10 @@ class DataLoader():
             ## append queries to the end of the vector
             for reference,question in zip(true_candidates, document.qaps):
                 chunk_storage.append(reference)
-                concat_chunk_storage.append(" ".join(reference) +" "  +  " ".join(question.question_tokens))
-
+		if train:
+		    concat_chunk_storage.append(" ".join(reference) +" "  +  " ".join(question.question_tokens))
+		else:
+		    concat_chunk_storage.append(" ".join(question.question_tokens))
 
             vectorizer = CountVectorizer(preprocessor=self.lemmatizer.lemmatize, stop_words=self.stop_words,
                                          ngram_range=(1, 2))

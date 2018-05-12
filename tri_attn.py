@@ -471,7 +471,7 @@ if __name__ == "__main__":
 		with open(args.test_path, "r") as fin:
 			te_documents = pickle.load(fin)
 
-		train_documents, train_candidates_embed_docid,train_candidate_per_docid,train_context_per_docid,train_context_tokens_per_docid,_ = loader.load_documents_elmo(t_documents,split=False)
+		train_documents, train_candidates_embed_docid,train_candidate_per_docid,train_context_per_docid,train_context_tokens_per_docid,_ = loader.load_documents_elmo(t_documents,split=False,train=True)
 		valid_documents,valid_candidates_embed_docid,valid_candidate_per_docid,valid_context_per_docid,valid_context_tokens_per_docid,_ = loader.load_documents_elmo(v_documents,split=False)
 		test_documents, test_candidates_embed_docid,test_candidate_per_docid,test_context_per_docid,test_context_tokens_per_docid,_ = loader.load_documents_elmo(te_documents,split=False)
 
