@@ -232,6 +232,22 @@ class SquadDataloader():
 			articles[key] = paragraphs
 		return data_points, articles
 
+
+	def load_documents_with_candidates(self, file_path, max_documents=0):
+		with open(file_path, "rb") as fin:
+			if max_documents > 0:
+				data_points = pickle.load(fin)[:max_documents]
+			else:
+				data_points = pickle.load(fin)
+		for e, data in enumerate(data_points):
+			data_points[e].question_tokens = self.vocab.add_and_get_indices(data.question_tokens)
+			data_points[e].context_tokens = self.vocab.add_and_get_indices(data.context_tokens)
+			candidates = []
+			for candidate in data.candidates:
+				candidates.append(self.vocab.add_and_get_indices(candidate))
+			data_points[e].candidates = candidates
+		return data_points
+
 	def pickle_data_candidates(self, path, output_path):
 		data_points = []
 		with open(path) as data_file:
@@ -258,21 +274,22 @@ class SquadDataloader():
 					_, answer_tokens = self.tokenize(answer_texts[0])
 					candidate_answers.append(answer_tokens)
 					paragraph_questions.append(question_tokens)
+				extra_answers = []
 				if len(paragraph_questions) < 10:
-					## take some candidate answers from the next paragraph except the last where
-					## take from the previous
-					if para_id < len(article['paragraphs'])-2:
-						extra_answers = [self.tokenize(a["answers"][0]['text'])[1] for a in
-											article['paragraphs'][para_id + 1]['qas']] + \
-										[self.tokenize(a["answers"][0]['text'])[1] for a in
-											article['paragraphs'][para_id + 2]['qas']]
+					## collect future extra answers until enough extra answers are collected or run out of future paragraphs
+					current = para_id + 1
+					while current < len(article['paragraphs']) and len(extra_answers) < 10 - len(paragraph_questions):
+						extra_answers += [self.tokenize(a["answers"][0]['text'])[1] for a in
+											article['paragraphs'][current]['qas']]
+						current += 1
+					## else collect past answers
+					current = para_id - 1
+					while current >= 0 and len(extra_answers) < 10 - len(paragraph_questions):
+						extra_answers += [self.tokenize(a["answers"][0]['text'])[1] for a in
+											article['paragraphs'][current]['qas']]
+						current -= 1
 
-					else:
-						##last but one paragraph takes from two paras behind
-						extra_answers = [self.tokenize(a["answers"][0]['text'])[1] for a in
-											article['paragraphs'][para_id - 1]['qas']] + \
-										[self.tokenize(a["answers"][0]['text'])[1] for a in
-										 article['paragraphs'][para_id - 2]['qas']]
+					## collect just enough exytra answers to make up 10
 					np.random.shuffle(extra_answers)
 					for j in range(10 - len(paragraph_questions)):
 						candidate_answers.append(extra_answers[j])
@@ -299,7 +316,7 @@ class SquadDataloader():
 													   None,
 													   []
 													   ))
-					
+
 		with open(output_path, "wb") as fout:
 			pickle.dump(data_points, fout)
 		print(max_q)
