@@ -438,7 +438,7 @@ if __name__ == "__main__":
 	parser.add_argument("--seed", type=int, default=1234)
 	parser.add_argument("--profile", action="store_true")
 	parser.add_argument("--squad", action="store_true")
-	parser.add_argument("--reduced", action="store_true", default=True)
+	parser.add_argument("--reduced", action="store_true", default=False)
 	parser.add_argument("--emb_elmo", action="store_true",default=False)
 	parser.add_argument("--mcq", action="store_true", default=False)
 

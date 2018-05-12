@@ -15,7 +15,7 @@ class TriAttn(nn.Module):
 		self.dropout_emb = args.dropout_emb
 
 		## word embedding layer
-		#self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size,pretrain_embedding=loader.pretrain_embedding)
+		self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size,pretrain_embedding=loader.pretrain_embedding)
 
 		## contextual embedding layer
 		#self.contextual_embedding_layer = RecurrentContext(input_size=embed_size, hidden_size=hidden_size, num_layers=1)
@@ -52,9 +52,9 @@ class TriAttn(nn.Module):
 				gold_index):
 
 		#Embed query and context
-		#query_embedded = self.word_embedding_layer(query_embedded)
-		#context_embedded =self.word_embedding_layer(context_embedded)
-		#batch_candidates_embedded = self.word_embedding_layer(batch_candidates_embedded)
+		query_embedded = self.word_embedding_layer(query_embedded)
+		context_embedded =self.word_embedding_layer(context_embedded)
+		batch_candidates_embedded = self.word_embedding_layer(batch_candidates_embedded)
 
 		#dropout emb
 		query_embedded = nn.functional.dropout(query_embedded,p=self.dropout_emb, training=True).unsqueeze(0)
@@ -119,9 +119,9 @@ class TriAttn(nn.Module):
 				batch_candidates_embedded, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,batch_candidate_unsort
 				):
 		# Embed query and context
-		#query_embedded = self.word_embedding_layer(query_embedded)
-		#context_embedded = self.word_embedding_layer(context_embedded)
-		#batch_candidates_embedded = self.word_embedding_layer(batch_candidates_embedded)
+		query_embedded = self.word_embedding_layer(query_embedded)
+		context_embedded = self.word_embedding_layer(context_embedded)
+		batch_candidates_embedded = self.word_embedding_layer(batch_candidates_embedded)
 
 		# dropout emb
 		query_embedded = nn.functional.dropout(query_embedded, p=self.dropout_emb, training=True).unsqueeze(0)
