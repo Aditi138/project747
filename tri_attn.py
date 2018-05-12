@@ -330,20 +330,23 @@ def train_epochs(model, vocab):
 				# context tokens
 				## if using reduced context
 				if args.reduced:
-					context_embeddings =  train_context_per_docid[doc_id]
-					reduced_context_embeddings = []
-					ranges = batch_reduced_context_indices[index]
+				    context_embeddings =  train_context_per_docid[doc_id]
+				    reduced_context_embeddings = []
+				    ranges = batch_reduced_context_indices[index]
 
-					if args.emb_elmo:
-						for r in ranges:
-							reduced_context_embeddings += context_embeddings[r[0]:r[1]].tolist()
-						batch_context = variable(torch.FloatTensor(reduced_context_embeddings))
-					else:
-						for r in ranges:
-							reduced_context_embeddings += context_embeddings[r[0]:r[1]]
-						batch_context = variable(torch.LongTensor(reduced_context_embeddings))
+				    if args.emb_elmo:
+					for r in ranges:
+					    reduced_context_embeddings += context_embeddings[r[0]:r[1]].tolist()
+					    batch_context = variable(torch.FloatTensor(reduced_context_embeddings))
+				    else:
+					for r in ranges:
+					    reduced_context_embeddings += context_embeddings[r[0]:r[1]]
+					    batch_context = variable(torch.LongTensor(reduced_context_embeddings))
 				else:
+				    if args.emb_elmo:
 					batch_context = variable(torch.FloatTensor(train_context_per_docid[doc_id]))
+				    else:
+					batch_context = variable(torch.LongTensor(train_context_per_docid[doc_id]))
 
 				batch_context_length = np.array([batch_context.size(0)])
 				batch_context_mask =variable(torch.FloatTensor(np.array([1 for x in range(batch_context_length[0])])))
@@ -468,9 +471,9 @@ if __name__ == "__main__":
 		with open(args.test_path, "r") as fin:
 			te_documents = pickle.load(fin)
 
-		train_documents, train_candidates_embed_docid,train_candidate_per_docid,train_context_per_docid,_,_ = loader.load_documents_elmo(t_documents,split=False)
-		valid_documents,valid_candidates_embed_docid,valid_candidate_per_docid,valid_context_per_docid,_,_ = loader.load_documents_elmo(v_documents,split=False)
-		test_documents, test_candidates_embed_docid,test_candidate_per_docid,test_context_per_docid,_,_ = loader.load_documents_elmo(te_documents,split=False)
+		train_documents, train_candidates_embed_docid,train_candidate_per_docid,train_context_per_docid,train_context_tokens_per_docid,_ = loader.load_documents_elmo(t_documents,split=False)
+		valid_documents,valid_candidates_embed_docid,valid_candidate_per_docid,valid_context_per_docid,valid_context_tokens_per_docid,_ = loader.load_documents_elmo(v_documents,split=False)
+		test_documents, test_candidates_embed_docid,test_candidate_per_docid,test_context_per_docid,test_context_tokens_per_docid,_ = loader.load_documents_elmo(te_documents,split=False)
 
 		# fout = codecs.open("manual_check.txt", "w", encoding='utf-8')
 		# for i in range(20):

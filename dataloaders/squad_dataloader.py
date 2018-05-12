@@ -546,5 +546,5 @@ if __name__ == '__main__':
 	# squad_dataloader.pickle_data_articles(args.train_path, args.train_output_path1, args.train_output_path2)
 	# squad_dataloader.pickle_data_articles(args.valid_path, args.valid_output_path1, args.valid_output_path2)
 	#data_points = squad_dataloader.load_docuements(args.t_output_path)
-	squad_dataloader.pickle_data_candidates(args.train_path, None)
-	squad_dataloader.pickle_data_candidates(args.valid_path, None)
+	squad_dataloader.pickle_data_candidates(args.train_path, "../../squad/candidates-train-v1.1.json")
+	squad_dataloader.pickle_data_candidates(args.valid_path, "../../squad/candidates-dev-v1.1.json")
