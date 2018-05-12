@@ -15,7 +15,7 @@ class TriAttn(nn.Module):
 		self.dropout_emb = args.dropout_emb
 
 		## word embedding layer
-		self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size,pretrain_embedding=loader.pretrain_embedding)
+		#self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size,pretrain_embedding=loader.pretrain_embedding)
 
 		## contextual embedding layer
 		#self.contextual_embedding_layer = RecurrentContext(input_size=embed_size, hidden_size=hidden_size, num_layers=1)
@@ -52,29 +52,15 @@ class TriAttn(nn.Module):
 				gold_index):
 
 		#Embed query and context
-		query_embedded = self.word_embedding_layer(query_embedded)
-		context_embedded =self.word_embedding_layer(context_embedded)
-		batch_candidates_embedded = self.word_embedding_layer(batch_candidates_embedded)
+		#query_embedded = self.word_embedding_layer(query_embedded)
+		#context_embedded =self.word_embedding_layer(context_embedded)
+		#batch_candidates_embedded = self.word_embedding_layer(batch_candidates_embedded)
 
 		#dropout emb
 		query_embedded = nn.functional.dropout(query_embedded,p=self.dropout_emb, training=True).unsqueeze(0)
 		context_embedded = nn.functional.dropout(context_embedded, p=self.dropout_emb, training=True).unsqueeze(0)
 		batch_candidates_embedded = nn.functional.dropout(batch_candidates_embedded, p=self.dropout_emb, training=True)
 
-		## Encode query and context
-		'''
-		# (N, J, 2d)
-		query_encoded, query_encoded_hidden= self.contextual_embedding_layer(query_embedded.unsqueeze(0), batch_query_length)
-		query_encoded_hidden = torch.cat([query_encoded_hidden[-2], query_encoded_hidden[-1]], dim =1)
-		query_encoded = self.dropout(query_encoded)
-		# (N, T, 2d)
-		context_encoded,_ = self.contextual_embedding_layer(context_embedded.unsqueeze(0), batch_context_length)
-		context_encoded = self.dropout(context_encoded)
-
-
-		batch_candidates_encoded, _ = self.contextual_embedding_layer(batch_candidates_embedded, batch_candidate_lengths_sorted)
-		batch_candidates_encoded  = self.dropout(batch_candidates_encoded)
-		'''
 
 		## BiDAF 1 to get ~U, ~h and G (8d) between context and query
 		# (N, T, 8d) , (N, T ,2d) , (N, 1, 2d)
@@ -133,9 +119,9 @@ class TriAttn(nn.Module):
 				batch_candidates_embedded, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,batch_candidate_unsort
 				):
 		# Embed query and context
-		query_embedded = self.word_embedding_layer(query_embedded)
-		context_embedded = self.word_embedding_layer(context_embedded)
-		batch_candidates_embedded = self.word_embedding_layer(batch_candidates_embedded)
+		#query_embedded = self.word_embedding_layer(query_embedded)
+		#context_embedded = self.word_embedding_layer(context_embedded)
+		#batch_candidates_embedded = self.word_embedding_layer(batch_candidates_embedded)
 
 		# dropout emb
 		query_embedded = nn.functional.dropout(query_embedded, p=self.dropout_emb, training=True).unsqueeze(0)
