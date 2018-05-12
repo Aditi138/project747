@@ -131,10 +131,12 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 				if args.emb_elmo:
 					for r in ranges:
 						reduced_context_embeddings += context_embeddings[r[0]:r[1]].tolist()
+						reduced_context += context_tokens_per_docid[doc_id][r[0]:r[1]]
 					batch_context = variable(torch.FloatTensor(reduced_context_embeddings))
 				else:
 					for r in ranges:
 						reduced_context_embeddings += context_embeddings[r[0]:r[1]]
+						reduced_context += context_tokens_per_docid[doc_id][r[0]:r[1]]
 					batch_context = variable(torch.LongTensor(reduced_context_embeddings))
 
 				s_file.write("@@".join(reduced_context) + "\n" + " ".join(batch_q_tokens[index])  + "\n")
