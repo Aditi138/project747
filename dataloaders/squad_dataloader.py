@@ -1,8 +1,9 @@
 import json
 import os
 from nltk.tokenize import word_tokenize
-from data import Span_Data_Point, Data_Point, Question, Article
+# from data import Span_Data_Point, Data_Point, Question, Article
 from nltk.stem import PorterStemmer as NltkPorterStemmer
+from data import Elmo_Data_Point, Span_Data_Point, Data_Point
 from collections import Counter, defaultdict
 import spacy
 import pickle
@@ -16,6 +17,7 @@ import re
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.metrics.pairwise import linear_kernel
+import numpy as np
 
 class SquadDataloader():
 	def __init__(self, args):
@@ -122,6 +124,13 @@ class SquadDataloader():
 			final_data_points.append(Span_Data_Point(q_tokens, c_tokens, data_point.span_indices))
 		return final_data_points
 
+	def load_documents_with_true_spans(self, path, summary_path=None, max_documents=0):
+		final_data_points = []
+		## list of elmo datapoints with 10 candidates in related paragraphs
+
+
+		pass
+
 	def load_documents_with_candidates(self, path, summary_path=None, max_documents=0):
 		final_data_points = []
 		with open(path, "rb") as fin:
@@ -222,6 +231,80 @@ class SquadDataloader():
 				paragraphs[e] = self.vocab.add_and_get_indices(p)
 			articles[key] = paragraphs
 		return data_points, articles
+
+	def pickle_data_candidates(self, path, output_path):
+		data_points = []
+		with open(path) as data_file:
+			dataset = json.load(data_file)['data']
+		article_count = 1
+		max_q = -1
+		min_q = 1000
+		for article in dataset:
+			article_id = article_count
+			article_paragraphs = []
+			article_count += 1
+			for para_id, paragraph_json in enumerate(article['paragraphs']):
+				paragraph = paragraph_json["context"]
+				_ , tokenized_paragraph = self.tokenize(paragraph)
+				max_q = max(len(paragraph_json['qas']), max_q)
+				min_q = min(len(paragraph_json['qas']), max_q)
+				candidate_answers = []
+				paragraph_questions = []
+
+				for question_answer in paragraph_json['qas']:
+					question_text = question_answer["question"].strip().replace("\n", "")
+					_, question_tokens = self.tokenize(question_text)
+					answer_texts = [answer['text'] for answer in question_answer['answers']]
+					_, answer_tokens = self.tokenize(answer_texts[0])
+					candidate_answers.append(answer_tokens)
+					paragraph_questions.append(question_tokens)
+				if len(paragraph_questions) < 10:
+					## take some candidate answers from the next paragraph except the last where
+					## take from the previous
+					if para_id < len(article['paragraphs'])-2:
+						extra_answers = [self.tokenize(a["answers"][0]['text'])[1] for a in
+											article['paragraphs'][para_id + 1]['qas']] + \
+										[self.tokenize(a["answers"][0]['text'])[1] for a in
+											article['paragraphs'][para_id + 2]['qas']]
+
+					else:
+						##last but one paragraph takes from two paras behind
+						extra_answers = [self.tokenize(a["answers"][0]['text'])[1] for a in
+											article['paragraphs'][para_id - 1]['qas']] + \
+										[self.tokenize(a["answers"][0]['text'])[1] for a in
+										 article['paragraphs'][para_id - 2]['qas']]
+					np.random.shuffle(extra_answers)
+					for j in range(10 - len(paragraph_questions)):
+						candidate_answers.append(extra_answers[j])
+				for i in range(len(paragraph_questions)):
+
+					if len(candidate_answers) > 10:
+						## limit to 10 candidates if more
+						correct_index = i
+						correct_answer = candidate_answers[correct_index]
+						others = [c for en, c in enumerate(candidate_answers) if en != correct_index]
+						np.random.shuffle(others)
+						index = np.random.randint(0, 9)
+						candidates_for_q = others[:index] + [correct_answer] + others[index+1:10]
+					else:
+						index = i
+						candidates_for_q = candidate_answers
+					data_points.append(Elmo_Data_Point(paragraph_questions[i],
+													   [],
+													   index,
+													   tokenized_paragraph,
+													   [],
+													   candidates_for_q,
+													   [],
+													   None,
+													   []
+													   ))
+					
+		with open(output_path, "wb") as fout:
+			pickle.dump(data_points, fout)
+		print(max_q)
+		print(min_q)
+
 
 
 	def pickle_data_articles(self, path, output_path1, output_path2):
@@ -460,6 +543,8 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 
 	squad_dataloader = SquadDataloader(args)
-	squad_dataloader.pickle_data_articles(args.train_path, args.train_output_path1, args.train_output_path2)
-	squad_dataloader.pickle_data_articles(args.valid_path, args.valid_output_path1, args.valid_output_path2)
+	# squad_dataloader.pickle_data_articles(args.train_path, args.train_output_path1, args.train_output_path2)
+	# squad_dataloader.pickle_data_articles(args.valid_path, args.valid_output_path1, args.valid_output_path2)
 	#data_points = squad_dataloader.load_docuements(args.t_output_path)
+	squad_dataloader.pickle_data_candidates(args.train_path, None)
+	squad_dataloader.pickle_data_candidates(args.valid_path, None)
