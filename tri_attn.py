@@ -126,22 +126,30 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 			if args.sentence_scoring:
 				## context is a set of ranges, pad them and context is a matrix, context_batch_size, weights based on gold ranges
 				## no support for emb_elmo
-				context_embeddings = context_per_docid[doc_id]  ## ids
+				context_embeddings = train_context_per_docid[doc_id]  ## ids
 				golden_ranges = batch_reduced_context_indices[index]
-				full_ranges = context_ranges_per_docid[doc_id]
+				full_ranges = train_context_ranges_per_docid[doc_id]
 				context_batch_length = len(full_ranges)
-				context_lengths = [r[1] - r[0] for r in full_ranges]
+				context_lengths = np.array([r[1] - r[0] for r in full_ranges])
 				max_context_chunk_length = max(context_lengths)
-				batch_context_mask = variable(torch.FloatTensor(np.array([[int(x < context_lengths[i])
-																		   for x in range(max_context_chunk_length)]
-																		  for i in range(context_batch_length)])))
+				batch_context_mask = np.array([[int(x < context_lengths[i])
+												for x in range(max_context_chunk_length)]
+											   for i in range(context_batch_length)])
 				batched_context_embeddings = []
 				for r in full_ranges:
-					batched_context_embeddings.append(pad_seq(context_embeddings[r[0]:r[1]], max_context_chunk_length))
+					batched_context_embeddings.append(
+						pad_seq(context_embeddings[r[0]:r[1]], max_context_chunk_length))
 				batch_context = variable(torch.LongTensor(batched_context_embeddings))
 				## dummyscores
-				batch_context_scores = variable(torch.FloatTensor([0] * context_batch_length))
-				batch_context_length = max_context_chunk_length
+				batch_context_scores = np.array([0] * context_batch_length)
+
+				length_sort = np.argsort(context_lengths)[::-1].copy()
+				batch_context_unsort = variable(torch.LongTensor(np.argsort(length_sort)))
+				batch_context_mask_sorted = variable(torch.FloatTensor(batch_context_mask[length_sort]))
+				batch_context_lengths_sorted = context_lengths[length_sort]
+				batch_context_sorted = variable(
+					torch.LongTensor(np.array(batched_context_embeddings)[length_sort, ...]))
+				batch_context_scores_sorted = variable(torch.FloatTensor(batch_context_scores[length_sort]))
 			else:
 				if args.reduced:
 					context_embeddings =  context_per_docid[doc_id]
@@ -175,7 +183,7 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 
 			if args.sentence_scoring:
 				indices,c2q_attention_matrix,answer_scores_sorted = model.eval(batch_query, batch_query_length,batch_question_mask,
-								 batch_context, batch_context_length,batch_context_mask,batch_context_scores, context_batch_length,
+								 batch_context_sorted, batch_context_lengths_sorted,batch_context_mask_sorted,batch_context_scores_sorted,
 								 batch_candidates_embed_sorted, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,batch_candidate_unsort)
 			else:
 				indices, c2q_attention_matrix, answer_scores_sorted = model.eval(batch_query, batch_query_length, batch_question_mask,
@@ -361,18 +369,26 @@ def train_epochs(model, vocab):
 					golden_ranges = batch_reduced_context_indices[index]
 					full_ranges = train_context_ranges_per_docid[doc_id]
 					context_batch_length = len(full_ranges)
-					context_lengths = [r[1]-r[0] for r in full_ranges]
+					context_lengths = np.array([r[1] - r[0] for r in full_ranges])
 					max_context_chunk_length = max(context_lengths)
-					batch_context_mask = variable(torch.FloatTensor(np.array([[int(x < context_lengths[i])
-																			   for x in range(max_context_chunk_length)]
-																			  for i in range(context_batch_length)])))
+					batch_context_mask = np.array([[int(x < context_lengths[i])
+													for x in range(max_context_chunk_length)]
+												   for i in range(context_batch_length)])
 					batched_context_embeddings = []
 					for r in full_ranges:
-						batched_context_embeddings.append(pad_seq(context_embeddings[r[0]:r[1]], max_context_chunk_length))
+						batched_context_embeddings.append(
+							pad_seq(context_embeddings[r[0]:r[1]], max_context_chunk_length))
 					batch_context = variable(torch.LongTensor(batched_context_embeddings))
 					## dummyscores
-					batch_context_scores = variable(torch.FloatTensor([0]*context_batch_length))
-					batch_context_length = max_context_chunk_length
+					batch_context_scores = np.array([0] * context_batch_length)
+
+					length_sort = np.argsort(context_lengths)[::-1].copy()
+					batch_context_unsort = variable(torch.LongTensor(np.argsort(length_sort)))
+					batch_context_mask_sorted = variable(torch.FloatTensor(batch_context_mask[length_sort]))
+					batch_context_lengths_sorted = context_lengths[length_sort]
+					batch_context_sorted = variable(
+						torch.LongTensor(np.array(batched_context_embeddings)[length_sort, ...]))
+					batch_context_scores_sorted = variable(torch.FloatTensor(batch_context_scores[length_sort]))
 				else:
 					if args.reduced:
 						context_embeddings =  train_context_per_docid[doc_id]
@@ -400,8 +416,8 @@ def train_epochs(model, vocab):
 
 				if args.sentence_scoring:
 					loss, indices = model(batch_query, batch_query_length,batch_question_mask,
-									batch_context, batch_context_length, batch_context_mask, batch_context_scores, context_batch_length,
-									  batch_candidates_embed_sorted, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,
+									batch_context_sorted, batch_context_lengths_sorted, batch_context_mask_sorted, batch_context_scores_sorted,
+									batch_candidates_embed_sorted, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,
 										  batch_candidate_unsort,
 									gold_index_variable
 									)
