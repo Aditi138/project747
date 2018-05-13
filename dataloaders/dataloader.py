@@ -726,6 +726,7 @@ class DataLoader():
         candidate_per_docid = {}
         context_per_docid = {}
         context_tokens_per_docid = {}
+        context_ranges_per_docid = {}
         for index, document in enumerate(documents):
             print(index)
             original_sentences = document.document_tokens
@@ -828,6 +829,7 @@ class DataLoader():
 
 
             context_tokens_per_docid[document.id] = raw_tokens
+            context_ranges_per_docid[document.id] = chunk_boundaries_storage
 
             candidate_per_doc_per_answer = []
 
@@ -869,7 +871,7 @@ class DataLoader():
                                    (query.question_tokens, query.query_embed, query.answer_indices,
                                     [], [], candidate_per_doc_per_answer, [], document.id, top_chunks[idx]))
 
-        return data_points, candidates_embed_docid, candidate_per_docid, context_per_docid, context_tokens_per_docid
+        return data_points, candidates_embed_docid, candidate_per_docid, context_per_docid, context_tokens_per_docid, context_ranges_per_docid
 
     def load_documents_elmo(self, documents, split=True):
         data_points = []
