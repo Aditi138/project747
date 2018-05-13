@@ -141,7 +141,7 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 						pad_seq(context_embeddings[r[0]:r[1]], max_context_chunk_length))
 				batch_context = variable(torch.LongTensor(batched_context_embeddings))
 				## dummyscores
-				batch_context_scores = np.array([0] * context_batch_length)
+				batch_context_scores = np.array([-10000] * context_batch_length)
 				for g_id in golden_ids:
 					batch_context_scores[g_id] = 0
 
