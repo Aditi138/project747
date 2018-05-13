@@ -223,10 +223,10 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 				candidates = candidates_per_docid[doc_id]
 			if fout is not None:
 				fout.write("\nRank: {0} / {1}   Gold: {2}\n".format(index, len(candidates), " ".join(
-					candidates[indices[position_gold_sorted].numpy()[0]])))
+					candidates[indices[position_gold_sorted]])))
 				for cand in range(10):
-					fout.write("C: {0} Score:{1}\n".format(" ".join(candidates[indices[cand].numpy()[0]]),
-														   str(answer_scores_sorted[cand][0])))
+					fout.write("C: {0} Score:{1}\n".format(" ".join(candidates[indices[cand]]),
+														   str(answer_scores_sorted[cand])))
 
 	mean_rr = np.mean(mrr_value)
 	print("MRR :{0}".format(mean_rr))
@@ -462,7 +462,7 @@ def train_epochs(model, vocab):
 
 	print("All epochs done")
 	model = torch.load(args.model_path)
-	evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid, test_context_tokens_per_docid,args.debug_file+".test")
+	evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid, test_context_tokens_per_docid,test_context_ranges_per_docid,args.debug_file+".test")
 
 def train_mrr(index, indices, batch_answer_indices):
 	if args.use_cuda:
@@ -476,7 +476,7 @@ def train_mrr(index, indices, batch_answer_indices):
 def test_model(model, documents,vocab):
     test_batches = create_batches(documents,args.batch_length,args.job_size, vocab)
     print("Testing!")
-    evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid, test_context_tokens_per_docid, args.debug_file + ".test")
+    evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid, test_context_tokens_per_docid,test_context_ranges_per_docid, args.debug_file + ".test")
 
 if __name__ == "__main__":
 	reload(sys)
@@ -506,7 +506,7 @@ if __name__ == "__main__":
 	parser.add_argument("--learning_rate", type=float, default=0.0001)
 	parser.add_argument("--dropout", type=float, default=0.4)
 	parser.add_argument("--dropout_emb", type=float, default=0.4)
-	parser.add_argument("--num_epochs", type=int, default=10)
+	parser.add_argument("--num_epochs", type=int, default=2)
 	parser.add_argument("--clip_threshold", type=int, default=10)
 	parser.add_argument("--num_layers", type=int, default=3)
 	parser.add_argument("--ner_dim", type=int, default=32)
@@ -577,11 +577,11 @@ if __name__ == "__main__":
 		with open(args.test_path, "r") as fin:
 			te_documents = pickle.load(fin)
 		print("Loading training documents")
-		train_documents, train_candidates_embed_docid, train_candidate_per_docid,train_context_per_docid,train_context_tokens_per_docid, train_context_ranges_per_docid = loader.load_documents_split_sentences(t_documents)
+		train_documents, train_candidates_embed_docid, train_candidate_per_docid,train_context_per_docid,train_context_tokens_per_docid, train_context_ranges_per_docid = loader.load_documents_split_sentences(t_documents,train=True)
 		print("Loading validation documents")
-		valid_documents, valid_candidates_embed_docid, valid_candidate_per_docid,valid_context_per_docid,valid_context_tokens_per_docid, valid_context_ranges_per_docid = loader.load_documents_split_sentences(v_documents)
+		valid_documents, valid_candidates_embed_docid, valid_candidate_per_docid,valid_context_per_docid,valid_context_tokens_per_docid, valid_context_ranges_per_docid = loader.load_documents_split_sentences(v_documents,train=True)
 		print("Loading testing documents")
-		test_documents, test_candidates_embed_docid, test_candidate_per_docid,test_context_per_docid,test_context_tokens_per_docid, test_context_ranges_per_docid = loader.load_documents_split_sentences(te_documents)
+		test_documents, test_candidates_embed_docid, test_candidate_per_docid,test_context_per_docid,test_context_tokens_per_docid, test_context_ranges_per_docid = loader.load_documents_split_sentences(te_documents,train=True)
 
 		# fout = codecs.open("manual_check.txt","w", encoding='utf-8')
 		# for i in range(20):

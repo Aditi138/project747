@@ -64,7 +64,7 @@ class BiDAF(nn.Module):
 
 
 	## TODO: Add capability of sentence mask (scoring) for sentence selection model
-	def forward(self, U, H, U_mask, H_mask, direction=False ,identity=None): #H:context U: query
+	def forward(self, U, H, U_mask, H_mask, direction=False ,identity=None, split=False, num_chunks = -1): #H:context U: query
 		T = H.size(1)   #Context Length
 		J = U.size(1)  #Quesiton Length
 
@@ -98,8 +98,14 @@ class BiDAF(nn.Module):
 			S = S * identity
 
 		#Query aware context representation.
-
-		c2q = torch.bmm(last_dim_softmax(S, U_mask), U)
+		if split:
+			num_candidates = S.size(0)
+			max_answer_lenght = S.size(1)
+			combined_context = S.size(2)
+			S_split = S.view(num_candidates, max_answer_lenght,num_chunks, int(combined_context / num_chunks))
+			c2q = torch.bmm(last_dim_softmax(S_split, U_mask).view(num_candidates, max_answer_lenght, -1), U)
+		else:
+			c2q = torch.bmm(last_dim_softmax(S, U_mask), U)
 		return c2q,S
 
 
@@ -252,3 +258,20 @@ def weighted_avg(x, weights):
         x_avg: batch * hdim
     """
     return weights.unsqueeze(1).bmm(x).squeeze(1)
+
+
+def log_sum_exp(value, dim=None, keepdim=False):
+    if dim is not None:
+        m, _ = torch.max(value, dim=dim, keepdim=True)
+        value0 = value - m
+        if keepdim is False:
+            m = m.squeeze(dim)
+        return m + torch.log(torch.sum(torch.exp(value0),
+                                       dim=dim, keepdim=keepdim))
+    else:
+        m = torch.max(value)
+        sum_exp = torch.sum(torch.exp(value - m))
+        if isinstance(sum_exp, Number):
+            return m + math.log(sum_exp)
+        else:
+            return m + torch.log(sum_exp)
