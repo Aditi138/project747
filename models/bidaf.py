@@ -3,6 +3,7 @@ from torch import nn
 from torch.autograd import Variable
 import torch.nn.functional as F
 import math
+import numpy as np
 
 def masked_softmax(vector, mask):
 	"""
@@ -141,6 +142,55 @@ class LinearSeqAttn(nn.Module):
 		scores = self.linear(x).squeeze(-1)
 		scores = masked_softmax(scores, x_mask)
 		return scores
+
+class MultiHeadLinearSeqAttn(nn.Module):
+	'''
+	Complicated Attention : vasvani et al.
+	'''
+	def __init__(self, input_size):
+		super(MultiHeadLinearSeqAttn, self).__init__()
+		self.input_size = input_size
+		self.query_layer = TimeDistributed(nn.Linear(input_size, input_size))
+		self.key_layer = TimeDistributed(nn.Linear(input_size, input_size))
+		self.value_layer = TimeDistributed(nn.Linear(input_size, input_size))
+
+		## xavier initialization
+
+	def forward(self, x, x_mask):
+		## x : batchsize*seqlength*embeddingdim
+		## no masking since token wise operation
+		queries = self.query_layer(x)
+		keys = self.key_layer(x)
+		values = self.value_layer(x)
+
+		## scores
+		scores = torch.sum(queries*keys, dim=2)/np.sqrt(self.input_size)
+		scores = masked_softmax(scores, x_mask)
+		return scores, values
+
+class MultiHeadBiLinearAttn(nn.Module):
+	'''
+	BiLinear Multihead
+	'''
+	## Normal bilinear: q_hidden is transformed (batch_size * embed_dim), U (batch_size, seq_size, dim)
+	def __init__(self, input_size, dropout=0.2):
+		super(MultiHeadBiLinearAttn, self).__init__()
+		## query will be transformed query, key, value can still be different
+		self.input_size = input_size
+		self.query_layer = nn.Linear(input_size, input_size)
+		self.key_layer = TimeDistributed(nn.Linear(input_size, input_size))
+		self.value_layer = TimeDistributed(nn.Linear(input_size, input_size))
+
+	def forward(self, U, H, U_mask):
+		query = self.query_layer(H) # batch_size*d
+		keys = self.key_layer(U)
+		values = self.value_layer(U)
+
+		## scores
+		scores = torch.sum(query.unsqueeze(1)*keys, dim=2)/np.sqrt(self.input_size)
+		scores = masked_softmax(scores, U_mask)
+		return scores, values
+
 
 class BiLinearAttn(nn.Module):
 	def __init__(self, input_size, dropout=0.2):

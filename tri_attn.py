@@ -3,6 +3,7 @@ import sys
 from dataloaders.dataloader import DataLoader, create_batches, view_batch, make_bucket_batches
 #from dataloaders.squad_dataloader import SquadDataloader
 from models.tri_attn_model import  TriAttn
+from models.tri_attn_multihead_model import TriAttnMultiHead
 from dataloaders.utility import get_pretrained_emb
 import torch
 from torch import optim
@@ -126,9 +127,9 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 			if args.sentence_scoring:
 				## context is a set of ranges, pad them and context is a matrix, context_batch_size, weights based on gold ranges
 				## no support for emb_elmo
-				context_embeddings = train_context_per_docid[doc_id]  ## ids
+				context_embeddings = context_per_docid[doc_id]  ## ids
 				golden_ids = batch_reduced_context_indices[index]
-				full_ranges = train_context_ranges_per_docid[doc_id]
+				full_ranges = context_ranges_per_docid[doc_id]
 				context_batch_length = len(full_ranges)
 				context_lengths = np.array([r[1] - r[0] for r in full_ranges])
 				max_context_chunk_length = max(context_lengths)
@@ -510,6 +511,7 @@ if __name__ == "__main__":
 	parser.add_argument("--num_layers", type=int, default=3)
 	parser.add_argument("--ner_dim", type=int, default=32)
 	parser.add_argument("--pos_dim", type=int, default=32)
+	parser.add_argument("--num_heads", type=int, default=4)
 
 	parser.add_argument("--meteor_path", type=str, default=10)
 	parser.add_argument("--seed", type=int, default=1234)
@@ -617,7 +619,7 @@ if __name__ == "__main__":
 		loader.pretrain_embedding = word_embedding
 
 	#model = ContextMRR_Sep(args, loader)
-	model = TriAttn(args, loader)
+	model = TriAttnMultiHead(args, loader)
 
 	if args.use_cuda:
 		model = model.cuda()

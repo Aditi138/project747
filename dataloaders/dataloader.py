@@ -867,9 +867,14 @@ class DataLoader():
 
             for idx, query in enumerate(document.qaps):
                 query.answer_indices[0] = query.answer_indices[0] / 2
-                data_points.append(Elmo_Data_Point
-                                   (query.question_tokens, query.query_embed, query.answer_indices,
-                                    [], [], candidate_per_doc_per_answer, [], document.id, top_chunks[idx]))
+                if self.args.sentence_scoring:
+                    data_points.append(Elmo_Data_Point
+                                       (query.question_tokens, query.query_embed, query.answer_indices,
+                                        [], [], candidate_per_doc_per_answer, [], document.id, top_chunks_ids[idx]))
+                else:
+                    data_points.append(Elmo_Data_Point
+                                       (query.question_tokens, query.query_embed, query.answer_indices,
+                                        [], [], candidate_per_doc_per_answer, [], document.id, top_chunks[idx]))
 
         return data_points, candidates_embed_docid, candidate_per_docid, context_per_docid, context_tokens_per_docid, context_ranges_per_docid
 
