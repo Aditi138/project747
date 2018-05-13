@@ -102,7 +102,7 @@ class BiDAF(nn.Module):
 			max_answer_lenght = S.size(1)
 			combined_context = S.size(2)
 			S_split = S.view(num_candidates, max_answer_lenght,num_chunks, int(combined_context / num_chunks))
-			c2q = torch.bmm(last_dim_softmax(S_split, U_mask), U)
+			c2q = torch.bmm(last_dim_softmax(S_split, U_mask).view(num_candidates, max_answer_lenght, -1), U)
 		else:
 			c2q = torch.bmm(last_dim_softmax(S, U_mask), U)
 		return c2q,S
