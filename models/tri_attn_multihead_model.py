@@ -184,15 +184,21 @@ class TriAttnMultiHead(nn.Module):
 		answer_modeled, _ = self.modeling_layer_a(answer_input_modelling,
 												  batch_candidate_lengths_sorted)  # (N, |A|, 2d)
 
-		query_self_attention = self.self_attn_q(query_input_modelled, batch_query_mask)
-		q_hidden = weighted_avg(query_input_modelled, query_self_attention)
+		# fancy self attention (vasvani et al)
+		query_self_attention, query_input_modelled_transformed = self.self_attn_q(query_input_modelled,
+																				  batch_query_mask)
+		q_hidden = weighted_avg(query_input_modelled_transformed, query_self_attention)
 
-		answer_self_attention = self.self_attn_a(answer_modeled, batch_candidate_masks_sorted)
-		a_hidden = weighted_avg(answer_modeled, answer_self_attention)
+		answer_self_attention, answer_modeled_transformed = self.self_attn_a(answer_modeled,
+																			 batch_candidate_masks_sorted)
+		a_hidden = weighted_avg(answer_modeled_transformed, answer_self_attention)
 
-		context_self_attention = self.self_attn_c(context_modeled, q_hidden, batch_context_mask)
-		c_hidden = weighted_avg(context_modeled, context_self_attention)
+		context_self_attention, context_modeled_transformed = self.self_attn_c(context_modeled, q_hidden,
+																			   batch_context_mask)
+		c_hidden = weighted_avg(context_modeled_transformed, context_self_attention)
 
+
+		# ouput answer scores
 		logits_qa = self.query_answer_bilinear(q_hidden) * a_hidden  # (N, 2d)
 		logits_ca = self.answer_context_bilinear(c_hidden) * a_hidden  # (N, 2d)
 		answer_scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=1))
