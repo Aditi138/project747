@@ -63,7 +63,7 @@ class BiDAF(nn.Module):
 
 
 	## TODO: Add capability of sentence mask (scoring) for sentence selection model
-	def forward(self, U, H, U_mask, H_mask, direction=False ,identity=None): #H:context U: query
+	def forward(self, U, H, U_mask, H_mask, direction=False ,identity=None, split=False, num_chunks = -1): #H:context U: query
 		T = H.size(1)   #Context Length
 		J = U.size(1)  #Quesiton Length
 
@@ -97,8 +97,14 @@ class BiDAF(nn.Module):
 			S = S * identity
 
 		#Query aware context representation.
-
-		c2q = torch.bmm(last_dim_softmax(S, U_mask), U)
+		if split:
+			num_candidates = S.size(0)
+			max_answer_lenght = S.size(1)
+			combined_context = S.size(2)
+			S_split = S.view(num_candidates, max_answer_lenght,num_chunks, int(combined_context / num_chunks))
+			c2q = torch.bmm(last_dim_softmax(S_split, U_mask), U)
+		else:
+			c2q = torch.bmm(last_dim_softmax(S, U_mask), U)
 		return c2q,S
 
 
