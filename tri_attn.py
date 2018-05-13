@@ -521,6 +521,7 @@ if __name__ == "__main__":
 	parser.add_argument("--emb_elmo", action="store_true",default=False)
 	parser.add_argument("--mcq", action="store_true", default=False)
 	parser.add_argument("--sentence_scoring", action="store_true", default=False)
+	parser.add_argument("--multi_head", action="store_true", default=False)
 
 	args = parser.parse_args()
 	
@@ -619,7 +620,10 @@ if __name__ == "__main__":
 		loader.pretrain_embedding = word_embedding
 
 	#model = ContextMRR_Sep(args, loader)
-	model = TriAttnMultiHead(args, loader)
+	if args.multi_head:
+		model = TriAttnMultiHead(args, loader)
+	else:
+		model = TriAttn(args, loader)
 
 	if args.use_cuda:
 		model = model.cuda()
