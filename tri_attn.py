@@ -126,9 +126,9 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 			if args.sentence_scoring:
 				## context is a set of ranges, pad them and context is a matrix, context_batch_size, weights based on gold ranges
 				## no support for emb_elmo
-				context_embeddings = train_context_per_docid[doc_id]  ## ids
+				context_embeddings = context_per_docid[doc_id]  ## ids
 				golden_ids = batch_reduced_context_indices[index]
-				full_ranges = train_context_ranges_per_docid[doc_id]
+				full_ranges = context_ranges_per_docid[doc_id]
 				context_batch_length = len(full_ranges)
 				context_lengths = np.array([r[1] - r[0] for r in full_ranges])
 				max_context_chunk_length = max(context_lengths)
@@ -222,10 +222,10 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 				candidates = candidates_per_docid[doc_id]
 			if fout is not None:
 				fout.write("\nRank: {0} / {1}   Gold: {2}\n".format(index, len(candidates), " ".join(
-					candidates[indices[position_gold_sorted].numpy()[0]])))
+					candidates[indices[position_gold_sorted]])))
 				for cand in range(10):
-					fout.write("C: {0} Score:{1}\n".format(" ".join(candidates[indices[cand].numpy()[0]]),
-														   str(answer_scores_sorted[cand][0])))
+					fout.write("C: {0} Score:{1}\n".format(" ".join(candidates[indices[cand]]),
+														   str(answer_scores_sorted[cand])))
 
 	mean_rr = np.mean(mrr_value)
 	print("MRR :{0}".format(mean_rr))
@@ -475,7 +475,7 @@ def train_mrr(index, indices, batch_answer_indices):
 def test_model(model, documents,vocab):
     test_batches = create_batches(documents,args.batch_length,args.job_size, vocab)
     print("Testing!")
-    evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid, test_context_tokens_per_docid, args.debug_file + ".test")
+    evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid, test_context_tokens_per_docid,test_context_ranges_per_docid, args.debug_file + ".test")
 
 if __name__ == "__main__":
 	reload(sys)

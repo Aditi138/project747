@@ -247,10 +247,18 @@ class TriAttn(nn.Module):
 		c_hidden = weighted_avg(context_modeled, context_self_attention)
 
 		logits_qa = self.query_answer_bilinear(q_hidden) * a_hidden  # (N, 2d)
-		logits_qa = (logits_qa + a_hidden) / 2  # (N, 2d)
-		context_chunk_wise = self.answer_context_bilinear(c_hidden)  # (K, 2d)
-		logits_ca = torch.mm(logits_qa, context_chunk_wise.transpose(0, 1))  # (N,K)
-		weighted_candidates = logits_ca + batch_context_scores
+		logits_qa = logits_qa.expand(num_chunks, logits_qa.size(0), logits_qa.size(1)).permute(1,0,2) # (N,k,2d)
+
+		context_chunk_wise = self.answer_context_bilinear(c_hidden)# (K, 2d)
+		context_chunk_wise = context_chunk_wise.expand(batch_size,context_chunk_wise.size(0), context_chunk_wise.size(1)) #(N,K,2d)
+		logits_ca = context_chunk_wise * a_hidden.unsqueeze(1)  #(N,K,2d)
+
+		scores = self.output_layer(torch.cat([logits_qa, logits_ca],dim=-1))  #(N,K,4d) ==>#(N,K,1)
+		weighted_candidates = scores.squeeze(-1) + batch_context_scores  #(N,K)
+
+		#logits_ca = torch.mm(logits_qa, context_chunk_wise.transpose(0, 1))  # (N,K)
+		#weighted_candidates = logits_ca + batch_context_scores
+
 		log_weighted_candidates = log_sum_exp(weighted_candidates, dim=-1)  # (N)
 		log_denominator = log_sum_exp(weighted_candidates.view(-1), dim=0)
 
