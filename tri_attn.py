@@ -505,7 +505,7 @@ if __name__ == "__main__":
 	parser.add_argument("--learning_rate", type=float, default=0.0001)
 	parser.add_argument("--dropout", type=float, default=0.4)
 	parser.add_argument("--dropout_emb", type=float, default=0.4)
-	parser.add_argument("--num_epochs", type=int, default=10)
+	parser.add_argument("--num_epochs", type=int, default=2)
 	parser.add_argument("--clip_threshold", type=int, default=10)
 	parser.add_argument("--num_layers", type=int, default=3)
 	parser.add_argument("--ner_dim", type=int, default=32)
@@ -575,11 +575,11 @@ if __name__ == "__main__":
 		with open(args.test_path, "r") as fin:
 			te_documents = pickle.load(fin)
 		print("Loading training documents")
-		train_documents, train_candidates_embed_docid, train_candidate_per_docid,train_context_per_docid,train_context_tokens_per_docid, train_context_ranges_per_docid = loader.load_documents_split_sentences(t_documents)
+		train_documents, train_candidates_embed_docid, train_candidate_per_docid,train_context_per_docid,train_context_tokens_per_docid, train_context_ranges_per_docid = loader.load_documents_split_sentences(t_documents,train=True)
 		print("Loading validation documents")
-		valid_documents, valid_candidates_embed_docid, valid_candidate_per_docid,valid_context_per_docid,valid_context_tokens_per_docid, valid_context_ranges_per_docid = loader.load_documents_split_sentences(v_documents)
+		valid_documents, valid_candidates_embed_docid, valid_candidate_per_docid,valid_context_per_docid,valid_context_tokens_per_docid, valid_context_ranges_per_docid = loader.load_documents_split_sentences(v_documents,train=True)
 		print("Loading testing documents")
-		test_documents, test_candidates_embed_docid, test_candidate_per_docid,test_context_per_docid,test_context_tokens_per_docid, test_context_ranges_per_docid = loader.load_documents_split_sentences(te_documents)
+		test_documents, test_candidates_embed_docid, test_candidate_per_docid,test_context_per_docid,test_context_tokens_per_docid, test_context_ranges_per_docid = loader.load_documents_split_sentences(te_documents,train=True)
 
 		# fout = codecs.open("manual_check.txt","w", encoding='utf-8')
 		# for i in range(20):
