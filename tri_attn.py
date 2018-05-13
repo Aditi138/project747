@@ -127,7 +127,7 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 				## context is a set of ranges, pad them and context is a matrix, context_batch_size, weights based on gold ranges
 				## no support for emb_elmo
 				context_embeddings = train_context_per_docid[doc_id]  ## ids
-				golden_ranges = batch_reduced_context_indices[index]
+				golden_ids = batch_reduced_context_indices[index]
 				full_ranges = train_context_ranges_per_docid[doc_id]
 				context_batch_length = len(full_ranges)
 				context_lengths = np.array([r[1] - r[0] for r in full_ranges])
@@ -142,6 +142,8 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 				batch_context = variable(torch.LongTensor(batched_context_embeddings))
 				## dummyscores
 				batch_context_scores = np.array([0] * context_batch_length)
+				for g_id in golden_ids:
+					batch_context_scores[g_id] = 0
 
 				length_sort = np.argsort(context_lengths)[::-1].copy()
 				batch_context_unsort = variable(torch.LongTensor(np.argsort(length_sort)))
@@ -366,7 +368,7 @@ def train_epochs(model, vocab):
 					## context is a set of ranges, pad them and context is a matrix, context_batch_size, weights based on gold ranges
 					## no support for emb_elmo
 					context_embeddings = train_context_per_docid[doc_id]  ## ids
-					golden_ranges = batch_reduced_context_indices[index]
+					golden_ids = batch_reduced_context_indices[index]
 					full_ranges = train_context_ranges_per_docid[doc_id]
 					context_batch_length = len(full_ranges)
 					context_lengths = np.array([r[1] - r[0] for r in full_ranges])
@@ -380,7 +382,10 @@ def train_epochs(model, vocab):
 							pad_seq(context_embeddings[r[0]:r[1]], max_context_chunk_length))
 					batch_context = variable(torch.LongTensor(batched_context_embeddings))
 					## dummyscores
-					batch_context_scores = np.array([0] * context_batch_length)
+					batch_context_scores = np.array([-10000] * context_batch_length)
+					for g_id in golden_ids:
+						batch_context_scores[g_id] = 0
+
 
 					length_sort = np.argsort(context_lengths)[::-1].copy()
 					batch_context_unsort = variable(torch.LongTensor(np.argsort(length_sort)))
