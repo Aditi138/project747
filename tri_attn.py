@@ -461,7 +461,7 @@ def train_epochs(model, vocab):
 
 	print("All epochs done")
 	model = torch.load(args.model_path)
-	evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid, test_context_tokens_per_docid,args.debug_file+".test")
+	evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid, test_context_tokens_per_docid,test_context_ranges_per_docid,args.debug_file+".test")
 
 def train_mrr(index, indices, batch_answer_indices):
 	if args.use_cuda:
