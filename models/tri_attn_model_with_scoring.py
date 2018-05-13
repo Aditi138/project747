@@ -2,7 +2,7 @@ import torch
 from torch import nn
 from torch.autograd import Variable
 import torch.nn.functional as F
-from bidaf import BiDAF, LinearSeqAttn,weighted_avg,BiLinearAttn
+from bidaf import BiDAF, LinearSeqAttn,weighted_avg,BiLinearAttn, log_sum_exp
 import codecs
 
 class TriAttn(nn.Module):
@@ -115,7 +115,7 @@ class TriAttn(nn.Module):
 		return loss, indices
 
 	def eval(self,query_embedded, batch_query_length,batch_query_mask,
-				context_embedded, batch_context_length,batch_context_mask,
+				context_embedded, batch_context_length,batch_context_mask,batch_context_scores,
 				batch_candidates_embedded, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,batch_candidate_unsort
 				):
 		# Embed query and context
@@ -176,8 +176,19 @@ class TriAttn(nn.Module):
 		c_hidden = weighted_avg(context_modeled, context_self_attention)
 
 		logits_qa = self.query_answer_bilinear(q_hidden) * a_hidden  # (N, 2d)
-		logits_ca = self.answer_context_bilinear(c_hidden) * a_hidden  # (N, 2d)
-		answer_scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=1))
+		logits_qa  = (logits_qa + a_hidden) / 2  #(N, 2d)
+		context_chunk_wise = self.answer_context_bilinear(c_hidden)   # (K, 2d)
+		logits_ca =  torch.matmul(logits_qa, context_chunk_wise)  # (N,K)
+		weighted_candidates= logits_ca + batch_context_scores
+		log_weighted_candidates = log_sum_exp(weighted_candidates,dim=-1)  #(N)
+		log_denominator = log_sum_exp(weighted_candidates.view(-1), dim=0)
+
+		answer_scores = log_weighted_candidates - log_denominator   #(N)
+
+
+
+
+		#answer_scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=1))
 
 		# logits = torch.sum(self.query_answer_bilinear(q_hidden) * a_hidden, dim=-1)
 		# logits += torch.sum(self.answer_context_bilinear(c_hidden) * a_hidden, dim=-1)
@@ -236,3 +247,5 @@ class LookupEncoder(nn.Module):
 
 	def forward(self, batch):
 		return self.word_embeddings(batch)
+
+
