@@ -728,7 +728,7 @@ class DataLoader():
         context_tokens_per_docid = {}
         context_ranges_per_docid = {}
         for index, document in enumerate(documents):
-            print(index)
+            #print(index)
             original_sentences = document.document_tokens
             chunk_length = 40
             num_chunks = 2
