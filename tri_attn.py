@@ -221,6 +221,7 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 				candidates = [candidates_per_docid[doc_id][a] for a in all_candidates]
 			else:
 				candidates = candidates_per_docid[doc_id]
+			'''
 			if fout is not None:
 				#indices = indices.squeeze(1).numpy()
 				fout.write("\nRank: {0} / {1}   Gold: {2}\n".format(index, len(candidates), " ".join(
@@ -228,7 +229,7 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 				for cand in range(10):
 					fout.write("C: {0} Score:{1}\n".format(" ".join(candidates[indices[cand]]),
 														   str(answer_scores_sorted[cand])))
-
+			'''
 	mean_rr = np.mean(mrr_value)
 	print("MRR :{0}".format(mean_rr))
 	model.train(True)
