@@ -222,7 +222,7 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 			else:
 				candidates = candidates_per_docid[doc_id]
 			if fout is not None:
-				indices = indices.squeeze(1).numpy()
+				#indices = indices.squeeze(1).numpy()
 				fout.write("\nRank: {0} / {1}   Gold: {2}\n".format(index, len(candidates), " ".join(
 					candidates[indices[position_gold_sorted]])))
 				for cand in range(10):
