@@ -3,7 +3,7 @@ import os
 from nltk.tokenize import word_tokenize
 # from data import Span_Data_Point, Data_Point, Question, Article
 from nltk.stem import PorterStemmer as NltkPorterStemmer
-from data import Elmo_Data_Point, Span_Data_Point, Data_Point
+from data import Elmo_Data_Point, Span_Data_Point, Data_Point, Squad_Elmo_Data_Point
 from collections import Counter, defaultdict
 import spacy
 import pickle
@@ -50,7 +50,7 @@ class SquadDataloader():
 			chunk = raw_tokens[-chunk_length:]
 			chunk_storage.append(chunk)
 
-		return chunk_storage,tokens
+		return chunk_storage,tokens,raw_tokens
 
 	def char_span_to_token_span(self, token_offsets, character_span):
 		"""
@@ -255,13 +255,14 @@ class SquadDataloader():
 		article_count = 1
 		max_q = -1
 		min_q = 1000
+		paragraph_id = 1
 		for article in dataset:
 			article_id = article_count
-			article_paragraphs = []
 			article_count += 1
+			print(article_count)
 			for para_id, paragraph_json in enumerate(article['paragraphs']):
 				paragraph = paragraph_json["context"]
-				_ , tokenized_paragraph = self.tokenize(paragraph)
+				_, _ , tokenized_paragraph = self.tokenize(paragraph)
 				max_q = max(len(paragraph_json['qas']), max_q)
 				min_q = min(len(paragraph_json['qas']), max_q)
 				candidate_answers = []
@@ -269,9 +270,9 @@ class SquadDataloader():
 
 				for question_answer in paragraph_json['qas']:
 					question_text = question_answer["question"].strip().replace("\n", "")
-					_, question_tokens = self.tokenize(question_text)
+					_,_, question_tokens = self.tokenize(question_text)
 					answer_texts = [answer['text'] for answer in question_answer['answers']]
-					_, answer_tokens = self.tokenize(answer_texts[0])
+					_,_, answer_tokens = self.tokenize(answer_texts[0])
 					candidate_answers.append(answer_tokens)
 					paragraph_questions.append(question_tokens)
 				extra_answers = []
@@ -279,13 +280,13 @@ class SquadDataloader():
 					## collect future extra answers until enough extra answers are collected or run out of future paragraphs
 					current = para_id + 1
 					while current < len(article['paragraphs']) and len(extra_answers) < 10 - len(paragraph_questions):
-						extra_answers += [self.tokenize(a["answers"][0]['text'])[1] for a in
+						extra_answers += [self.tokenize(a["answers"][0]['text'])[2] for a in
 											article['paragraphs'][current]['qas']]
 						current += 1
 					## else collect past answers
 					current = para_id - 1
 					while current >= 0 and len(extra_answers) < 10 - len(paragraph_questions):
-						extra_answers += [self.tokenize(a["answers"][0]['text'])[1] for a in
+						extra_answers += [self.tokenize(a["answers"][0]['text'])[2] for a in
 											article['paragraphs'][current]['qas']]
 						current -= 1
 
@@ -313,9 +314,9 @@ class SquadDataloader():
 													   [],
 													   candidates_for_q,
 													   [],
-													   None,
-													   []
+													   paragraph_id,
 													   ))
+				paragraph_id += 1
 
 		with open(output_path, "wb") as fout:
 			pickle.dump(data_points, fout)
@@ -339,7 +340,7 @@ class SquadDataloader():
 			article_count += 1
 			for paragraph_json in article['paragraphs']:
 				paragraph = paragraph_json["context"]
-				tokenized_chunks, tokenized_paragraph = self.tokenize(paragraph)
+				tokenized_chunks, tokenized_paragraph,_ = self.tokenize(paragraph)
 				copy_tokenized_paragraph = [token.text for token in tokenized_paragraph]
 				article_paragraphs.append(copy_tokenized_paragraph)
 			paragraph_count = 0
@@ -349,11 +350,11 @@ class SquadDataloader():
 				paragraph_id = paragraph_count
 				paragraph = paragraph_json["context"]
 				paragraph_count += 1
-				tokenized_chunks, tokenized_paragraph = self.tokenize(paragraph)
+				tokenized_chunks, tokenized_paragraph,_ = self.tokenize(paragraph)
 				for question_answer in paragraph_json['qas']:
 					copy_combined_paragraphs = [" ".join(p) for p in article_paragraphs]
 					question_text = question_answer["question"].strip().replace("\n", "")
-					_, question_tokens = self.tokenize(question_text)
+					_, question_tokens,_ = self.tokenize(question_text)
 					answer_texts = [answer['text'] for answer in question_answer['answers']]
 					span_starts = [answer['answer_start'] for answer in question_answer['answers']]
 					span_ends = [start + len(answer) for start, answer in zip(span_starts, answer_texts)]
@@ -408,11 +409,11 @@ class SquadDataloader():
 			article_count += 1
 			for paragraph_json in article['paragraphs']:
 				paragraph = paragraph_json["context"]
-				tokenized_chunks, tokenized_paragraph = self.tokenize(paragraph, chunk_length=chunk_length, chunk=True)
+				tokenized_chunks, tokenized_paragraph,_ = self.tokenize(paragraph, chunk_length=chunk_length, chunk=True)
 
 				for question_answer in paragraph_json['qas']:
 					question_text = question_answer["question"].strip().replace("\n", "")
-					_, question_tokens = self.tokenize(question_text)
+					_, question_tokens,_ = self.tokenize(question_text)
 					answer_texts = [answer['text'] for answer in question_answer['answers']]
 					span_starts = [answer['answer_start'] for answer in question_answer['answers']]
 					span_ends = [start + len(answer) for start, answer in zip(span_starts, answer_texts)]
@@ -563,5 +564,5 @@ if __name__ == '__main__':
 	# squad_dataloader.pickle_data_articles(args.train_path, args.train_output_path1, args.train_output_path2)
 	# squad_dataloader.pickle_data_articles(args.valid_path, args.valid_output_path1, args.valid_output_path2)
 	#data_points = squad_dataloader.load_docuements(args.t_output_path)
-	squad_dataloader.pickle_data_candidates(args.train_path, "../../squad/candidates-train-v1.1.json")
-	squad_dataloader.pickle_data_candidates(args.valid_path, "../../squad/candidates-dev-v1.1.json")
+	squad_dataloader.pickle_data_candidates(args.train_path, "../../squad/candidates-train-v1.1.pickle")
+	squad_dataloader.pickle_data_candidates(args.valid_path, "../../squad/candidates-dev-v1.1.pickle")
