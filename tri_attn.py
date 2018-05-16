@@ -181,7 +181,7 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 				batch_context_length = np.array([batch_context.size(0)])
 				batch_context_mask = variable(torch.FloatTensor(np.array([1 for x in range(batch_context_length[0])])))
 
-			batch_len = len(batch_candidate_lengths_sorted)
+
 			batch_candidate_unsort = variable(torch.LongTensor(np.argsort(candidate_sort)), volatile=True)
 
 			if args.sentence_scoring:
@@ -189,19 +189,19 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 								 batch_context_sorted, batch_context_lengths_sorted,batch_context_mask_sorted,batch_context_scores_sorted,
 								 batch_candidates_embed_sorted, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,batch_candidate_unsort)
 			else:
-				indices, c2q_attention_matrix, answer_scores_sorted = model.eval(batch_query, batch_query_length, batch_question_mask,
+				indices, c2q_attention_matrix = model.eval(batch_query, batch_query_length, batch_question_mask,
 							     batch_context, batch_context_length, batch_context_mask,
 								 batch_candidates_embed_sorted, batch_candidate_lengths_sorted, batch_candidate_masks_sorted, batch_candidate_unsort)
 
 			if args.use_cuda:
 				indices = indices.data.cpu()
 				c2q_attention_matrix = c2q_attention_matrix.data.cpu()
-				answer_scores_sorted = answer_scores_sorted.data.cpu()
+
 
 			else:
 				indices = indices.data
 				c2q_attention_matrix = c2q_attention_matrix.data.numpy()
-				answer_scores_sorted = answer_scores_sorted.data.numpy()
+
 
 			rows = c2q_attention_matrix.shape[1]
 			cols = c2q_attention_matrix.shape[2]
@@ -211,25 +211,11 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 			s_file.write("\n")
 			s_file.write(str(rows) + " " + str(cols) + "\n\n")
 			position_gold_sorted = (indices == batch_answer_indices[index]).nonzero().numpy()[0][0]
-			gold_index =  batch_answer_indices[index]
 			index = position_gold_sorted + 1
 
 			mrr_value.append(1.0 / (index))
 
 
-			if args.mcq:
-				candidates = [candidates_per_docid[doc_id][a] for a in all_candidates]
-			else:
-				candidates = candidates_per_docid[doc_id]
-			'''
-			if fout is not None:
-				#indices = indices.squeeze(1).numpy()
-				fout.write("\nRank: {0} / {1}   Gold: {2}\n".format(index, len(candidates), " ".join(
-					candidates[indices[position_gold_sorted]])))
-				for cand in range(10):
-					fout.write("C: {0} Score:{1}\n".format(" ".join(candidates[indices[cand]]),
-														   str(answer_scores_sorted[cand])))
-			'''
 	mean_rr = np.mean(mrr_value)
 	print("MRR :{0}".format(mean_rr))
 	model.train(True)
