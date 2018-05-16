@@ -3,7 +3,7 @@ import os
 from nltk.tokenize import word_tokenize
 # from data import Span_Data_Point, Data_Point, Question, Article
 from nltk.stem import PorterStemmer as NltkPorterStemmer
-from data import Elmo_Data_Point, Span_Data_Point, Data_Point, Squad_Elmo_Data_Point
+from data import Elmo_Data_Point, Span_Data_Point, Data_Point
 from collections import Counter, defaultdict
 import spacy
 import pickle
@@ -127,8 +127,6 @@ class SquadDataloader():
 	def load_documents_with_true_spans(self, path, summary_path=None, max_documents=0):
 		final_data_points = []
 		## list of elmo datapoints with 10 candidates in related paragraphs
-
-
 		pass
 
 	def load_documents_with_candidates(self, path, summary_path=None, max_documents=0):
@@ -233,7 +231,7 @@ class SquadDataloader():
 		return data_points, articles
 
 
-	def load_documents_with_candidates(self, file_path, max_documents=0):
+	def load_documents_with_true_candidates(self, file_path, max_documents=0):
 		with open(file_path, "rb") as fin:
 			if max_documents > 0:
 				data_points = pickle.load(fin)[:max_documents]
@@ -246,6 +244,9 @@ class SquadDataloader():
 			for candidate in data.candidates:
 				candidates.append(self.vocab.add_and_get_indices(candidate))
 			data_points[e].candidates = candidates
+
+		## this function should return the following
+		## data_points, candidates_embed_docid, candidate_per_docid, context_per_docid, context_tokens_per_docid, context_ranges_per_docid
 		return data_points
 
 	def pickle_data_candidates(self, path, output_path):
