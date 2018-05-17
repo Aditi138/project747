@@ -4,6 +4,7 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 from bidaf import BiDAF, LinearSeqAttn,weighted_avg,BiLinearAttn, log_sum_exp
 import codecs
+import numpy as np
 
 class TriAttn(nn.Module):
 	def __init__(self, args, loader):
@@ -100,14 +101,17 @@ class TriAttn(nn.Module):
 
 		# answer_modeled = batch_candidates_encoded
 		answer_input_modelling = torch.cat(
-			[query_aware_answer_encoded, context_aware_answer_encoded, batch_candidates_embedded], dim=-1)
-		answer_modeled, _ = self.modeling_layer_a(answer_input_modelling,
-												  batch_candidate_lengths_sorted)  # (N, |A|, 2d)
+			[query_aware_answer_encoded.unsqueeze(1).expand(-1,num_chunks,-1,-1),
+			 context_aware_answer_encoded,
+			 batch_candidates_embedded.unsqueeze(1).expand(-1,num_chunks,-1,-1)], dim=-1)
+		answer_modeled, _ = self.modeling_layer_a(answer_input_modelling.view(-1, answer_input_modelling.size(2), answer_input_modelling.size(3)),
+												  np.repeat(batch_candidate_lengths_sorted, num_chunks))  # (N, |A|, 2d)
 
 		query_self_attention = self.self_attn_q(query_input_modelled, batch_query_mask)
 		q_hidden = weighted_avg(query_input_modelled, query_self_attention)
 
-		answer_self_attention = self.self_attn_a(answer_modeled, batch_candidate_masks_sorted)
+		answer_self_attention = self.self_attn_a(answer_modeled,
+												 batch_candidate_masks_sorted.unsqueeze(1).expand(-1, num_chunks,-1).contiguous().view(batch_size*num_chunks, -1))
 		a_hidden = weighted_avg(answer_modeled, answer_self_attention)
 
 		context_self_attention = self.self_attn_c(context_modeled, q_hidden.expand(num_chunks, q_hidden.size(1)),
@@ -115,12 +119,12 @@ class TriAttn(nn.Module):
 		c_hidden = weighted_avg(context_modeled, context_self_attention)
 
 		logits_qa = self.query_answer_bilinear(q_hidden) * a_hidden  # (N, 2d)
-		logits_qa = logits_qa.expand(num_chunks, logits_qa.size(0), logits_qa.size(1)).permute(1, 0, 2)  # (N,k,2d)
+		logits_qa = logits_qa.view(batch_size, num_chunks, -1)  # (N,k,2d)
 
 		context_chunk_wise = self.answer_context_bilinear(c_hidden)  # (K, 2d)
 		context_chunk_wise = context_chunk_wise.expand(batch_size, context_chunk_wise.size(0),
 													   context_chunk_wise.size(1))  # (N,K,2d)
-		logits_ca = context_chunk_wise * a_hidden.unsqueeze(1)  # (N,K,2d)
+		logits_ca = context_chunk_wise * a_hidden.view(batch_size, num_chunks, -1)  # (N,K,2d)
 
 		scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=-1))  # (N,K,4d) ==>#(N,K,1)
 		weighted_candidates = scores.squeeze(-1) + batch_context_scores  # (N,K)
@@ -189,14 +193,20 @@ class TriAttn(nn.Module):
 
 		# answer_modeled = batch_candidates_encoded
 		answer_input_modelling = torch.cat(
-			[query_aware_answer_encoded, context_aware_answer_encoded, batch_candidates_embedded], dim=-1)
-		answer_modeled, _ = self.modeling_layer_a(answer_input_modelling,
-												  batch_candidate_lengths_sorted)  # (N, |A|, 2d)
+			[query_aware_answer_encoded.unsqueeze(1).expand(-1, num_chunks, -1, -1),
+			 context_aware_answer_encoded,
+			 batch_candidates_embedded.unsqueeze(1).expand(-1, num_chunks, -1, -1)], dim=-1)
+		answer_modeled, _ = self.modeling_layer_a(
+			answer_input_modelling.view(-1, answer_input_modelling.size(2), answer_input_modelling.size(3)),
+			np.repeat(batch_candidate_lengths_sorted, num_chunks))  # (N, |A|, 2d)
 
 		query_self_attention = self.self_attn_q(query_input_modelled, batch_query_mask)
 		q_hidden = weighted_avg(query_input_modelled, query_self_attention)
 
-		answer_self_attention = self.self_attn_a(answer_modeled, batch_candidate_masks_sorted)
+		answer_self_attention = self.self_attn_a(answer_modeled,
+												 batch_candidate_masks_sorted.unsqueeze(1).expand(-1, num_chunks,
+																								  -1).contiguous().view(
+													 batch_size * num_chunks, -1))
 		a_hidden = weighted_avg(answer_modeled, answer_self_attention)
 
 		context_self_attention = self.self_attn_c(context_modeled, q_hidden.expand(num_chunks, q_hidden.size(1)),
@@ -204,12 +214,13 @@ class TriAttn(nn.Module):
 		c_hidden = weighted_avg(context_modeled, context_self_attention)
 
 		logits_qa = self.query_answer_bilinear(q_hidden) * a_hidden  # (N, 2d)
-		logits_qa = logits_qa.expand(num_chunks, logits_qa.size(0), logits_qa.size(1)).permute(1, 0, 2)  # (N,k,2d)
+		logits_qa = logits_qa.view(batch_size, num_chunks, -1)  # (N,k,2d)
 
 		context_chunk_wise = self.answer_context_bilinear(c_hidden)  # (K, 2d)
 		context_chunk_wise = context_chunk_wise.expand(batch_size, context_chunk_wise.size(0),
 													   context_chunk_wise.size(1))  # (N,K,2d)
-		logits_ca = context_chunk_wise * a_hidden.unsqueeze(1)  # (N,K,2d)
+		logits_ca = context_chunk_wise * a_hidden.view(batch_size, num_chunks, -1)  # (N,K,2d)
+
 
 		scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=-1))  # (N,K,4d) ==>#(N,K,1)
 		weighted_candidates = scores.squeeze(-1) + batch_context_scores  # (N,K)

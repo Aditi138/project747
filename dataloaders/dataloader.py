@@ -853,6 +853,7 @@ class DataLoader():
                     candidate_per_doc_per_answer[query.answer_indices[0] / 2])
 
             candidate_answer_lengths = [len(answer) for answer in candidate_per_doc_per_answer]
+            candidate_per_doc_per_answer_indices = deepcopy(candidate_per_doc_per_answer)
             max_candidate_length = max(candidate_answer_lengths)
 
             if self.args.reduced  and self.args.emb_elmo:
@@ -870,11 +871,11 @@ class DataLoader():
                 if self.args.sentence_scoring:
                     data_points.append(Elmo_Data_Point
                                        (query.question_tokens, query.query_embed, query.answer_indices,
-                                        [], [], candidate_per_doc_per_answer, [], document.id, top_chunks_ids[idx]))
+                                        [], [], candidate_per_doc_per_answer_indices, [], document.id, top_chunks_ids[idx]))
                 else:
                     data_points.append(Elmo_Data_Point
                                        (query.question_tokens, query.query_embed, query.answer_indices,
-                                        [], [], candidate_per_doc_per_answer, [], document.id, top_chunks[idx]))
+                                        [], [], candidate_per_doc_per_answer_indices, [], document.id, top_chunks[idx]))
 
         return data_points, candidates_embed_docid, candidate_per_docid, context_per_docid, context_tokens_per_docid, context_ranges_per_docid
 
