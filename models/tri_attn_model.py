@@ -17,7 +17,7 @@ class TriAttn(nn.Module):
 		self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size,pretrain_embedding=loader.pretrain_embedding)
 
 		## contextual embedding layer
-		self.contextual_embedding_layer = RecurrentContext(input_size=embed_size, hidden_size=embed_size // 2, num_layers=args.num_layers)
+		#self.contextual_embedding_layer = RecurrentContext(input_size=embed_size, hidden_size=embed_size // 2, num_layers=args.num_layers)
 
 		## bidirectional attention flow between question and context
 		self.attention_flow_c2q = BiDAF(embed_size)
@@ -62,10 +62,10 @@ class TriAttn(nn.Module):
 		batch_context_mask = batch_context_mask.unsqueeze(0)
 
 		#contextual layer
-		context_encoded,_ = self.contextual_embedding_layer(context_embedded,batch_context_length)   #(1, |c|, 2*hidden_dim)
-		context_encoded = nn.functional.dropout(context_encoded, p=self.dropout_emb, training=True)
+		#context_encoded,_ = self.contextual_embedding_layer(context_embedded,batch_context_length)   #(1, |c|, 2*hidden_dim)
+		#context_encoded = nn.functional.dropout(context_encoded, p=self.dropout_emb, training=True)
 		batch_size = batch_candidates_embedded.size(0)
-
+		context_encoded = context_embedded
 		query_aware_context_encoded, c2q_attention_matrix = self.attention_flow_c2q(query_embedded,
 																					context_encoded,
 																					batch_query_mask,
@@ -134,9 +134,10 @@ class TriAttn(nn.Module):
 		batch_context_mask = batch_context_mask.unsqueeze(0)
 
 		# contextual layer
-		context_encoded, _ = self.contextual_embedding_layer(context_embedded,batch_context_length)  # (1, |c|, 2*hidden_dim)
-		context_encoded = nn.functional.dropout(context_encoded, p=self.dropout_emb, training=True)
+		#context_encoded, _ = self.contextual_embedding_layer(context_embedded,batch_context_length)  # (1, |c|, 2*hidden_dim)
+		#context_encoded = nn.functional.dropout(context_encoded, p=self.dropout_emb, training=True)
 		batch_size = batch_candidates_embedded.size(0)
+		context_encoded = context_embedded
 
 		query_aware_context_encoded, c2q_attention_matrix = self.attention_flow_c2q(query_embedded,
 																					context_encoded,
