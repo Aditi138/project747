@@ -313,6 +313,7 @@ def train_epochs(model, vocab):
 			batch_doc_ids = batch['doc_ids']
 			batch_reduced_context_indices = batch['chunk_indices']
 			batch_top_chunk = batch["top_chunks"]
+			batch_reduced_context_scores = batch["chunk_scores"]
 			batch_answer_indices = batch['answer_indices']
 			batch_size = len(batch_query_lengths)
 			losses = variable(torch.zeros(batch_size))
@@ -381,6 +382,7 @@ def train_epochs(model, vocab):
 					## no support for emb_elmo
 					context_embeddings = train_context_per_docid[doc_id]  ## ids
 					golden_ids = batch_reduced_context_indices[index]
+					golden_scores = batch_reduced_context_scores[index]
 					full_ranges = train_context_ranges_per_docid[doc_id]
 
 
@@ -399,10 +401,13 @@ def train_epochs(model, vocab):
 						batched_context_embeddings.append(
 							pad_seq(context_embeddings[r[0]:r[1]], max_context_chunk_length))
 					batch_context = variable(torch.LongTensor(batched_context_embeddings))
-					batch_context_scores = np.array([-10000] * context_batch_length)
-					## where is top most chunk in golden_ids
-					new_location_of_gold = golden_ids.index(top_most_chunk)
-					batch_context_scores[new_location_of_gold] = 0
+					### Dummy Scores
+					# batch_context_scores = np.array([-10000] * context_batch_length)
+					# new_location_of_gold = golden_ids.index(top_most_chunk)
+					# batch_context_scores[new_location_of_gold] = 0
+					### TF-IDF based scores
+					golden_scores = golden_scores/sum(golden_scores)
+					batch_context_scores = np.log(golden_scores)
 
 
 					'''

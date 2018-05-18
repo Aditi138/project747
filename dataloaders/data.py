@@ -80,7 +80,7 @@ class Data_Point:
 class Elmo_Data_Point:
 
     def __init__(self, question_tokens,question_embed,
-                 answer_indices, context_tokens, context_embed, candidates, candidates_embed, doc_id, chunk_indices=None, top_chunk= 0):
+                 answer_indices, context_tokens, context_embed, candidates, candidates_embed, doc_id, chunk_indices=None, chunk_scores = None, top_chunk= 0):
         self.question_tokens = question_tokens
         self.question_embed = question_embed
         self.context_tokens = context_tokens
@@ -90,6 +90,7 @@ class Elmo_Data_Point:
         self.candidates_embed = candidates_embed
         self.doc_id = doc_id
         self.chunk_indices = chunk_indices
+        self.chunk_scores = chunk_scores
         self.top_chunk = top_chunk
 
 

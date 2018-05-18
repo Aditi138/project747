@@ -163,6 +163,7 @@ def create_single_batch_elmo(batch_data):
     doc_ids = [data_point.doc_id for data_point in batch_data]
     chunk_indices = [data_point.chunk_indices for data_point in batch_data]
     top_chunks = [data_point.top_chunk for data_point in batch_data]
+    chunk_scores = [data_point.chunk_scores for data_point in batch_data]
     batch_query_lengths = [len(data_point.question_tokens) for data_point in batch_data]
     maximum_query_length = max(batch_query_lengths)
     # query_length_mask = np.array([[int(x < batch_query_lengths[i])
@@ -199,6 +200,7 @@ def create_single_batch_elmo(batch_data):
     batch['doc_ids'] = doc_ids
     batch['q_tokens'] = question_tokens
     batch['chunk_indices'] = chunk_indices
+    batch['chunk_scores'] = chunk_scores
     batch['top_chunks'] = top_chunks
     batch['q_embed'] = queries_embed
     batch['answer_indices'] = batch_answer_indices
@@ -788,7 +790,9 @@ class DataLoader():
 
             top_chunks = []
             top_chunks_ids = []
+            top_chunk_scores = []
             gold_chunk_id = []
+
 
             true_candidates = [document.candidates[i] for i in range(0, len(document.candidates), 2)]
 
@@ -809,16 +813,21 @@ class DataLoader():
             chunk_docs = tfidf[0:length]
             reference_docs = tfidf[length:]
             related_docs_indices = linear_kernel(reference_docs, chunk_docs).argsort()[:, -num_chunks:]
+            related_docs_scores = np.sort(linear_kernel(reference_docs, chunk_docs))[:, -num_chunks:]
             for idx in range(len(true_candidates)):
                 chunks_per_ref = []
                 doc_ids = related_docs_indices[idx][::-1]
+                doc_scores = related_docs_scores[idx][::-1]
                 gold_chunk_id.append(doc_ids[0])
+                doc_scores = doc_scores[doc_ids.argsort()]
                 doc_ids = sorted(doc_ids)
+
                 for doc_id in doc_ids:
                     ## these have to be time ordered so that she can just concatenate
                     chunks_per_ref.append(chunk_boundaries_storage[doc_id])
                 top_chunks.append(chunks_per_ref)
                 top_chunks_ids.append(doc_ids)
+                top_chunk_scores.append(doc_scores)
 
             document_tokens = []
             raw_tokens = []
@@ -875,7 +884,7 @@ class DataLoader():
                 if self.args.sentence_scoring:
                     data_points.append(Elmo_Data_Point
                                        (query.question_tokens, query.query_embed, query.answer_indices,
-                                        [], [], candidate_per_doc_per_answer_indices, [], document.id, top_chunks_ids[idx], gold_chunk_id[idx]))
+                                        [], [], candidate_per_doc_per_answer_indices, [], document.id, top_chunks_ids[idx], top_chunk_scores[idx], gold_chunk_id[idx]))
                 else:
                     data_points.append(Elmo_Data_Point
                                        (query.question_tokens, query.query_embed, query.answer_indices,

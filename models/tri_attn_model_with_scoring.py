@@ -166,7 +166,7 @@ class TriAttn(nn.Module):
 
 		batch_size = batch_candidates_embedded.size(0)
 		context_encoded = context_embedded
-		
+
 		query_aware_context_encoded, c2q_attention_matrix = self.attention_flow_c2q(query_embedded_chunk_wise,
 																					context_encoded,
 																					batch_query_mask_chunk_wise,
@@ -230,7 +230,7 @@ class TriAttn(nn.Module):
 		log_weighted_candidates = log_sum_exp(weighted_candidates, dim=-1)  # (N)
 		log_denominator = log_sum_exp(weighted_candidates.view(-1), dim=0)
 
-		answer_scores = log_denominator - log_weighted_candidates  # (N)
+		answer_scores = log_weighted_candidates  # (N)
 
 		## unsort the answer scores
 		answer_scores = torch.index_select(answer_scores, 0, batch_candidate_unsort)
@@ -244,10 +244,10 @@ class OutputLayer(nn.Module):
 		self.mlp = nn.Sequential(
 			nn.Linear(input_size, hidden_size),
 			nn.ReLU(),
-			nn.Dropout(0.2),
+			# nn.Dropout(0.2),
 			nn.Linear(hidden_size, hidden_size),
 			nn.ReLU(),
-			nn.Dropout(0.2),
+			# nn.Dropout(0.2),
 			nn.Linear(hidden_size, 1),
 			#nn.Softmax(), ## since loss is being replaced by cross entropy the exoected input into loss function
 		)
