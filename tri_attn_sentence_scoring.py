@@ -406,6 +406,8 @@ def train_epochs(model, vocab):
 					# new_location_of_gold = golden_ids.index(top_most_chunk)
 					# batch_context_scores[new_location_of_gold] = 0
 					### TF-IDF based scores
+					for enm, g in enumerate(golden_scores):
+						golden_scores[enm] = g + 1e-6
 					golden_scores = golden_scores/sum(golden_scores)
 					batch_context_scores = np.log(golden_scores)
 
