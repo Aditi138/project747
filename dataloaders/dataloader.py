@@ -822,10 +822,7 @@ class DataLoader():
                 document_tokens += self.vocab.add_and_get_indices(sent)
                 raw_tokens += sent
 
-            if self.args.reduced and self.args.emb_elmo:
-                context_per_docid[document.id] = np.concatenate(document.document_embed)
-            else:
-                context_per_docid[document.id] = self.vocab.add_and_get_indices(raw_tokens)
+            context_per_docid[document.id] = self.vocab.add_and_get_indices(raw_tokens)
 
 
             context_tokens_per_docid[document.id] = raw_tokens
@@ -837,16 +834,11 @@ class DataLoader():
             i = 0
             while i < len(document.candidates):
                 candidate_per_doc_per_answer.append(document.candidates[i])
-                if self.args.reduced  and self.args.emb_elmo:
-                    candidate_per_doc_per_answer_embed.append(document.candidates_embed[i])
                 i += 2
 
             candidate_per_doc_per_answer_raw_tokens = deepcopy(candidate_per_doc_per_answer)
             for query in document.qaps:
-                if self.args.reduced  and self.args.emb_elmo:
-                    query.query_embed = query.query_embed
-                else:
-                    query.query_embed = self.vocab.add_and_get_indices(query.question_tokens)
+                query.query_embed = self.vocab.add_and_get_indices(query.question_tokens)
 
                 query.question_tokens = query.question_tokens
                 candidate_per_doc_per_answer[query.answer_indices[0] / 2] = self.vocab.add_and_get_indices(
@@ -855,11 +847,7 @@ class DataLoader():
             candidate_answer_lengths = [len(answer) for answer in candidate_per_doc_per_answer]
             max_candidate_length = max(candidate_answer_lengths)
 
-            if self.args.reduced  and self.args.emb_elmo:
-                candidate_padded_answers_embed = np.array(
-                [pad_seq_elmo(answer, max_candidate_length) for answer in candidate_per_doc_per_answer_embed])
-            else:
-                candidate_padded_answers_embed = np.array([pad_seq(answer, max_candidate_length) for answer in candidate_per_doc_per_answer ])
+            candidate_padded_answers_embed = np.array([pad_seq(answer, max_candidate_length) for answer in candidate_per_doc_per_answer ])
 
 
             candidates_embed_docid[document.id] = candidate_padded_answers_embed
@@ -867,14 +855,10 @@ class DataLoader():
 
             for idx, query in enumerate(document.qaps):
                 query.answer_indices[0] = query.answer_indices[0] / 2
-                if self.args.sentence_scoring:
-                    data_points.append(Elmo_Data_Point
-                                       (query.question_tokens, query.query_embed, query.answer_indices,
-                                        [], [], candidate_per_doc_per_answer, [], document.id, top_chunks_ids[idx]))
-                else:
-                    data_points.append(Elmo_Data_Point
-                                       (query.question_tokens, query.query_embed, query.answer_indices,
-                                        [], [], candidate_per_doc_per_answer, [], document.id, top_chunks[idx]))
+                data_points.append(Elmo_Data_Point
+                                    (query.question_tokens, query.query_embed, query.answer_indices,
+                                    [], [], candidate_per_doc_per_answer, [], document.id, top_chunks_ids[idx]))
+         
 
         return data_points, candidates_embed_docid, candidate_per_docid, context_per_docid, context_tokens_per_docid, context_ranges_per_docid
 
@@ -906,10 +890,8 @@ class DataLoader():
             if split:
                 context_per_docid[document.id] = sentence_padded_embed
             else:
-		if self.args.emb_elmo:
-		    context_per_docid[document.id] = np.concatenate(document.document_embed)
-		else:
-		    context_per_docid[document.id] = self.vocab.add_and_get_indices(raw_tokens)
+		
+		context_per_docid[document.id] = self.vocab.add_and_get_indices(raw_tokens)
 
             candidate_per_doc_per_answer = []
             candidate_per_doc_per_answer_embed = []
