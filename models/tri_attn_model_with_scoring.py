@@ -133,7 +133,7 @@ class TriAttn(nn.Module):
 		## unsort the answer scores
 		answer_scores = torch.index_select(answer_scores, 0, batch_candidate_unsort)
 		loss = answer_scores[gold_index]
-		sorted, indices = torch.sort(answer_scores, dim=0, descending=True)
+		sorted, indices = torch.sort(answer_scores, dim=0, descending=False)
 		return loss, indices
 
 	def eval(self,query_embedded, batch_query_length,batch_query_mask,
