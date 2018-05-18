@@ -51,6 +51,7 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 		batch_candidates = batch["candidates"]
 		batch_answer_indices = batch['answer_indices']
 		batch_reduced_context_indices = batch['chunk_indices']
+		batch_top_chunk = batch["top_chunks"]
 		for index, query_embed in enumerate(batch['q_embed']):
 
 			if fout is not None:
@@ -129,6 +130,27 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 				context_embeddings = context_per_docid[doc_id]  ## ids
 				golden_ids = batch_reduced_context_indices[index]
 				full_ranges = context_ranges_per_docid[doc_id]
+
+				## Code to load fewer number of chunks
+				top_most_chunk = batch_top_chunk[index]
+				new_full_ranges = [full_ranges[i] for i in golden_ids]
+				context_batch_length = len(new_full_ranges)
+				context_lengths = np.array([r[1] - r[0] for r in new_full_ranges])
+				max_context_chunk_length = max(context_lengths)
+				batch_context_mask = np.array([[int(x < context_lengths[i])
+												for x in range(max_context_chunk_length)]
+											   for i in range(context_batch_length)])
+				batched_context_embeddings = []
+				for r in new_full_ranges:
+					batched_context_embeddings.append(
+						pad_seq(context_embeddings[r[0]:r[1]], max_context_chunk_length))
+				batch_context = variable(torch.LongTensor(batched_context_embeddings))
+				batch_context_scores = np.array([-10000] * context_batch_length)
+				## where is top most chunk in golden_ids
+				new_location_of_gold = golden_ids.index(top_most_chunk)
+				batch_context_scores[new_location_of_gold] = 0
+
+				'''
 				context_batch_length = len(full_ranges)
 				context_lengths = np.array([r[1] - r[0] for r in full_ranges])
 				max_context_chunk_length = max(context_lengths)
@@ -144,6 +166,7 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 				batch_context_scores = np.array([-10000] * context_batch_length)
 				for g_id in golden_ids:
 					batch_context_scores[g_id] = 0
+				'''
 
 				length_sort = np.argsort(context_lengths)[::-1].copy()
 				batch_context_unsort = variable(torch.LongTensor(np.argsort(length_sort)))
@@ -289,6 +312,7 @@ def train_epochs(model, vocab):
 			batch_candidates = batch["candidates"]
 			batch_doc_ids = batch['doc_ids']
 			batch_reduced_context_indices = batch['chunk_indices']
+			batch_top_chunk = batch["top_chunks"]
 			batch_answer_indices = batch['answer_indices']
 			batch_size = len(batch_query_lengths)
 			losses = variable(torch.zeros(batch_size))
@@ -358,6 +382,30 @@ def train_epochs(model, vocab):
 					context_embeddings = train_context_per_docid[doc_id]  ## ids
 					golden_ids = batch_reduced_context_indices[index]
 					full_ranges = train_context_ranges_per_docid[doc_id]
+
+
+
+					## Code to load fewer number of chunks
+					top_most_chunk = batch_top_chunk[index]
+					new_full_ranges = [full_ranges[i] for i in golden_ids]
+					context_batch_length = len(new_full_ranges)
+					context_lengths = np.array([r[1] - r[0] for r in new_full_ranges])
+					max_context_chunk_length = max(context_lengths)
+					batch_context_mask = np.array([[int(x < context_lengths[i])
+													for x in range(max_context_chunk_length)]
+												   for i in range(context_batch_length)])
+					batched_context_embeddings = []
+					for r in new_full_ranges:
+						batched_context_embeddings.append(
+							pad_seq(context_embeddings[r[0]:r[1]], max_context_chunk_length))
+					batch_context = variable(torch.LongTensor(batched_context_embeddings))
+					batch_context_scores = np.array([-10000] * context_batch_length)
+					## where is top most chunk in golden_ids
+					new_location_of_gold = golden_ids.index(top_most_chunk)
+					batch_context_scores[new_location_of_gold] = 0
+
+
+					'''
 					context_batch_length = len(full_ranges)
 					context_lengths = np.array([r[1] - r[0] for r in full_ranges])
 					max_context_chunk_length = max(context_lengths)
@@ -373,6 +421,7 @@ def train_epochs(model, vocab):
 					batch_context_scores = np.array([-10000] * context_batch_length)
 					for g_id in golden_ids:
 						batch_context_scores[g_id] = 0
+					'''
 
 
 					length_sort = np.argsort(context_lengths)[::-1].copy()

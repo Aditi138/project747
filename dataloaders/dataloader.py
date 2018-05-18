@@ -162,6 +162,7 @@ def create_single_batch(batch_data):
 def create_single_batch_elmo(batch_data):
     doc_ids = [data_point.doc_id for data_point in batch_data]
     chunk_indices = [data_point.chunk_indices for data_point in batch_data]
+    top_chunks = [data_point.top_chunk for data_point in batch_data]
     batch_query_lengths = [len(data_point.question_tokens) for data_point in batch_data]
     maximum_query_length = max(batch_query_lengths)
     # query_length_mask = np.array([[int(x < batch_query_lengths[i])
@@ -198,6 +199,7 @@ def create_single_batch_elmo(batch_data):
     batch['doc_ids'] = doc_ids
     batch['q_tokens'] = question_tokens
     batch['chunk_indices'] = chunk_indices
+    batch['top_chunks'] = top_chunks
     batch['q_embed'] = queries_embed
     batch['answer_indices'] = batch_answer_indices
     batch['qlengths'] = batch_query_lengths
@@ -731,7 +733,7 @@ class DataLoader():
             #print(index)
             original_sentences = document.document_tokens
             chunk_length = 40
-            num_chunks = 1
+            num_chunks = 3
 
             ## each sentence should be fewer than 40 tokens long
             sentences = []
@@ -786,6 +788,7 @@ class DataLoader():
 
             top_chunks = []
             top_chunks_ids = []
+            gold_chunk_id = []
 
             true_candidates = [document.candidates[i] for i in range(0, len(document.candidates), 2)]
 
@@ -809,6 +812,7 @@ class DataLoader():
             for idx in range(len(true_candidates)):
                 chunks_per_ref = []
                 doc_ids = related_docs_indices[idx][::-1]
+                gold_chunk_id.append(doc_ids[0])
                 doc_ids = sorted(doc_ids)
                 for doc_id in doc_ids:
                     ## these have to be time ordered so that she can just concatenate
@@ -871,7 +875,7 @@ class DataLoader():
                 if self.args.sentence_scoring:
                     data_points.append(Elmo_Data_Point
                                        (query.question_tokens, query.query_embed, query.answer_indices,
-                                        [], [], candidate_per_doc_per_answer_indices, [], document.id, top_chunks_ids[idx]))
+                                        [], [], candidate_per_doc_per_answer_indices, [], document.id, top_chunks_ids[idx], gold_chunk_id[idx]))
                 else:
                     data_points.append(Elmo_Data_Point
                                        (query.question_tokens, query.query_embed, query.answer_indices,
