@@ -104,7 +104,8 @@ class BiDAF(nn.Module):
 			combined_context = S.size(2)
 			max_chunk_length = int(combined_context)/num_chunks
 			S_split = S.view(num_candidates, max_answer_lenght,num_chunks, max_chunk_length)
-			weights = S_split.transpose(2,1).contiguous().view(-1, max_answer_lenght, max_chunk_length)
+			weights = last_dim_softmax(S_split, U_mask)
+			weights = weights.transpose(2,1).contiguous().view(-1, max_answer_lenght, max_chunk_length)
 			U_chunked = U.view(batch_size, num_chunks, -1, U.size(-1)).contiguous().view(batch_size*num_chunks, -1, U.size(-1))
 			c2q = torch.bmm(weights, U_chunked).view(batch_size, num_chunks, max_answer_lenght, -1)
 		else:
