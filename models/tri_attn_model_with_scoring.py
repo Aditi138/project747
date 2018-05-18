@@ -63,10 +63,6 @@ class TriAttn(nn.Module):
 		batch_query_mask = batch_query_mask.unsqueeze(0)
 
 
-		#contextual layer
-		# context_encoded,_ = self.contextual_embedding_layer(context_embedded,batch_context_length)
-		# context_encoded = nn.functional.dropout(context_encoded, p=self.dropout_emb, training=True)
-
 
 		num_chunks = context_embedded.size(0)
 		query_embedded_chunk_wise = query_embedded.expand(num_chunks, query_embedded.size(1), query_embedded.size(2))
@@ -156,6 +152,7 @@ class TriAttn(nn.Module):
 		batch_query_mask = batch_query_mask.unsqueeze(0)
 
 		# contextual layer
+		context_encoded = context_embedded
 		# context_encoded, _ = self.contextual_embedding_layer(context_embedded, batch_context_length)
 		# context_encoded = nn.functional.dropout(context_encoded, p=self.dropout_emb, training=True)
 
