@@ -19,7 +19,7 @@ class TriAttn(nn.Module):
 		self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size,pretrain_embedding=loader.pretrain_embedding)
 
 		## contextual embedding layer
-		self.contextual_embedding_layer = RecurrentContext(input_size=embed_size, hidden_size=embed_size // 2, num_layers=args.num_layers)
+		# self.contextual_embedding_layer = RecurrentContext(input_size=embed_size, hidden_size=embed_size // 2, num_layers=args.num_layers)
 
 		## bidirectional attention flow between question and context
 		self.attention_flow_c2q = BiDAF(embed_size)
@@ -50,7 +50,7 @@ class TriAttn(nn.Module):
 	def forward(self, query_embedded, batch_query_length,batch_query_mask,
 				context_embedded, batch_context_length,batch_context_mask,batch_context_scores,
 				batch_candidates_embedded, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,batch_candidate_unsort,
-				gold_index):
+				gold_index, gold_chunk):
 		query_embedded = self.word_embedding_layer(query_embedded)
 		context_embedded = self.word_embedding_layer(context_embedded)
 		batch_candidates_embedded = self.word_embedding_layer(batch_candidates_embedded)
@@ -63,22 +63,18 @@ class TriAttn(nn.Module):
 		batch_query_mask = batch_query_mask.unsqueeze(0)
 
 
-		#contextual layer
-		context_encoded,_ = self.contextual_embedding_layer(context_embedded,batch_context_length)
-		context_encoded = nn.functional.dropout(context_encoded, p=self.dropout_emb, training=True)
-		context_embedded = context_encoded
+
 		num_chunks = context_embedded.size(0)
 		query_embedded_chunk_wise = query_embedded.expand(num_chunks, query_embedded.size(1), query_embedded.size(2))
 		batch_query_mask_chunk_wise = batch_query_mask.expand(num_chunks, batch_query_mask.size(1))
 
 		batch_size = batch_candidates_embedded.size(0)
-
+		context_encoded = context_embedded
 		query_aware_context_encoded, c2q_attention_matrix = self.attention_flow_c2q(query_embedded_chunk_wise,
 																					context_encoded,
 																					batch_query_mask_chunk_wise,
 																					batch_context_mask)
 		query_aware_context_encoded = self.dropout(query_aware_context_encoded)
-
 		query_aware_answer_encoded, _ = self.attention_flow_a2q(
 			query_embedded.expand(batch_size, query_embedded.size(1), query_embedded.size(2)),
 			batch_candidates_embedded,
@@ -93,7 +89,7 @@ class TriAttn(nn.Module):
 			batch_candidate_masks_sorted, split=True, num_chunks=num_chunks)
 
 		query_input_modeled, _ = self.modeling_layer_q(query_embedded, batch_query_length)
-		query_input_modelled = self.dropout(query_input_modeled)
+		query_input_modeled = self.dropout(query_input_modeled)
 
 		context_input_modelling = torch.cat([query_aware_context_encoded, context_encoded], dim=-1)
 		context_modeled, _ = self.modeling_layer_c(context_input_modelling, batch_context_length)  # (N, |C|, 2d)
@@ -107,8 +103,8 @@ class TriAttn(nn.Module):
 		answer_modeled, _ = self.modeling_layer_a(answer_input_modelling.view(-1, answer_input_modelling.size(2), answer_input_modelling.size(3)),
 												  np.repeat(batch_candidate_lengths_sorted, num_chunks))  # (N, |A|, 2d)
 
-		query_self_attention = self.self_attn_q(query_input_modelled, batch_query_mask)
-		q_hidden = weighted_avg(query_input_modelled, query_self_attention)
+		query_self_attention = self.self_attn_q(query_input_modeled, batch_query_mask)
+		q_hidden = weighted_avg(query_input_modeled, query_self_attention)
 
 		answer_self_attention = self.self_attn_a(answer_modeled,
 												 batch_candidate_masks_sorted.unsqueeze(1).expand(-1, num_chunks,-1).contiguous().view(batch_size*num_chunks, -1))
@@ -149,22 +145,25 @@ class TriAttn(nn.Module):
 		batch_candidates_embedded = self.word_embedding_layer(batch_candidates_embedded)
 
 		# dropout emb
-		query_embedded = nn.functional.dropout(query_embedded, p=self.dropout_emb, training=True).unsqueeze(0)
-		context_embedded = nn.functional.dropout(context_embedded, p=self.dropout_emb, training=True)
-		batch_candidates_embedded = nn.functional.dropout(batch_candidates_embedded, p=self.dropout_emb, training=True)
+		query_embedded = nn.functional.dropout(query_embedded, p=self.dropout_emb, training=False).unsqueeze(0)
+		context_embedded = nn.functional.dropout(context_embedded, p=self.dropout_emb, training=False)
+		batch_candidates_embedded = nn.functional.dropout(batch_candidates_embedded, p=self.dropout_emb, training=False)
 
 		batch_query_mask = batch_query_mask.unsqueeze(0)
 
 		# contextual layer
-		context_encoded, _ = self.contextual_embedding_layer(context_embedded, batch_context_length)
-		context_encoded = nn.functional.dropout(context_encoded, p=self.dropout_emb, training=True)
 		context_encoded = context_embedded
+		# context_encoded, _ = self.contextual_embedding_layer(context_embedded, batch_context_length)
+		# context_encoded = nn.functional.dropout(context_encoded, p=self.dropout_emb, training=True)
+
+
 		num_chunks = context_embedded.size(0)
 		query_embedded_chunk_wise = query_embedded.expand(num_chunks, query_embedded.size(1), query_embedded.size(2))
 		batch_query_mask_chunk_wise = batch_query_mask.expand(num_chunks, batch_query_mask.size(1))
 
 		batch_size = batch_candidates_embedded.size(0)
-
+		context_encoded = context_embedded
+		
 		query_aware_context_encoded, c2q_attention_matrix = self.attention_flow_c2q(query_embedded_chunk_wise,
 																					context_encoded,
 																					batch_query_mask_chunk_wise,

@@ -40,7 +40,7 @@ class TriAttn(nn.Module):
 		self.answer_context_bilinear = nn.Linear(2 * hidden_size, 2 * hidden_size)
 		self.query_answer_bilinear = nn.Linear(2 * hidden_size, 2 * hidden_size)
 		self.loss = torch.nn.CrossEntropyLoss()
-
+		self.f = nn.LogSoftmax()
 		self.dropout = torch.nn.Dropout(args.dropout)
 
 
@@ -70,8 +70,8 @@ class TriAttn(nn.Module):
 																					context_encoded,
 																					batch_query_mask,
 																					batch_context_mask)   #(1, |c|, 2*hidden_dim)
-		query_aware_context_encoded = self.dropout(query_aware_context_encoded)
 
+		query_aware_context_encoded = self.dropout(query_aware_context_encoded)
 		query_aware_answer_encoded, _ = self.attention_flow_a2q(
 			query_embedded.expand(batch_size, query_embedded.size(1), query_embedded.size(2)),
 			batch_candidates_embedded,
@@ -85,7 +85,7 @@ class TriAttn(nn.Module):
 			batch_candidate_masks_sorted)   #(N, |a|, 2*hidden_dim)
 
 		query_input_modeled, _ = self.modeling_layer_q(query_embedded, batch_query_length)
-		query_input_modelled = self.dropout(query_input_modeled)
+		query_input_modeled = self.dropout(query_input_modeled)
 
 		context_input_modelling = torch.cat([query_aware_context_encoded, context_encoded], dim=-1)
 		context_modeled, _ = self.modeling_layer_c(context_input_modelling, batch_context_length)  # (N, |C|, 2d)
@@ -97,8 +97,8 @@ class TriAttn(nn.Module):
 		answer_modeled, _ = self.modeling_layer_a(answer_input_modelling,
 												  batch_candidate_lengths_sorted)  # (N, |A|, 2d)
 
-		query_self_attention = self.self_attn_q(query_input_modelled, batch_query_mask)
-		q_hidden = weighted_avg(query_input_modelled, query_self_attention)
+		query_self_attention = self.self_attn_q(query_input_modeled, batch_query_mask)
+		q_hidden = weighted_avg(query_input_modeled, query_self_attention)
 
 		answer_self_attention = self.self_attn_a(answer_modeled, batch_candidate_masks_sorted)
 		a_hidden = weighted_avg(answer_modeled, answer_self_attention)
@@ -126,9 +126,9 @@ class TriAttn(nn.Module):
 		batch_candidates_embedded = self.word_embedding_layer(batch_candidates_embedded)
 
 		# dropout emb
-		query_embedded = nn.functional.dropout(query_embedded, p=self.dropout_emb, training=True).unsqueeze(0)  # (1, |q|, emb_dim)
-		context_embedded = nn.functional.dropout(context_embedded, p=self.dropout_emb, training=True).unsqueeze(0)  # (1, |c|, emb_dim)
-		batch_candidates_embedded = nn.functional.dropout(batch_candidates_embedded, p=self.dropout_emb,training=True)  # (N, |a|, emb_dim)
+		query_embedded = nn.functional.dropout(query_embedded, p=self.dropout_emb, training=False).unsqueeze(0)  # (1, |q|, emb_dim)
+		context_embedded = nn.functional.dropout(context_embedded, p=self.dropout_emb, training=False).unsqueeze(0)  # (1, |c|, emb_dim)
+		batch_candidates_embedded = nn.functional.dropout(batch_candidates_embedded, p=self.dropout_emb,training=False)  # (N, |a|, emb_dim)
 
 		batch_query_mask = batch_query_mask.unsqueeze(0)
 		batch_context_mask = batch_context_mask.unsqueeze(0)
