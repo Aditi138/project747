@@ -14,6 +14,7 @@ class TriAttnSentenceScore(nn.Module):
 		word_vocab_size = loader.vocab.get_length()
 
 		self.dropout_emb = args.dropout_emb
+		self.clark_gardener = args.clark_gardener
 
 		## word embedding layer
 		self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size,pretrain_embedding=loader.pretrain_embedding)
@@ -135,7 +136,12 @@ class TriAttnSentenceScore(nn.Module):
 
 		weighted_candidates = scores.squeeze(-1) + batch_context_scores  # (N,K)
 
-		log_weighted_candidates = log_sum_exp(weighted_candidates, dim=-1)  # (N)
+		## clark gardener change
+		if self.clark_gardener:
+			log_weighted_candidates = log_sum_exp(weighted_candidates[:, gold_chunk].unsqueeze(1), dim=-1)
+		else:
+			log_weighted_candidates = log_sum_exp(weighted_candidates, dim=-1)  # (N)
+
 		log_denominator = log_sum_exp(weighted_candidates.view(-1), dim=0)
 
 		answer_scores =  log_denominator  - log_weighted_candidates# (N)
