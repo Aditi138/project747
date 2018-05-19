@@ -163,6 +163,7 @@ def create_single_batch(batch_data):
 def create_single_batch_elmo(batch_data):
     doc_ids = [data_point.doc_id for data_point in batch_data]
     chunk_indices = [data_point.chunk_indices for data_point in batch_data]
+    # chunk_features = [data_point.chunk_features for data_point in batch_data]
     top_chunks = [data_point.top_chunk for data_point in batch_data]
     chunk_scores = [data_point.chunk_scores for data_point in batch_data]
     batch_query_lengths = [len(data_point.question_tokens) for data_point in batch_data]
@@ -202,6 +203,7 @@ def create_single_batch_elmo(batch_data):
     batch['q_tokens'] = question_tokens
     batch['chunk_indices'] = chunk_indices
     batch['chunk_scores'] = chunk_scores
+    # batch['chunk_features'] = chunk_features
     batch['top_chunks'] = top_chunks
     batch['q_embed'] = queries_embed
     batch['answer_indices'] = batch_answer_indices
@@ -736,7 +738,7 @@ class DataLoader():
             #print(index)
             original_sentences = document.document_tokens
             chunk_length = 40
-            num_chunks = 5
+            num_chunks = 20
 
             ## each sentence should be fewer than 40 tokens long
             sentences = []
