@@ -469,7 +469,7 @@ def train_epochs(model, vocab):
 									batch_context_sorted, batch_context_lengths_sorted, batch_context_mask_sorted, batch_context_scores_sorted,
 									batch_candidates_embed_sorted, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,
 										  batch_candidate_unsort,
-									gold_index_variable, golden_ids
+									gold_index_variable, top_most_chunk
 									)
 				else:
 					loss, indices = model(batch_query, batch_query_length, batch_question_mask,

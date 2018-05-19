@@ -819,16 +819,17 @@ class DataLoader():
                 chunks_per_ref = []
                 doc_ids = related_docs_indices[idx][::-1]
                 doc_scores = related_docs_scores[idx][::-1]
-                gold_chunk_id.append(doc_ids[0])
+                gold_chunk = doc_ids[0]
                 doc_scores = doc_scores[doc_ids.argsort()]
                 doc_ids = sorted(doc_ids)
-
+                gold_chunk_id.append(doc_ids.index(gold_chunk))
                 for doc_id in doc_ids:
                     ## these have to be time ordered so that she can just concatenate
                     chunks_per_ref.append(chunk_boundaries_storage[doc_id])
                 top_chunks.append(chunks_per_ref)
                 top_chunks_ids.append(doc_ids)
                 top_chunk_scores.append(doc_scores)
+
 
             document_tokens = []
             raw_tokens = []
