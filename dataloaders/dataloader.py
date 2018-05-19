@@ -736,7 +736,7 @@ class DataLoader():
             #print(index)
             original_sentences = document.document_tokens
             chunk_length = 40
-            num_chunks = 3
+            num_chunks = 5
 
             ## each sentence should be fewer than 40 tokens long
             sentences = []
