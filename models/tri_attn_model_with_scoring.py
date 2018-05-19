@@ -125,8 +125,8 @@ class TriAttn(nn.Module):
 		scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=-1))  # (N,K,4d) ==>#(N,K,1)
 
 		## clark gardener
-		weighted_candidates = scores.squeeze(-1)
-		# weighted_candidates = scores.squeeze(-1) + batch_context_scores  # (N,K)
+		# weighted_candidates = scores.squeeze(-1)
+		weighted_candidates = scores.squeeze(-1) + batch_context_scores  # (N,K)
 
 		## clark gardener change
 		log_weighted_candidates = log_sum_exp(weighted_candidates[:, gold_chunk].unsqueeze(1), dim=-1)

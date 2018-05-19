@@ -159,6 +159,7 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 				golden_scores = golden_scores / sum(golden_scores)
 				batch_context_scores = np.log(golden_scores)
 
+
 				'''
 				context_batch_length = len(full_ranges)
 				context_lengths = np.array([r[1] - r[0] for r in full_ranges])
