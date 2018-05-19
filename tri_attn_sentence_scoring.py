@@ -51,6 +51,7 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 		batch_candidates = batch["candidates"]
 		batch_answer_indices = batch['answer_indices']
 		batch_reduced_context_indices = batch['chunk_indices']
+		batch_reduced_context_scores = batch["chunk_scores"]
 		batch_top_chunk = batch["top_chunks"]
 		for index, query_embed in enumerate(batch['q_embed']):
 
@@ -130,6 +131,7 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 				context_embeddings = context_per_docid[doc_id]  ## ids
 				golden_ids = batch_reduced_context_indices[index]
 				full_ranges = context_ranges_per_docid[doc_id]
+				golden_scores = batch_reduced_context_scores[index]
 
 				## Code to load fewer number of chunks
 				top_most_chunk = batch_top_chunk[index]
@@ -145,10 +147,17 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 					batched_context_embeddings.append(
 						pad_seq(context_embeddings[r[0]:r[1]], max_context_chunk_length))
 				batch_context = variable(torch.LongTensor(batched_context_embeddings))
-				batch_context_scores = np.array([-10000] * context_batch_length)
+
 				## where is top most chunk in golden_ids
-				new_location_of_gold = golden_ids.index(top_most_chunk)
-				batch_context_scores[new_location_of_gold] = 0
+				# batch_context_scores = np.array([-10000] * context_batch_length)
+				# new_location_of_gold = top_most_chunk
+				# batch_context_scores[new_location_of_gold] = 0
+
+				### TF-IDF based scores
+				for enm, g in enumerate(golden_scores):
+					golden_scores[enm] = g + 1e-6
+				golden_scores = golden_scores / sum(golden_scores)
+				batch_context_scores = np.log(golden_scores)
 
 				'''
 				context_batch_length = len(full_ranges)
