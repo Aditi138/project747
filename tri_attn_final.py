@@ -4,6 +4,7 @@ from dataloaders.dataloader import DataLoader, create_batches, view_batch, make_
 # from dataloaders.squad_dataloader import SquadDataloader
 from models.tri_attn_model_with_scoring import TriAttn
 from models.tri_attn_with_scorer import TriAttnSentenceScore
+from models.tri_attn_multihead_model import TriAttnMultiHead
 from dataloaders.utility import get_pretrained_emb
 import torch
 from torch import optim
@@ -578,6 +579,8 @@ if __name__ == "__main__":
 	parser.add_argument("--mcq", action="store_true", default=False)
 	parser.add_argument("--sentence_scoring", action="store_true", default=False)
 	parser.add_argument("--multi_head", action="store_true", default=False)
+	parser.add_argument("--use_scorer", action="store_true", default=False)
+	parser.add_argument("--clark_gardener", action="store_true", default=False)
 
 	args = parser.parse_args()
 
@@ -682,8 +685,15 @@ if __name__ == "__main__":
 		word_embedding = get_pretrained_emb(args.pretrain_path, loader.vocab.vocabulary, args.embed_size)
 		loader.pretrain_embedding = word_embedding
 
-	# model = ContextMRR_Sep(args, loader)
-	model = TriAttnSentenceScore(args, loader)
+
+	## TriAttention with normal reduced context and no context not supported
+	## all models default scored with tfidf
+	if args.sentence_scoring and args.use_scorer:
+		model = TriAttnSentenceScore(args, loader)
+	elif args.sentence_scoring and args.multi_head:
+		model = TriAttnMultiHead(args, loader)
+	elif args.sentence_scoring:
+		model = TriAttn(args, loader)
 
 	if args.use_cuda:
 		model = model.cuda()

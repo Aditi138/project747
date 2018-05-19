@@ -13,6 +13,7 @@ class TriAttn(nn.Module):
 		embed_size = args.embed_size
 		word_vocab_size = loader.vocab.get_length()
 
+		self.clark_gardener = args.clark_gardener
 		self.dropout_emb = args.dropout_emb
 
 		## word embedding layer
@@ -61,8 +62,6 @@ class TriAttn(nn.Module):
 		batch_candidates_embedded = nn.functional.dropout(batch_candidates_embedded, p=self.dropout_emb, training=True)
 
 		batch_query_mask = batch_query_mask.unsqueeze(0)
-
-
 
 		num_chunks = context_embedded.size(0)
 		query_embedded_chunk_wise = query_embedded.expand(num_chunks, query_embedded.size(1), query_embedded.size(2))
@@ -124,13 +123,14 @@ class TriAttn(nn.Module):
 
 		scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=-1))  # (N,K,4d) ==>#(N,K,1)
 
-		## clark gardener
 		# weighted_candidates = scores.squeeze(-1)
 		weighted_candidates = scores.squeeze(-1) + batch_context_scores  # (N,K)
 
 		## clark gardener change
-		log_weighted_candidates = log_sum_exp(weighted_candidates[:, gold_chunk].unsqueeze(1), dim=-1)
-		# log_weighted_candidates = log_sum_exp(weighted_candidates, dim=-1)  # (N)
+		if self.clark_gardener:
+			log_weighted_candidates = log_sum_exp(weighted_candidates[:, gold_chunk].unsqueeze(1), dim=-1)
+		else:
+			log_weighted_candidates = log_sum_exp(weighted_candidates, dim=-1)  # (N)
 
 		log_denominator = log_sum_exp(weighted_candidates.view(-1), dim=0)
 
