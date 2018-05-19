@@ -51,6 +51,7 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 		batch_candidates = batch["candidates"]
 		batch_answer_indices = batch['answer_indices']
 		batch_reduced_context_indices = batch['chunk_indices']
+		batch_reduced_context_scores = batch["chunk_scores"]
 		batch_top_chunk = batch["top_chunks"]
 		for index, query_embed in enumerate(batch['q_embed']):
 
@@ -130,6 +131,7 @@ def evaluate(model, batches,  candidates_embed_docid, context_per_docid, candida
 				context_embeddings = context_per_docid[doc_id]  ## ids
 				golden_ids = batch_reduced_context_indices[index]
 				full_ranges = context_ranges_per_docid[doc_id]
+				golden_scores = batch_reduced_context_scores[index]
 
 				## Code to load fewer number of chunks
 				top_most_chunk = batch_top_chunk[index]
