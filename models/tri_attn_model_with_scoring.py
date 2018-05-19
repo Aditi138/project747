@@ -123,12 +123,18 @@ class TriAttn(nn.Module):
 		logits_ca = context_chunk_wise * a_hidden.view(batch_size, num_chunks, -1)  # (N,K,2d)
 
 		scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=-1))  # (N,K,4d) ==>#(N,K,1)
-		weighted_candidates = scores.squeeze(-1) + batch_context_scores  # (N,K)
 
-		log_weighted_candidates = log_sum_exp(weighted_candidates, dim=-1)  # (N)
+		## clark gardener
+		weighted_candidates = scores.squeeze(-1)
+		# weighted_candidates = scores.squeeze(-1) + batch_context_scores  # (N,K)
+
+		## clark gardener change
+		log_weighted_candidates = log_sum_exp(weighted_candidates[:, gold_chunk].unsqueeze(1), dim=-1)
+		# log_weighted_candidates = log_sum_exp(weighted_candidates, dim=-1)  # (N)
+
 		log_denominator = log_sum_exp(weighted_candidates.view(-1), dim=0)
 
-		answer_scores =  log_denominator  - log_weighted_candidates# (N)
+		answer_scores =  log_denominator - log_weighted_candidates# (N)
 
 		## unsort the answer scores
 		answer_scores = torch.index_select(answer_scores, 0, batch_candidate_unsort)
