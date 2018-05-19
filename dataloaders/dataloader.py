@@ -137,6 +137,7 @@ def create_single_batch(batch_data):
 
         batch_answer_indices.append(data_point.answer_indices[0])
 
+
     candidate_information["answers"] = batch_candidate_answers_padded
     candidate_information["anslengths"] = batch_candidate_answer_lengths
     candidate_information["ner"] = batch_candidates_ner
@@ -854,16 +855,26 @@ class DataLoader():
                     candidate_per_doc_per_answer_embed.append(document.candidates_embed[i])
                 i += 2
 
+
+            ###  new candidate list duplicates to be removed and query.answer_indices to be updated
+            ## dictionary set that connects original answers and the small version
+            ## TODO: candidate_per_doc_per_answer_embed (Elmo embeddings have no support)
+            candidate_per_doc_per_answer, answer_indexes_in_set = self.create_unique_candidate_set(candidate_per_doc_per_answer)
             candidate_per_doc_per_answer_raw_tokens = deepcopy(candidate_per_doc_per_answer)
-            for query in document.qaps:
+            for q, query in enumerate(document.qaps):
                 if self.args.reduced  and self.args.emb_elmo:
                     query.query_embed = query.query_embed
                 else:
                     query.query_embed = self.vocab.add_and_get_indices(query.question_tokens)
 
                 query.question_tokens = query.question_tokens
-                candidate_per_doc_per_answer[query.answer_indices[0] / 2] = self.vocab.add_and_get_indices(
-                    candidate_per_doc_per_answer[query.answer_indices[0] / 2])
+                # query.answer_indices = answer_indexes_in_set[q]
+
+                # candidate_per_doc_per_answer[query.answer_indices[0] / 2] = self.vocab.add_and_get_indices(
+                #     candidate_per_doc_per_answer[query.answer_indices[0] / 2])
+
+            for c, candidate in enumerate(candidate_per_doc_per_answer):
+                candidate_per_doc_per_answer[c] = self.vocab.add_and_get_indices(candidate)
 
             candidate_answer_lengths = [len(answer) for answer in candidate_per_doc_per_answer]
             candidate_per_doc_per_answer_indices = deepcopy(candidate_per_doc_per_answer)
@@ -880,7 +891,7 @@ class DataLoader():
             candidate_per_docid[document.id] = candidate_per_doc_per_answer_raw_tokens
 
             for idx, query in enumerate(document.qaps):
-                query.answer_indices[0] = query.answer_indices[0] / 2
+                query.answer_indices[0] = answer_indexes_in_set[idx]
                 if self.args.sentence_scoring:
                     data_points.append(Elmo_Data_Point
                                        (query.question_tokens, query.query_embed, query.answer_indices,
@@ -891,6 +902,22 @@ class DataLoader():
                                         [], [], candidate_per_doc_per_answer_indices, [], document.id, top_chunks[idx]))
 
         return data_points, candidates_embed_docid, candidate_per_docid, context_per_docid, context_tokens_per_docid, context_ranges_per_docid
+
+    def create_unique_candidate_set(self, candidate_set):
+        combined_candidate_set = []
+        new_candidate_set = [] ## among things that normalize to the same answer, the first one is retained
+        set_pointers = []
+        for e, candidate in enumerate(candidate_set):
+            if candidate[-1] == '.':
+                candidate = candidate[:-1]
+            regularized_candidate = " ".join(candidate).lower()
+            if regularized_candidate in combined_candidate_set:
+                set_pointers.append(combined_candidate_set.index(regularized_candidate))
+            else:
+                set_pointers.append(len(combined_candidate_set))
+                combined_candidate_set.append(regularized_candidate)
+                new_candidate_set.append(candidate_set[e])
+        return new_candidate_set, set_pointers
 
     def load_documents_elmo(self, documents, split=True):
         data_points = []

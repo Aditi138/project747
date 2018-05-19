@@ -371,9 +371,10 @@ def train_epochs(model, vocab):
 
 
 				batch_len = len(batch_candidate_lengths)
-				negative_indices = list(range(batch_len))
-				negative_indices.pop(gold_index)
-				negative_indices = variable(torch.LongTensor(negative_indices))
+
+				# negative_indices = list(range(batch_len))
+				# negative_indices.pop(gold_index)
+				# negative_indices = variable(torch.LongTensor(negative_indices))
 
 				# context tokens
 				## if using reduced context

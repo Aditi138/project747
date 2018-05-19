@@ -85,7 +85,7 @@ class Elmo_Data_Point:
         self.question_embed = question_embed
         self.context_tokens = context_tokens
         self.context_embed = context_embed
-        self.answer_indices =answer_indices
+        self.answer_indices = answer_indices
         self.candidates = candidates
         self.candidates_embed = candidates_embed
         self.doc_id = doc_id

@@ -8,19 +8,27 @@ class ChunkScore(nn.Module):
     def __init__(self, args, vocab_size, pretrain_embedding):
         super(ChunkScore, self).__init__()
         self.embedding_layer = LookupEncoder(vocab_size, args.embed_size, pretrain_embedding=pretrain_embedding)
-        self.question_encoder = EncoderBlock(args.embed_size, args.hidden_size, 3)
-        self.chunk_encoder = EncoderBlock(args.embed_size, args.hidden_size, 3)
+        # self.question_encoder = EncoderBlock(args.embed_size, args.hidden_size, 3)
+        # self.chunk_encoder = EncoderBlock(args.embed_size, args.hidden_size, 3)
+        self.answer_encoder = RNNEncoder(args.embed_size, args.hidden_size)
+        self.question_encoder = RNNEncoder(args.embed_size, args.hidden_size)
+        self.chunk_encoder = RNNEncoder(args.embed_size, args.hidden_size)
         self.modeling_layer = MLP(args.hidden_size)
         self.loss_function=nn.CrossEntropyLoss()
         
-    def forward(self, chunks, question, gold_index, mask):
+    def forward(self, chunks, question, gold_index, mask, answer):
 
         chunks_embedded = self.embedding_layer(chunks)
         question_embedded=self.embedding_layer(question)
         chunks_encoded = self.chunk_encoder(chunks_embedded, mask)
         question_encoded=self.question_encoder(question_embedded)
         question_expanded=question_encoded.expand(chunks_encoded.size())
-        combined_representation=torch.cat((chunks_encoded, question_expanded), 2).squeeze(dim=1)
+        answer_embedded = self.embedding_layer(answer)
+        answer_encoded = self.answer_encoder(answer_embedded)
+        answer_expanded = answer_encoded.expand(chunks_encoded.size())
+
+
+        combined_representation=torch.cat((chunks_encoded, question_expanded, answer_expanded), 2).squeeze(dim=1)
         scores=self.modeling_layer(combined_representation).squeeze().unsqueeze(0)
         loss=self.loss_function(scores, gold_index)
         return loss, scores.data.cpu().numpy()
@@ -31,6 +39,9 @@ class EncoderBlock(nn.Module):
         super(EncoderBlock, self).__init__()
         self.convolution_layer1=nn.Conv1d(embed_size, hidden_size, kernel_size, padding=(kernel_size-1)/2)
         self.convolution_layer2=nn.Conv1d(hidden_size, hidden_size, kernel_size, padding=(kernel_size-1)/2)
+        self.convolution_layer3=nn.Conv1d(hidden_size, hidden_size, kernel_size, padding=(kernel_size-1)/2)        
+        self.convolution_layer4=nn.Conv1d(hidden_size, hidden_size, kernel_size, padding=(kernel_size-1)/2)
+
         self.activation = nn.ReLU()
 
     def forward(self, input, mask=None):
@@ -39,8 +50,27 @@ class EncoderBlock(nn.Module):
         input = self.activation(input)
         input = self.convolution_layer2(input)
         input = self.activation(input)
-        # if mask is not None:
-        #     input=input*mask.unsqueeze(1)
+        input = self.convolution_layer3(input)
+        input = self.activation(input)
+        
+        if mask is not None:
+            input=input*mask.unsqueeze(1)
+        input1 = F.max_pool1d(input, kernel_size=input.size()[2])
+        input2 = F.avg_pool1d(input, kernel_size=input.size()[2])
+        input = torch.cat((input1, input2),  1)
+        input = input.transpose(1, 2)
+        return input
+
+class RNNEncoder(nn.Module):
+    def __init__(self, embed_size, hidden_size):
+        super(RNNEncoder, self).__init__()
+        self.encoding_layer = nn.GRU(embed_size, hidden_size, bidirectional=True)
+
+    def forward(self, input, mask=None):
+        input = self.encoding_layer(input)[0]
+        input = input.transpose(1, 2)
+        if mask is not None:
+            input=input*mask.unsqueeze(1)
         input1 = F.max_pool1d(input, kernel_size=input.size()[2])
         input2 = F.avg_pool1d(input, kernel_size=input.size()[2])
         input = torch.cat((input1, input2),  1)
@@ -51,9 +81,9 @@ class EncoderBlock(nn.Module):
 class MLP(nn.Module):
     def __init__(self, hidden_size):
         super(MLP, self).__init__()
-        self.linear1 = nn.Linear(4 * hidden_size, 4 * hidden_size)
+        self.linear1 = nn.Linear(12 * hidden_size, 8 * hidden_size)
         self.activation = nn.ReLU()
-        self.linear2 = nn.Linear(4 * hidden_size, 4 * hidden_size)
+        self.linear2 = nn.Linear(8 * hidden_size, 4 * hidden_size)
         self.activation = nn.ReLU()
         self.linear3 = nn.Linear(4 * hidden_size, 1)
 
