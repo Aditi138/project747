@@ -52,7 +52,7 @@ class TriAttnSentenceScore(nn.Module):
 
 
 	def forward(self, query_embedded, batch_query_length,batch_query_mask,
-				context_embedded, batch_context_length,batch_context_mask,batch_context_scores,
+				context_embedded, batch_context_length,batch_context_mask,batch_context_scores, batch_context_features,
 				batch_candidates_embedded, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,batch_candidate_unsort,
 				gold_index, gold_chunk):
 		query_embedded = self.word_embedding_layer(query_embedded)
@@ -153,7 +153,7 @@ class TriAttnSentenceScore(nn.Module):
 		return loss, indices
 
 	def eval(self,query_embedded, batch_query_length,batch_query_mask,
-				context_embedded, batch_context_length,batch_context_mask,batch_context_scores,
+				context_embedded, batch_context_length,batch_context_mask,batch_context_scores, batch_context_features,
 				batch_candidates_embedded, batch_candidate_lengths_sorted, batch_candidate_masks_sorted,batch_candidate_unsort
 				):
 		query_embedded = self.word_embedding_layer(query_embedded)

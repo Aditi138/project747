@@ -74,18 +74,24 @@ def get_pretrained_emb(embedding_path, word_to_id, dim):
                 pretrain_word_emb[items[0]] = np.asarray(items[1:]).astype(np.float32)
             except ValueError:
                 continue
+    fout_required = open("glove.840B.300d.required.txt")
+
 
     not_covered = 0
     for word, id in word_to_id.iteritems():
 	word = str(word)
         if word in pretrain_word_emb:
             word_emb[id] = pretrain_word_emb[word]
+            fout_required.write(word + " " + " ".join([str(f) for f in pretrain_word_emb[word]]) + "\n")
         elif word.lower() in pretrain_word_emb:
             word_emb[id] = pretrain_word_emb[word.lower()]
+            fout_required.write(word.lower() + " " + " ".join([str(f) for f in pretrain_word_emb[word]]) + "\n")
         else:
             not_covered += 1
 
     emb = np.array(word_emb, dtype=np.float32)
 
     print("Word number not covered in pretrain embedding: {0}".format(not_covered))
+    fout_required.close()
+    print("Created corpus dictionary for wordembeddings")
     return emb
