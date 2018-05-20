@@ -5,7 +5,8 @@ import glob
 from csv import reader
 import sys
 import re
-from project747.retrieval.ir_chunker import *
+sys.path.append(os.path.abspath(os.path.join('..', 'project747')))
+from retrieval.ir_chunker import *
 
 try:
     import cPickle as pickle
@@ -374,8 +375,6 @@ class DataLoader():
                     continue
                 id = line[0]
 
-                if id != "0c1274df8299049d4959ef8a1ea23a6a68e26f6e":
-                    continue
 
                 if id in qaps:
 
