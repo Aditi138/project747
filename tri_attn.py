@@ -510,6 +510,8 @@ if __name__ == "__main__":
 	parser.add_argument("--mcq", action="store_true", default=False)
 	parser.add_argument("--sentence_scoring", action="store_true", default=False)
 	parser.add_argument("--multi_head", action="store_true", default=False)
+	parser.add_argument("--chunk_length", type=int, default=40)
+	parser.add_argument("--num_chunks", type=int, default=20)
 
 	args = parser.parse_args()
 	
