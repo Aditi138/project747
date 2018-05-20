@@ -833,8 +833,8 @@ class DataLoader():
         for index, document in enumerate(documents):
             #print(index)
             original_sentences = document.document_tokens
-            chunk_length = 40
-            num_chunks = 20
+            chunk_length = self.args.chunk_length
+            num_chunks = self.args.num_chunks
 
             ## each sentence should be fewer than 40 tokens long
             sentences = []
