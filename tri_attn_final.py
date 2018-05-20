@@ -411,28 +411,30 @@ def train_epochs(model, vocab):
 
 					## Code to load fewer number of chunks
 					top_most_chunk = batch_top_chunk[index]
+					for enm, g in enumerate(golden_scores):
+						golden_scores[enm] = g + 1e-6
 
 					## sampling from 2nd chunk chunk onwards
-					num_samples = 4
+					num_samples = 2
 					if args.sample_while_training:
 						# golden_ids contains top_most_chunk but then include only a sample of the others based on golden scores
 						top_chunk_id = golden_ids[top_most_chunk]
 						top_chunk_score = golden_scores[top_most_chunk]
 						sampled_gold_ids = copy.deepcopy(golden_ids)
-						sampled_scores = copy.deepcopy(golden_scores)
+						sampled_scores = copy.deepcopy(list(golden_scores))
 						sampled_gold_ids.pop(top_most_chunk) ## top most chunk'd location is returned
 						sampled_scores.pop(top_most_chunk)
 						new_golden_ids = [top_chunk_id]
 						new_golden_scores = [top_chunk_score]
 						while len(new_golden_ids) < num_samples:
-							sampled_id = np.random.choice(len(sampled_gold_ids), 1 , p=sampled_scores)
-							if sampled_gold_ids[sampled_id] not in new_golden_ids:
-								new_golden_ids.append(sampled_gold_ids[sampled_id])
-								new_golden_scores.append(sampled_scores[sampled_id])
+							sampled_id = np.random.choice(len(sampled_gold_ids), 1 , p=sampled_scores/sum(sampled_scores))
+							if sampled_gold_ids[sampled_id[0]] not in new_golden_ids:
+								new_golden_ids.append(sampled_gold_ids[sampled_id[0]])
+								new_golden_scores.append(sampled_scores[sampled_id[0]])
 						combined_sample = zip(new_golden_ids, new_golden_scores)
 						np.random.shuffle(combined_sample)
 						new_golden_ids, new_golden_scores = zip(*combined_sample)
-						golden_scores = copy.deepcopy(new_golden_scores)
+						golden_scores = np.array(copy.deepcopy(new_golden_scores))
 						golden_ids = copy.deepcopy(new_golden_ids)
 						top_most_chunk = golden_ids.index(top_chunk_id)
 
@@ -454,8 +456,6 @@ def train_epochs(model, vocab):
 					# new_location_of_gold = golden_ids.index(top_most_chunk)
 					# batch_context_scores[new_location_of_gold] = 0
 					### TF-IDF based scores
-					for enm, g in enumerate(golden_scores):
-						golden_scores[enm] = g + 1e-6
 					golden_scores = golden_scores / sum(golden_scores)
 					batch_context_scores = np.log(golden_scores)
 
