@@ -14,7 +14,7 @@ from time import time
 import random
 import pickle
 import codecs
-
+import copy
 
 class Document_All_Embed(object):
 	def __init__(self, id, qaps, candidates_embed, candidates, document_tokens, document_embed):
@@ -227,7 +227,6 @@ def evaluate(model, batches, candidates_embed_docid, context_per_docid, candidat
 				indices, c2q_attention_matrix = model.eval(batch_query, batch_query_length, batch_question_mask,
 														   batch_context_sorted, batch_context_lengths_sorted,
 														   batch_context_mask_sorted, batch_context_scores_sorted,
-														   batch_context_features_sorted,
 														   batch_candidates_embed_sorted,
 														   batch_candidate_lengths_sorted, batch_candidate_masks_sorted,
 														   batch_candidate_unsort)
@@ -412,6 +411,31 @@ def train_epochs(model, vocab):
 
 					## Code to load fewer number of chunks
 					top_most_chunk = batch_top_chunk[index]
+
+					## sampling from 2nd chunk chunk onwards
+					num_samples = 4
+					if args.sample_while_training:
+						# golden_ids contains top_most_chunk but then include only a sample of the others based on golden scores
+						top_chunk_id = golden_ids[top_most_chunk]
+						top_chunk_score = golden_scores[top_most_chunk]
+						sampled_gold_ids = copy.deepcopy(golden_ids)
+						sampled_scores = copy.deepcopy(golden_scores)
+						sampled_gold_ids.pop(top_most_chunk) ## top most chunk'd location is returned
+						sampled_scores.pop(top_most_chunk)
+						new_golden_ids = [top_chunk_id]
+						new_golden_scores = [top_chunk_score]
+						while len(new_golden_ids) < num_samples:
+							sampled_id = np.random.choice(len(sampled_gold_ids), 1 , p=sampled_scores)
+							if sampled_gold_ids[sampled_id] not in new_golden_ids:
+								new_golden_ids.append(sampled_gold_ids[sampled_id])
+								new_golden_scores.append(sampled_scores[sampled_id])
+						combined_sample = zip(new_golden_ids, new_golden_scores)
+						np.random.shuffle(combined_sample)
+						new_golden_ids, new_golden_scores = zip(*combined_sample)
+						golden_scores = copy.deepcopy(new_golden_scores)
+						golden_ids = copy.deepcopy(new_golden_ids)
+						top_most_chunk = golden_ids.index(top_chunk_id)
+
 					new_full_ranges = [full_ranges[i] for i in golden_ids]
 					context_batch_length = len(new_full_ranges)
 					context_lengths = np.array([r[1] - r[0] for r in new_full_ranges])
@@ -424,6 +448,7 @@ def train_epochs(model, vocab):
 						batched_context_embeddings.append(
 							pad_seq(context_embeddings[r[0]:r[1]], max_context_chunk_length))
 					batch_context = variable(torch.LongTensor(batched_context_embeddings))
+
 					### Dummy Scores
 					# batch_context_scores = np.array([-10000] * context_batch_length)
 					# new_location_of_gold = golden_ids.index(top_most_chunk)
@@ -496,7 +521,7 @@ def train_epochs(model, vocab):
 				elif args.use_scorer:
 					loss, indices = model(batch_query, batch_query_length, batch_question_mask,
 										  batch_context_sorted, batch_context_lengths_sorted, batch_context_mask_sorted,
-										  batch_context_scores_sorted, batch_context_features_sorted,
+										  batch_context_scores_sorted,
 										  batch_candidates_embed_sorted, batch_candidate_lengths_sorted,
 										  batch_candidate_masks_sorted,
 										  batch_candidate_unsort,
@@ -604,6 +629,7 @@ if __name__ == "__main__":
 	parser.add_argument("--multi_head", action="store_true", default=False)
 	parser.add_argument("--use_scorer", action="store_true", default=False)
 	parser.add_argument("--clark_gardener", action="store_true", default=False)
+	parser.add_argument("--sample_while_training", action="store_true", default=False)
 
 	args = parser.parse_args()
 
