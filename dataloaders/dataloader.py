@@ -5,6 +5,7 @@ import glob
 from csv import reader
 import sys
 import re
+from project747.retrieval.ir_chunker import *
 
 try:
     import cPickle as pickle
@@ -32,6 +33,20 @@ from copy import  deepcopy
 
 global vocab
 
+class Document_All_Embed(object):
+    def __init__(self,id, qaps,candidates_embed, candidates, document_tokens, document_embed):
+        self.id = id
+        self.qaps = qaps
+        self.candidates_embed = candidates_embed
+        self.candidates = candidates
+        self.document_tokens = document_tokens
+        self.document_embed = document_embed
+
+class Query_Embed(object):
+    def __init__(self, question_tokens, answer_indices, query_embed=None):
+        self.question_tokens = question_tokens
+        self.answer_indices = answer_indices
+        self.query_embed = query_embed
 
 def view_batch(batch, vocab):
     queries = batch['queries']
@@ -272,6 +287,7 @@ class DataLoader():
         self.nlp = spacy.load('en')
         self.stop_words = list(stopwords.words('english'))
         self.lemmatizer = WordNetLemmatizer()
+        self.chunkRetrieval = Chunking(args)
 
     # This function loads raw documents, summaries and queries, processes them, stores them in document class and finally saves to a pickle
     def process_data(self, input_folder, summary_path, qap_path, document_path, pickle_folder, small_number=-1,
@@ -312,7 +328,7 @@ class DataLoader():
 
             NE_data += string_data[start_pos:]
             return NE_data.split()
-
+        ''''
         summaries = {}
         with codecs.open(summary_path, "r", encoding='utf-8', errors='replace') as fin:
             first = True
@@ -325,12 +341,17 @@ class DataLoader():
                 ner_summary, pos_summary, tokens = self.getNER(line[2])
                 summaries[id] = (tokens, ner_summary, pos_summary)
         print("Loaded summaries")
+        '''
         qaps = {}
 
         candidates_per_doc = defaultdict(list)
         ner_candidates_per_doc = defaultdict(list)
         pos_candidates_per_doc = defaultdict(list)
         count = 0
+        counter = 0
+        chunk_size = self.args.chunk_size
+        num_chunks = self.args.num_chunks
+
         with codecs.open(qap_path, "r") as fin:
             first = True
             for line in reader(fin):
@@ -339,6 +360,9 @@ class DataLoader():
                     first = False
                     continue
                 id = line[0]
+
+                if id != "0c1274df8299049d4959ef8a1ea23a6a68e26f6e":
+                    continue
 
                 if id in qaps:
 
@@ -357,7 +381,7 @@ class DataLoader():
 
                     ner_question, pos_question, tokens = self.getNER(line[2])
                     qaps[id].append(
-                        Query(tokens, ner_question, pos_question, indices))
+                        Query_Embed(tokens,indices,[]))
                 else:
                     # print(id)
                     qaps[id] = []
@@ -379,7 +403,7 @@ class DataLoader():
 
                     ner_question, pos_question, tokens = self.getNER(line[2])
                     qaps[id].append(
-                        Query(tokens, ner_question, pos_question, indices))
+                        Query_Embed(tokens,  indices,[]))
 
         print("Loaded question answer pairs")
         documents = {}
@@ -399,7 +423,7 @@ class DataLoader():
                     documents[doc_id] = (set, kind, start_tag, end_tag)
 
                 index = index + 1
-
+        '''
         # Create lists of document objects for the summaries
         train_summaries = []
         valid_summaries = []
@@ -407,7 +431,7 @@ class DataLoader():
 
         if small_number > 0:
             small_summaries = []
-
+        
         for doc_id in documents:
             set, kind, _, _ = documents[doc_id]
             tokens, ner_summary, pos_summary = summaries[doc_id]
@@ -440,17 +464,18 @@ class DataLoader():
         # If only interested in summaries, return here so we don't process the documents
         if summary_only:
             return
-
+        '''
         train_docs = []
         valid_docs = []
         test_docs = []
+       
 
         # In case of creation of small test dataset
-        if small_number > 0:
-            small_docs = []
-            small_train_docs = []
-            small_valid_docs = []
-            small_test_docs = []
+        #if small_number > 0:
+        small_docs = []
+        small_train_docs = []
+        small_valid_docs = []
+        small_test_docs = []
 
         # Here we load documents, tokenize them, and create Document class instances
         print("Processing documents")
@@ -523,7 +548,9 @@ class DataLoader():
                     print(
                         "Movie for which html extraction doesnt work doesnt work: ", doc_id)
 
+
             # Get NER
+            '''
             entity_dictionary = {}
             other_dictionary = {}
             title_document_tokens = [token.lower() if token.isupper() else token for token in document_tokens]
@@ -543,10 +570,67 @@ class DataLoader():
                 NER_document_tokens = first_q_tokens + second_q_tokens + third_q_tokens + fourth_q_tokens
             else:
                 NER_document_tokens = _getNER(string_doc, entity_dictionary, other_dictionary)
+            '''
+            #doc = Document_(
+             #   doc_id, set, kind, NER_document_tokens, qaps[doc_id], entity_dictionary, other_dictionary,
+             #   candidates_per_doc[doc_id], ner_candidates_per_doc[doc_id], pos_candidates_per_doc[doc_id])
 
-            doc = Document(
-                doc_id, set, kind, NER_document_tokens, qaps[doc_id], entity_dictionary, other_dictionary,
-                candidates_per_doc[doc_id], ner_candidates_per_doc[doc_id], pos_candidates_per_doc[doc_id])
+            questions = []
+            answers = []
+            for i, query in enumerate(qaps[doc_id]):
+                question_tokens = query.question_tokens
+                answer1_tokens = candidates_per_doc[doc_id][query.answer_indices[0]]
+                answer2_tokens = candidates_per_doc[doc_id][query.answer_indices[1]]
+                #(answer1_tokens, answer2_tokens) = query.answer_tokens
+                ## TODO (Aditi): ner code  + anonymization
+                questions.append(question_tokens)
+                answers.append(answer1_tokens)
+
+            ## chunking
+            chunk_size = self.args.chunk_size
+            num_chunks = self.args.num_chunks
+
+            if set == "train":
+                combined_reference = [q + a for q, a in zip(questions, answers)]
+                extracted, ids, scores, gold_chunk_id = self.chunkRetrieval.retrieve_chunks(document_tokens, combined_reference, chunk_size,
+                                                                     num_chunks=num_chunks)
+                serialized_chunks = [
+                    [chunk.get_sentences() for chunk in extracted[i]] for i in
+                    range(len(extracted))]
+
+            elif set == "valid":
+                extracted, ids, scores, gold_chunk_id  = self.chunkRetrieval.retrieve_chunks(document_tokens, questions, chunk_size,
+                                                                     num_chunks=num_chunks)
+                serialized_chunks = [
+                    [chunk.get_sentences() for chunk in extracted[i]] for i in
+                    range(len(extracted))]
+
+            elif set == "test":
+                extracted, ids , scores, gold_chunk_id = self.chunkRetrieval.retrieve_chunks(document_tokens, questions, chunk_size,
+                                                                     num_chunks=num_chunks)
+                serialized_chunks = [
+                    [chunk.get_sentences() for chunk in extracted[i]] for i in
+                    range(len(extracted))]
+
+
+            doc_chunks = []
+            #candidate_per_doc_per_answer, answer_indexes_in_set = self.create_unique_candidate_set(
+            #     candidates_per_doc[doc_id])
+            for query_idx,query_chunks in enumerate(serialized_chunks):
+                chunks_per_query = []
+                for sents in query_chunks:
+                    one_chunk = []
+                    for sent in sents:
+                        one_chunk += sent
+                    chunks_per_query.append(one_chunk)
+                doc_chunks.append(chunks_per_query)
+
+               # qaps[doc_id][query_idx].answer_indices[0] = answer_indexes_in_set[query_idx]
+
+
+
+            doc = Document_All_Embed(doc_id, qaps=qaps[doc_id], candidates=candidates_per_doc[doc_id],
+                                     candidates_embed=[], document_tokens=doc_chunks,document_embed=gold_chunk_id)
 
             if (file_number + 1) % interval == 0:
                 print("Processed {} documents".format(file_number + 1))

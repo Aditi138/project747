@@ -22,7 +22,10 @@ if __name__ == "__main__":
                         help="Path to the target folder for output")   
     parser.add_argument("--summary_only", action="store_true", help="create summary pickles")
     parser.add_argument("--small_number", type=int, default=-1,
-                        help="Pickle small number of documents for testing purposes")                                                
+                        help="Pickle small number of documents for testing purposes")
+    parser.add_argument("--chunk_size", type=int, default=80)
+    parser.add_argument("--num_chunks", type=int, default=10)
+    parser.add_argument("--ir_model", type=str, default='tfidf')
 
     
     args = parser.parse_args()
