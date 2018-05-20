@@ -33,14 +33,27 @@ from copy import  deepcopy
 
 global vocab
 
+
 class Document_All_Embed(object):
-    def __init__(self,id, qaps,candidates_embed, candidates, document_tokens, document_embed):
+    def __init__(self, id, qaps, candidates_embed, candidates, document_tokens, document_embed):
         self.id = id
         self.qaps = qaps
         self.candidates_embed = candidates_embed
         self.candidates = candidates
         self.document_tokens = document_tokens
         self.document_embed = document_embed
+
+
+class Document_Chunks(object):
+    def __init__(self,id, qaps,chunk_ids, candidates, document_tokens, chunk_scores):
+        self.id = id
+        self.qaps = qaps
+        self.chunk_scores = chunk_scores
+        self.candidates = candidates
+        self.document_tokens = document_tokens
+        self.chunk_ids = chunk_ids
+
+
 
 class Query_Embed(object):
     def __init__(self, question_tokens, answer_indices, query_embed=None):
@@ -629,8 +642,8 @@ class DataLoader():
 
 
 
-            doc = Document_All_Embed(doc_id, qaps=qaps[doc_id], candidates=candidates_per_doc[doc_id],
-                                     candidates_embed=[], document_tokens=doc_chunks,document_embed=gold_chunk_id)
+            doc = Document_Chunks(doc_id, qaps=qaps[doc_id], candidates=candidates_per_doc[doc_id],
+                                     chunk_ids=ids, document_tokens=doc_chunks,chunk_scores=scores)
 
             if (file_number + 1) % interval == 0:
                 print("Processed {} documents".format(file_number + 1))

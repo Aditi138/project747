@@ -180,9 +180,9 @@ class Chunking(object):
 				doc_ids = related_docs_indices[idx][::-1]
 				doc_scores = related_docs_scores[idx][::-1]
 				gold_chunk = doc_ids[0]
-				doc_scores = doc_scores[doc_ids.argsort()]
-				doc_ids = sorted(doc_ids)
-				gold_chunk_id.append(doc_ids.index(gold_chunk))
+				#doc_scores = doc_scores[doc_ids.argsort()]
+				#doc_ids = sorted(doc_ids)
+				#gold_chunk_id.append(doc_ids.index(gold_chunk))
 				for doc_id in range(len(doc_ids)):
 					chunks_per_ref.append(Chunk(chunk_storage[doc_ids[doc_id]] , sentence_boundaries_storage[doc_ids[doc_id]]))
 				top_chunks.append(chunks_per_ref)
