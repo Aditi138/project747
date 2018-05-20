@@ -55,6 +55,7 @@ def evaluate(model, batches, candidates_embed_docid, context_per_docid, candidat
 		batch_candidates = batch["candidates"]
 		batch_answer_indices = batch['answer_indices']
 		batch_reduced_context_indices = batch['chunk_indices']
+		# batch_chunk_features = batch["chunk_features"]
 		batch_reduced_context_scores = batch["chunk_scores"]
 		batch_top_chunk = batch["top_chunks"]
 		for index, query_embed in enumerate(batch['q_embed']):
@@ -136,6 +137,7 @@ def evaluate(model, batches, candidates_embed_docid, context_per_docid, candidat
 				new_full_ranges = [full_ranges[i] for i in golden_ids]
 				context_batch_length = len(new_full_ranges)
 				context_lengths = np.array([r[1] - r[0] for r in new_full_ranges])
+				# chunk_features = batch_chunk_features[index]
 				max_context_chunk_length = max(context_lengths)
 				batch_context_mask = np.array([[int(x < context_lengths[i])
 												for x in range(max_context_chunk_length)]
@@ -179,6 +181,7 @@ def evaluate(model, batches, candidates_embed_docid, context_per_docid, candidat
 				batch_context_unsort = variable(torch.LongTensor(np.argsort(length_sort)))
 				batch_context_mask_sorted = variable(torch.FloatTensor(batch_context_mask[length_sort]))
 				batch_context_lengths_sorted = context_lengths[length_sort]
+				# batch_context_features_sorted = variable(torch.FloatTensor(chunk_features[length_sort]))
 				batch_context_sorted = variable(
 					torch.LongTensor(np.array(batched_context_embeddings)[length_sort, ...]))
 				batch_context_scores_sorted = variable(torch.FloatTensor(batch_context_scores[length_sort]))
@@ -217,6 +220,14 @@ def evaluate(model, batches, candidates_embed_docid, context_per_docid, candidat
 				indices, c2q_attention_matrix = model.eval(batch_query, batch_query_length, batch_question_mask,
 														   batch_context_sorted, batch_context_lengths_sorted,
 														   batch_context_mask_sorted, batch_context_scores_sorted,
+														   batch_candidates_embed_sorted,
+														   batch_candidate_lengths_sorted, batch_candidate_masks_sorted,
+														   batch_candidate_unsort)
+			elif args.use_scorer:
+				indices, c2q_attention_matrix = model.eval(batch_query, batch_query_length, batch_question_mask,
+														   batch_context_sorted, batch_context_lengths_sorted,
+														   batch_context_mask_sorted, batch_context_scores_sorted,
+														   batch_context_features_sorted,
 														   batch_candidates_embed_sorted,
 														   batch_candidate_lengths_sorted, batch_candidate_masks_sorted,
 														   batch_candidate_unsort)
@@ -323,6 +334,7 @@ def train_epochs(model, vocab):
 			batch_candidates = batch["candidates"]
 			batch_doc_ids = batch['doc_ids']
 			batch_reduced_context_indices = batch['chunk_indices']
+			# batch_chunk_features = batch["chunk_features"]
 			batch_top_chunk = batch["top_chunks"]
 			batch_reduced_context_scores = batch["chunk_scores"]
 			batch_answer_indices = batch['answer_indices']
@@ -394,6 +406,7 @@ def train_epochs(model, vocab):
 					## no support for emb_elmo
 					context_embeddings = train_context_per_docid[doc_id]  ## ids
 					golden_ids = batch_reduced_context_indices[index]
+					# chunk_features = batch_chunk_features[index]
 					golden_scores = batch_reduced_context_scores[index]
 					full_ranges = train_context_ranges_per_docid[doc_id]
 
@@ -443,6 +456,7 @@ def train_epochs(model, vocab):
 					batch_context_unsort = variable(torch.LongTensor(np.argsort(length_sort)))
 					batch_context_mask_sorted = variable(torch.FloatTensor(batch_context_mask[length_sort]))
 					batch_context_lengths_sorted = context_lengths[length_sort]
+					# batch_context_features_sorted = variable(torch.FloatTensor(chunk_features[length_sort]))
 					batch_context_sorted = variable(
 						torch.LongTensor(np.array(batched_context_embeddings)[length_sort, ...]))
 					batch_context_scores_sorted = variable(torch.FloatTensor(batch_context_scores[length_sort]))
@@ -474,6 +488,15 @@ def train_epochs(model, vocab):
 					loss, indices = model(batch_query, batch_query_length, batch_question_mask,
 										  batch_context_sorted, batch_context_lengths_sorted, batch_context_mask_sorted,
 										  batch_context_scores_sorted,
+										  batch_candidates_embed_sorted, batch_candidate_lengths_sorted,
+										  batch_candidate_masks_sorted,
+										  batch_candidate_unsort,
+										  gold_index_variable, top_most_chunk
+										  )
+				elif args.use_scorer:
+					loss, indices = model(batch_query, batch_query_length, batch_question_mask,
+										  batch_context_sorted, batch_context_lengths_sorted, batch_context_mask_sorted,
+										  batch_context_scores_sorted, batch_context_features_sorted,
 										  batch_candidates_embed_sorted, batch_candidate_lengths_sorted,
 										  batch_candidate_masks_sorted,
 										  batch_candidate_unsort,

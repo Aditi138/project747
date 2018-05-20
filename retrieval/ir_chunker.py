@@ -159,6 +159,8 @@ class Chunking(object):
 
 		top_chunks = []
 		top_chunks_ids = []
+		top_chunk_scores = []
+		gold_chunk_id = []
 
 		if self.args.ir_model == "tfidf":
 			length = len(chunk_storage)
@@ -172,13 +174,20 @@ class Chunking(object):
 			chunk_docs = tfidf[0:length]
 			reference_docs = tfidf[length:]
 			related_docs_indices = linear_kernel(reference_docs, chunk_docs).argsort()[:, -num_chunks:]
+			related_docs_scores = np.sort(linear_kernel(reference_docs, chunk_docs))[:, -num_chunks:]
 			for idx in range(len(references)):
 				chunks_per_ref = []
 				doc_ids = related_docs_indices[idx][::-1]
+				doc_scores = related_docs_scores[idx][::-1]
+				gold_chunk = doc_ids[0]
+				doc_scores = doc_scores[doc_ids.argsort()]
+				doc_ids = sorted(doc_ids)
+				gold_chunk_id.append(doc_ids.index(gold_chunk))
 				for doc_id in range(len(doc_ids)):
 					chunks_per_ref.append(Chunk(chunk_storage[doc_ids[doc_id]] , sentence_boundaries_storage[doc_ids[doc_id]]))
 				top_chunks.append(chunks_per_ref)
 				top_chunks_ids.append(doc_ids)
+				top_chunk_scores.append(doc_scores)
 		elif self.args.ir_model == "bm25":
 			## bm25 standard parameters
 			# PARAM_K1 = 1.5
@@ -220,4 +229,4 @@ class Chunking(object):
 		# 	print "\n".join([" ".join(sent) for sent in chunk.get_sentences()])
 		# 	print "*"*50
 
-		return top_chunks, top_chunks_ids
+		return top_chunks, top_chunks_ids, top_chunk_scores, gold_chunk_id
