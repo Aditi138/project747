@@ -82,10 +82,10 @@ def get_pretrained_emb(embedding_path, word_to_id, dim):
 	word = str(word)
         if word in pretrain_word_emb:
             word_emb[id] = pretrain_word_emb[word]
-            fout_required.write(word + " " + " ".join([str(f) for f in pretrain_word_emb[word]]) + "\n")
+#            fout_required.write(word + " " + " ".join([str(f) for f in pretrain_word_emb[word]]) + "\n")
         elif word.lower() in pretrain_word_emb:
             word_emb[id] = pretrain_word_emb[word.lower()]
-            fout_required.write(word.lower() + " " + " ".join([str(f) for f in pretrain_word_emb[word]]) + "\n")
+ #           fout_required.write(word.lower() + " " + " ".join([str(f) for f in pretrain_word_emb[word]]) + "\n")
         else:
             not_covered += 1
 
