@@ -632,6 +632,7 @@ if __name__ == "__main__":
 	parser.add_argument("--sample_while_training", action="store_true", default=False)
 	parser.add_argument("--chunk_length", type=int, default=40)
 	parser.add_argument("--num_chunks", type=int, default=20)
+	parser.add_argument("--weighing", type=int, default=False)
 
 	args = parser.parse_args()
 

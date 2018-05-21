@@ -135,7 +135,7 @@ def evaluate(model, batches, candidates_embed_docid, candidates_per_docid, file)
 					golden_scores[enm] = g + 1e-6
 
 				## sampling from 2nd chunk chunk onwards
-				num_samples = 2
+				num_samples = 5
 				if args.sample_while_training:
 					top_chunk_id = golden_ids[top_most_chunk]
 					top_chunk_score = golden_scores[top_most_chunk]

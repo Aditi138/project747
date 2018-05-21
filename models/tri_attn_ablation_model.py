@@ -38,7 +38,8 @@ class TriAttn(nn.Module):
 
 
 		## output layer
-		output_layer_inputdim = 4 * hidden_size
+		# output_layer_inputdim = 4 * hidden_size
+		output_layer_inputdim = 4 * hidden_size + 1
 		self.output_layer = OutputLayer(output_layer_inputdim, hidden_size)
 
 
@@ -52,7 +53,7 @@ class TriAttn(nn.Module):
 		# 	nn.ReLU(),
 		# 	nn.Linear(2 * hidden_size, 2 * hidden_size))
 
-		## simple mlp interaction
+		## simple mlp interaction (performs worse than actually having the bilinear attention
 		'''
 		self.simple_output_layer = nn.Sequential(nn.Linear(6*hidden_size, 4*hidden_size),
 												 nn.ReLU(),
@@ -62,6 +63,7 @@ class TriAttn(nn.Module):
 		'''
 		num_characteristics = 5 # mean, max, min, std, tfidf
 		num_chunks = args.num_chunks
+
 
 		self.scorer_mlp = nn.Sequential(nn.Linear(num_chunks*num_characteristics, 10),
 										nn.ReLU(),
@@ -148,8 +150,10 @@ class TriAttn(nn.Module):
 		logits_qa = self.query_answer_bilinear(q_hidden) * a_hidden  # (N, 2d)
 		logits_qa = logits_qa.view(batch_size, num_chunks, -1)  # (N,k,2d)
 		logits_ca = context_chunk_wise * a_hidden.view(batch_size, num_chunks, -1)  # (N,K,2d)
-		scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=-1))  # (N,K,4d) ==>#(N,K,1)
-
+		tfidf_feature = batch_context_scores.unsqueeze(0).expand(batch_size,batch_context_scores.size(0)).unsqueeze(2)
+		output_input = torch.cat([logits_qa, logits_ca, tfidf_feature], dim = -1)
+		# scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=-1))  # (N,K,4d) ==>#(N,K,1)
+		scores = self.output_layer(output_input)  # (N,K,4d) ==>#(N,K,1)
 
 		## For simple output layer
 		'''
@@ -272,8 +276,10 @@ class TriAttn(nn.Module):
 		logits_qa = self.query_answer_bilinear(q_hidden) * a_hidden  # (N, 2d)
 		logits_qa = logits_qa.view(batch_size, num_chunks, -1)  # (N,k,2d)
 		logits_ca = context_chunk_wise * a_hidden.view(batch_size, num_chunks, -1)  # (N,K,2d)
-		scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=-1))  # (N,K,4d) ==>#(N,K,1)
-
+		tfidf_feature = batch_context_scores.unsqueeze(0).expand(batch_size, batch_context_scores.size(0)).unsqueeze(2)
+		output_input = torch.cat([logits_qa, logits_ca, tfidf_feature], dim=-1)
+		# scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=-1))  # (N,K,4d) ==>#(N,K,1)
+		scores = self.output_layer(output_input)  # (N,K,4d) ==>#(N,K,1)
 
 		## For simple output layer
 		'''
