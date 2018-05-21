@@ -42,21 +42,21 @@ class TriAttn(nn.Module):
 		self.output_layer = OutputLayer(output_layer_inputdim, hidden_size)
 
 
-		# exp1: nonlinearity to bilinear attention
-		self.answer_context_bilinear = nn.Sequential(
-			nn.Linear(2 * hidden_size, 2 * hidden_size))
-			# nn.ReLU(),
-			# nn.Linear(2 * hidden_size, 2 * hidden_size))
-		self.query_answer_bilinear = nn.Sequential(
-			nn.Linear(2 * hidden_size, 2 * hidden_size))
-			# nn.ReLU(),
-			# nn.Linear(2 * hidden_size, 2 * hidden_size))
+		## exp1: nonlinearity to bilinear attention
+		# self.answer_context_bilinear = nn.Sequential(
+		# 	nn.Linear(2 * hidden_size, 2 * hidden_size),
+		# 	nn.ReLU(),
+		# 	nn.Linear(2 * hidden_size, 2 * hidden_size))
+		# self.query_answer_bilinear = nn.Sequential(
+		# 	nn.Linear(2 * hidden_size, 2 * hidden_size),
+		# 	nn.ReLU(),
+		# 	nn.Linear(2 * hidden_size, 2 * hidden_size))
 
-		# self.simple_output_layer = nn.Sequential(nn.Linear(6*hidden_size, 4*hidden_size),
-		# 										 nn.ReLU(),
-		# 										 nn.Linear(4*hidden_size, 2*hidden_size),
-		# 										 nn.ReLU(),
-		# 										 nn.Linear(2*hidden_size, 1))
+		self.simple_output_layer = nn.Sequential(nn.Linear(6*hidden_size, 4*hidden_size),
+												 nn.ReLU(),
+												 nn.Linear(4*hidden_size, 2*hidden_size),
+												 nn.ReLU(),
+												 nn.Linear(2*hidden_size, 1))
 
 
 		self.loss = torch.nn.CrossEntropyLoss()
@@ -131,7 +131,7 @@ class TriAttn(nn.Module):
 		c_hidden = weighted_avg(context_modeled, context_self_attention)
 
 		## complex interaction between three vectors to get the final score
-
+		'''
 		context_chunk_wise = self.answer_context_bilinear(c_hidden)  # (K, 2d)
 		context_chunk_wise = context_chunk_wise.expand(batch_size, context_chunk_wise.size(0),
 													   context_chunk_wise.size(1))  # (N,K,2d)
@@ -139,11 +139,11 @@ class TriAttn(nn.Module):
 		logits_qa = logits_qa.view(batch_size, num_chunks, -1)  # (N,k,2d)
 		logits_ca = context_chunk_wise * a_hidden.view(batch_size, num_chunks, -1)  # (N,K,2d)
 		scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=-1))  # (N,K,4d) ==>#(N,K,1)
-
+		'''
 
 		## For simple output layer
-		# c_hidden = c_hidden.expand(batch_size, c_hidden.size(0), c_hidden.size(1))
-		# scores = self.simple_output_layer(torch.cat([q_hidden, c_hidden, a_hidden.view(batch_size, num_chunks, -1)], dim=-1))
+		c_hidden = c_hidden.expand(batch_size, c_hidden.size(0), c_hidden.size(1))
+		scores = self.simple_output_layer(torch.cat([q_hidden, c_hidden, a_hidden.view(batch_size, num_chunks, -1)], dim=-1))
 
 		# weighted_candidates = scores.squeeze(-1)
 		weighted_candidates = scores.squeeze(-1) + batch_context_scores  # (N,K)
@@ -241,7 +241,7 @@ class TriAttn(nn.Module):
 		c_hidden = weighted_avg(context_modeled, context_self_attention)
 
 		## complex interaction between three vectors to get the final score
-
+		'''
 		context_chunk_wise = self.answer_context_bilinear(c_hidden)  # (K, 2d)
 		context_chunk_wise = context_chunk_wise.expand(batch_size, context_chunk_wise.size(0),
 													   context_chunk_wise.size(1))  # (N,K,2d)
@@ -249,11 +249,11 @@ class TriAttn(nn.Module):
 		logits_qa = logits_qa.view(batch_size, num_chunks, -1)  # (N,k,2d)
 		logits_ca = context_chunk_wise * a_hidden.view(batch_size, num_chunks, -1)  # (N,K,2d)
 		scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=-1))  # (N,K,4d) ==>#(N,K,1)
-
+		'''
 
 		## For simple output layer
-		# c_hidden = c_hidden.expand(batch_size, c_hidden.size(0), c_hidden.size(1))
-		# scores = self.simple_output_layer(torch.cat([q_hidden, c_hidden, a_hidden], dim=-1))
+		c_hidden = c_hidden.expand(batch_size, c_hidden.size(0), c_hidden.size(1))
+		scores = self.simple_output_layer(torch.cat([q_hidden, c_hidden, a_hidden], dim=-1))
 
 		weighted_candidates = scores.squeeze(-1) + batch_context_scores  # (N,K)
 

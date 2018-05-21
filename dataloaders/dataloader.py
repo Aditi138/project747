@@ -1019,9 +1019,9 @@ class DataLoader():
             ## all these need to be temporally ordered since the gold chunk happens to always be the first one and model will learn a bias
             vectorized_tokens = []
             for q in range(len(document_tokens)):
-                chunks = document_tokens[q]
-                chunk_ids = top_chunks_ids[q]
-                chunk_scores = top_chunk_scores[q]
+                chunks = document_tokens[q][:self.args.num_chunks]
+                chunk_ids = top_chunks_ids[q][:self.args.num_chunks]
+                chunk_scores = top_chunk_scores[q][:self.args.num_chunks]
                 gold_chunk = gold_chunk_id[q]
                 chunk_ids, chunk_scores = zip(*sorted(zip(chunk_ids, chunk_scores), key=lambda x:x[0]))
                 gold_chunk = chunk_ids.index(gold_chunk)
