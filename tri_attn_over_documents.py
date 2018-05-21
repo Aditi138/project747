@@ -41,8 +41,7 @@ def get_random_batch_from_training(batches, num):
 	return small
 
 
-def evaluate(model, batches, candidates_embed_docid, context_per_docid, candidates_per_docid, context_tokens_per_docid,
-			 context_ranges_per_docid, file):
+def evaluate(model, batches, candidates_embed_docid, candidates_per_docid, file):
 	mrr_value = []
 	model.train(False)
 	s_file = codecs.open(args.s_file, "w", encoding='utf-8')
@@ -58,6 +57,7 @@ def evaluate(model, batches, candidates_embed_docid, context_per_docid, candidat
 		# batch_chunk_features = batch["chunk_features"]
 		batch_reduced_context_scores = batch["chunk_scores"]
 		batch_top_chunk = batch["top_chunks"]
+		batch_context = batch["chunk_tokens"]
 		for index, query_embed in enumerate(batch['q_embed']):
 
 			if fout is not None:
@@ -125,37 +125,55 @@ def evaluate(model, batches, candidates_embed_docid, context_per_docid, candidat
 			# context tokens
 			## if using reduced context
 			if args.sentence_scoring:
-				## context is a set of ranges, pad them and context is a matrix, context_batch_size, weights based on gold ranges
-				## no support for emb_elmo
-				context_embeddings = context_per_docid[doc_id]  ## ids
 				golden_ids = batch_reduced_context_indices[index]
-				full_ranges = context_ranges_per_docid[doc_id]
-				golden_scores = batch_reduced_context_scores[index]
+				golden_scores = np.array(batch_reduced_context_scores[index])
+				context_chunks = batch_context[index]
 
 				## Code to load fewer number of chunks
 				top_most_chunk = batch_top_chunk[index]
-				new_full_ranges = [full_ranges[i] for i in golden_ids]
-				context_batch_length = len(new_full_ranges)
-				context_lengths = np.array([r[1] - r[0] for r in new_full_ranges])
-				# chunk_features = batch_chunk_features[index]
+				for enm, g in enumerate(golden_scores):
+					golden_scores[enm] = g + 1e-6
+
+				## sampling from 2nd chunk chunk onwards
+				num_samples = 2
+				if args.sample_while_training:
+					top_chunk_id = golden_ids[top_most_chunk]
+					top_chunk_score = golden_scores[top_most_chunk]
+					sampled_gold_ids = range(len(golden_ids))
+					sampled_scores = copy.deepcopy(list(golden_scores))
+					sampled_gold_ids.pop(top_most_chunk)  ## top most chunk'd location is returned
+					sampled_scores.pop(top_most_chunk)
+					new_golden_ids = [top_chunk_id]
+					new_golden_scores = [top_chunk_score]
+					new_context_chunks = [context_chunks[top_most_chunk]]
+					while len(new_golden_ids) < num_samples:
+						sampled_id = np.random.choice(len(sampled_gold_ids), 1,
+													  p=sampled_scores / sum(sampled_scores))
+						if sampled_gold_ids[sampled_id[0]] not in new_golden_ids:
+							new_golden_ids.append(sampled_gold_ids[sampled_id[0]])
+							new_golden_scores.append(sampled_scores[sampled_id[0]])
+							new_context_chunks.append(context_chunks[sampled_id[0]])
+					combined_sample = zip(new_golden_ids, new_golden_scores, new_context_chunks)
+					np.random.shuffle(combined_sample)
+					new_golden_ids, new_golden_scores, new_context_chunks = zip(*combined_sample)
+					golden_scores = np.array(copy.deepcopy(new_golden_scores))
+					golden_ids = copy.deepcopy(new_golden_ids)
+					top_most_chunk = golden_ids.index(top_chunk_id)
+					context_chunks = copy.deepcopy(new_context_chunks)
+
+				context_batch_length = len(context_chunks)
+				context_lengths = np.array([len(c) for c in context_chunks])
 				max_context_chunk_length = max(context_lengths)
 				batch_context_mask = np.array([[int(x < context_lengths[i])
 												for x in range(max_context_chunk_length)]
 											   for i in range(context_batch_length)])
 				batched_context_embeddings = []
-				for r in new_full_ranges:
+				for r in range(context_batch_length):
 					batched_context_embeddings.append(
-						pad_seq(context_embeddings[r[0]:r[1]], max_context_chunk_length))
-				batch_context = variable(torch.LongTensor(batched_context_embeddings))
-
-				## where is top most chunk in golden_ids
-				# batch_context_scores = np.array([-10000] * context_batch_length)
-				# new_location_of_gold = top_most_chunk
-				# batch_context_scores[new_location_of_gold] = 0
+						pad_seq(context_chunks[r], max_context_chunk_length))
+				batch_context_variable = variable(torch.LongTensor(batched_context_embeddings))
 
 				### TF-IDF based scores
-				for enm, g in enumerate(golden_scores):
-					golden_scores[enm] = g + 1e-6
 				golden_scores = golden_scores / sum(golden_scores)
 				batch_context_scores = np.log(golden_scores)
 
@@ -238,12 +256,12 @@ def evaluate(model, batches, candidates_embed_docid, context_per_docid, candidat
 														   batch_candidate_unsort)
 
 			if args.use_cuda:
-				indices = indices.data.cpu()
+				indices = indices.data.cpu().numpy()
 				c2q_attention_matrix = c2q_attention_matrix.data.cpu()
 
 
 			else:
-				indices = indices.data
+				indices = indices.data.numpy()
 				c2q_attention_matrix = c2q_attention_matrix.data.numpy()
 
 			rows = c2q_attention_matrix.shape[1]
@@ -253,10 +271,16 @@ def evaluate(model, batches, candidates_embed_docid, context_per_docid, candidat
 				s_file.write(" ".join([str(c) for c in row]) + " ")
 			s_file.write("\n")
 			s_file.write(str(rows) + " " + str(cols) + "\n\n")
-			position_gold_sorted = (indices == batch_answer_indices[index]).nonzero().numpy()[0][0]
+			position_gold_sorted = (indices == batch_answer_indices[index]).nonzero()[0][0]
 			index = position_gold_sorted + 1
 
 			mrr_value.append(1.0 / (index))
+
+			candidates = candidates_per_docid[doc_id]
+			fout.write("\nRank: {0} / {1}   Gold: {2}\n".format(index, len(candidates), " ".join(
+				candidates[indices[position_gold_sorted]])))
+			for cand in range(10):
+				fout.write("C: {0}\n".format(" ".join(candidates[indices[cand]])))
 
 	mean_rr = np.mean(mrr_value)
 	print("MRR :{0}".format(mean_rr))
@@ -301,9 +325,8 @@ def train_epochs(model, vocab):
 				print("iteration: {0} train loss: {1}".format(iteration + 1, train_loss / train_denom))
 
 				if iteration != 0:
-					average_rr = evaluate(model, valid_batches, valid_candidates_embed_docid, valid_context_per_docid,
-										  valid_candidate_per_docid, valid_context_tokens_per_docid,
-										  valid_context_ranges_per_docid, args.debug_file)
+					average_rr = evaluate(model, valid_batches, valid_candidates_embed_docid,
+										  valid_candidate_per_docid, args.debug_file)
 					validation_history.append(average_rr)
 					train_average_rr = np.mean(mrr_value)
 					if (iteration + 1) % (eval_interval) == 0:
@@ -322,9 +345,8 @@ def train_epochs(model, vocab):
 							print("Early Stopping")
 							print("Testing started")
 							model = torch.load(args.model_path)
-							evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid,
-									 test_candidate_per_docid, test_context_tokens_per_docid,
-									 test_context_ranges_per_docid, args.debug_file + ".test")
+							evaluate(model, test_batches, test_candidates_embed_docid,
+									 test_candidate_per_docid, args.debug_file + ".test")
 							exit(0)
 
 			batch = train_batches[iteration]
@@ -338,6 +360,7 @@ def train_epochs(model, vocab):
 			batch_reduced_context_scores = batch["chunk_scores"]
 			batch_answer_indices = batch['answer_indices']
 			batch_size = len(batch_query_lengths)
+			batch_context = batch["chunk_tokens"]
 			losses = variable(torch.zeros(batch_size))
 			for index, query_embed in enumerate(batch['q_embed']):
 				# query tokens
@@ -394,20 +417,10 @@ def train_epochs(model, vocab):
 
 				batch_len = len(batch_candidate_lengths)
 
-				# negative_indices = list(range(batch_len))
-				# negative_indices.pop(gold_index)
-				# negative_indices = variable(torch.LongTensor(negative_indices))
-
-				# context tokens
-				## if using reduced context
 				if args.sentence_scoring:
-					## context is a set of ranges, pad them and context is a matrix, context_batch_size, weights based on gold ranges
-					## no support for emb_elmo
-					context_embeddings = train_context_per_docid[doc_id]  ## ids
 					golden_ids = batch_reduced_context_indices[index]
-					# chunk_features = batch_chunk_features[index]
-					golden_scores = batch_reduced_context_scores[index]
-					full_ranges = train_context_ranges_per_docid[doc_id]
+					golden_scores = np.array(batch_reduced_context_scores[index])
+					context_chunks = batch_context[index]
 
 					## Code to load fewer number of chunks
 					top_most_chunk = batch_top_chunk[index]
@@ -417,44 +430,42 @@ def train_epochs(model, vocab):
 					## sampling from 2nd chunk chunk onwards
 					num_samples = 2
 					if args.sample_while_training:
-						# golden_ids contains top_most_chunk but then include only a sample of the others based on golden scores
 						top_chunk_id = golden_ids[top_most_chunk]
 						top_chunk_score = golden_scores[top_most_chunk]
-						sampled_gold_ids = copy.deepcopy(golden_ids)
+						sampled_gold_ids = range(len(golden_ids))
 						sampled_scores = copy.deepcopy(list(golden_scores))
-						sampled_gold_ids.pop(top_most_chunk) ## top most chunk'd location is returned
+						sampled_gold_ids.pop(top_most_chunk)  ## top most chunk'd location is returned
 						sampled_scores.pop(top_most_chunk)
 						new_golden_ids = [top_chunk_id]
 						new_golden_scores = [top_chunk_score]
+						new_context_chunks = [context_chunks[top_most_chunk]]
 						while len(new_golden_ids) < num_samples:
-							sampled_id = np.random.choice(len(sampled_gold_ids), 1 , p=sampled_scores/sum(sampled_scores))
+							sampled_id = np.random.choice(len(sampled_gold_ids), 1,
+														  p=sampled_scores / sum(sampled_scores))
 							if sampled_gold_ids[sampled_id[0]] not in new_golden_ids:
 								new_golden_ids.append(sampled_gold_ids[sampled_id[0]])
 								new_golden_scores.append(sampled_scores[sampled_id[0]])
-						combined_sample = zip(new_golden_ids, new_golden_scores)
+								new_context_chunks.append(context_chunks[sampled_id[0]])
+						combined_sample = zip(new_golden_ids, new_golden_scores, new_context_chunks)
 						np.random.shuffle(combined_sample)
-						new_golden_ids, new_golden_scores = zip(*combined_sample)
+						new_golden_ids, new_golden_scores, new_context_chunks = zip(*combined_sample)
 						golden_scores = np.array(copy.deepcopy(new_golden_scores))
 						golden_ids = copy.deepcopy(new_golden_ids)
 						top_most_chunk = golden_ids.index(top_chunk_id)
+						context_chunks = copy.deepcopy(new_context_chunks)
 
-					new_full_ranges = [full_ranges[i] for i in golden_ids]
-					context_batch_length = len(new_full_ranges)
-					context_lengths = np.array([r[1] - r[0] for r in new_full_ranges])
+					context_batch_length = len(context_chunks)
+					context_lengths = np.array([len(c) for c in context_chunks])
 					max_context_chunk_length = max(context_lengths)
 					batch_context_mask = np.array([[int(x < context_lengths[i])
 													for x in range(max_context_chunk_length)]
 												   for i in range(context_batch_length)])
 					batched_context_embeddings = []
-					for r in new_full_ranges:
+					for r in range(context_batch_length):
 						batched_context_embeddings.append(
-							pad_seq(context_embeddings[r[0]:r[1]], max_context_chunk_length))
-					batch_context = variable(torch.LongTensor(batched_context_embeddings))
+							pad_seq(context_chunks[r], max_context_chunk_length))
+					batch_context_variable = variable(torch.LongTensor(batched_context_embeddings))
 
-					### Dummy Scores
-					# batch_context_scores = np.array([-10000] * context_batch_length)
-					# new_location_of_gold = golden_ids.index(top_most_chunk)
-					# batch_context_scores[new_location_of_gold] = 0
 					### TF-IDF based scores
 					golden_scores = golden_scores / sum(golden_scores)
 					batch_context_scores = np.log(golden_scores)
@@ -561,8 +572,7 @@ def train_epochs(model, vocab):
 
 	print("All epochs done")
 	model = torch.load(args.model_path)
-	evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid,
-			 test_context_tokens_per_docid, test_context_ranges_per_docid, args.debug_file + ".test")
+	evaluate(model, test_batches, test_candidates_embed_docid, test_candidate_per_docid, args.debug_file + ".test")
 
 
 def train_mrr(index, indices, batch_answer_indices):
@@ -691,13 +701,13 @@ if __name__ == "__main__":
 		with open(args.test_path, "r") as fin:
 			te_documents = pickle.load(fin)
 		print("Loading training documents")
-		train_documents, train_candidates_embed_docid, train_candidate_per_docid, train_context_per_docid, train_context_tokens_per_docid = loader.load_full_document_chunks(
+		train_documents, train_candidates_embed_docid, train_candidate_per_docid = loader.load_full_document_chunks(
 			t_documents, train=True)
 		print("Loading validation documents")
-		valid_documents, valid_candidates_embed_docid, valid_candidate_per_docid, valid_context_per_docid, valid_context_tokens_per_docid = loader.load_full_document_chunks(
+		valid_documents, valid_candidates_embed_docid, valid_candidate_per_docid = loader.load_full_document_chunks(
 			v_documents)
 		print("Loading testing documents")
-		test_documents, test_candidates_embed_docid, test_candidate_per_docid, test_context_per_docid, test_context_tokens_per_docid = loader.load_full_document_chunks(
+		test_documents, test_candidates_embed_docid, test_candidate_per_docid = loader.load_full_document_chunks(
 			te_documents)
 
 	# fout = codecs.open("manual_check.txt","w", encoding='utf-8')

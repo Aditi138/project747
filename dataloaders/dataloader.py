@@ -192,7 +192,7 @@ def create_single_batch(batch_data):
 def create_single_batch_elmo(batch_data):
     doc_ids = [data_point.doc_id for data_point in batch_data]
     chunk_indices = [data_point.chunk_indices for data_point in batch_data]
-    # chunk_features = [data_point.chunk_features for data_point in batch_data]
+    chunk_tokens = [data_point.context_tokens for data_point in batch_data]
     top_chunks = [data_point.top_chunk for data_point in batch_data]
     chunk_scores = [data_point.chunk_scores for data_point in batch_data]
     batch_query_lengths = [len(data_point.question_tokens) for data_point in batch_data]
@@ -232,6 +232,7 @@ def create_single_batch_elmo(batch_data):
     batch['q_tokens'] = question_tokens
     batch['chunk_indices'] = chunk_indices
     batch['chunk_scores'] = chunk_scores
+    batch['chunk_tokens'] = chunk_tokens
     # batch['chunk_features'] = chunk_features
     batch['top_chunks'] = top_chunks
     batch['q_embed'] = queries_embed
@@ -1006,134 +1007,36 @@ class DataLoader():
         data_points = []
         candidates_embed_docid = {}
         candidate_per_docid = {}
-        context_per_docid = {}
-        context_tokens_per_docid = {}
-        context_ranges_per_docid = {}
+
         for index, document in enumerate(documents):
             # print(index)
-            original_sentences = document.document_tokens
-            chunk_length = 40
-            num_chunks = 20
+            ## as many as there qaps and each one has top k chunks
+            document_tokens = document.document_tokens
+            top_chunks_ids = document.chunk_ids
+            top_chunk_scores = document.chunk_scores
+            gold_chunk_id = [question[0] for question in document.chunk_ids]
 
-            ## each sentence should be fewer than 40 tokens long
-            sentences = []
-            for e, sent in enumerate(original_sentences):
-                if len(sent) > chunk_length:
-                    position = 0
-                    position_index = 0
-                    while position < len(sent):
-                        sentences.append(sent[position_index * chunk_length:(position_index + 1) * chunk_length])
-                        position_index += 1
-                        position += chunk_length
-                else:
-                    sentences.append(sent)
-
-            chunk_storage = []
-            concat_chunk_storage = []
-            # sentence_boundaries_storage = []
-            chunk_boundaries_storage = []
-            e = 0
-            rolling_index = 0
-            while e < len(sentences):
-                previous_size = 0
-                current_chunk_size = 0
-                current_chunk = []
-                sentence_boundaries = []
-                while e < len(sentences) and current_chunk_size < chunk_length:
-                    current_chunk += sentences[e]
-                    previous_size = current_chunk_size
-                    current_chunk_size += len(sentences[e])
-                    sentence_boundaries.append(previous_size)
-                    e += 1
-                ## guard against previous size being zero, guard against sentence size >= chunk_size, gaurd against e-=1 infinite loop
-                if abs(chunk_length - previous_size) < abs(current_chunk_size - chunk_length) and e != len(
-                        sentences):
-                    current_chunk = current_chunk[:previous_size]
-                    sentence_boundaries = sentence_boundaries[:-1]
-                    ## restart from the previous chunk in this case
-                    e -= 1
-                    if len(current_chunk) > 0:
-                        chunk_storage.append(current_chunk)
-                        concat_chunk_storage.append(" ".join(current_chunk))
-                        chunk_boundaries_storage.append([rolling_index, rolling_index + len(current_chunk)])
-                        rolling_index += len(current_chunk)
-                        # sentence_boundaries_storage.append(sentence_boundaries)
-                else:
-                    ## if out of sentences, use the last chunk as is
-                    if len(current_chunk) > 0:
-                        chunk_storage.append(current_chunk)
-                        concat_chunk_storage.append(" ".join(current_chunk))
-                        chunk_boundaries_storage.append([rolling_index, rolling_index + len(current_chunk)])
-                        rolling_index += len(current_chunk)
-                        # sentence_boundaries_storage.append(sentence_boundaries)
-
-            top_chunks = []
-            top_chunks_ids = []
-            top_chunk_scores = []
-            gold_chunk_id = []
-
-            true_candidates = [document.candidates[i] for i in range(0, len(document.candidates), 2)]
-
-            length = len(chunk_storage)
-            ## append queries to the end of the vector
-            for reference, question in zip(true_candidates, document.qaps):
-                chunk_storage.append(reference)
-            if train:
-                concat_chunk_storage.append(" ".join(reference) + " " + " ".join(question.question_tokens))
-            else:
-                concat_chunk_storage.append(" ".join(question.question_tokens))
-
-            vectorizer = CountVectorizer(preprocessor=self.lemmatizer.lemmatize, stop_words=self.stop_words,
-                                         ngram_range=(1, 2))
-            transformer = TfidfTransformer(sublinear_tf=True)
-            counts = vectorizer.fit_transform(concat_chunk_storage)
-            tfidf = transformer.fit_transform(counts)
-            chunk_docs = tfidf[0:length]
-            reference_docs = tfidf[length:]
-            related_docs_indices = linear_kernel(reference_docs, chunk_docs).argsort()[:, -num_chunks:]
-            related_docs_scores = np.sort(linear_kernel(reference_docs, chunk_docs))[:, -num_chunks:]
-            for idx in range(len(true_candidates)):
-                chunks_per_ref = []
-                doc_ids = related_docs_indices[idx][::-1]
-                doc_scores = related_docs_scores[idx][::-1]
-                gold_chunk = doc_ids[0]
-                doc_scores = doc_scores[doc_ids.argsort()]
-                doc_ids = sorted(doc_ids)
-                gold_chunk_id.append(doc_ids.index(gold_chunk))
-                for doc_id in doc_ids:
-                    ## these have to be time ordered so that she can just concatenate
-                    chunks_per_ref.append(chunk_boundaries_storage[doc_id])
-                top_chunks.append(chunks_per_ref)
-                top_chunks_ids.append(doc_ids)
-                top_chunk_scores.append(doc_scores)
-
-            document_tokens = []
-            raw_tokens = []
-            for sent in document.document_tokens:
-                document_tokens += self.vocab.add_and_get_indices(sent)
-                raw_tokens += sent
-
-            if self.args.reduced and self.args.emb_elmo:
-                context_per_docid[document.id] = np.concatenate(document.document_embed)
-            else:
-                context_per_docid[document.id] = self.vocab.add_and_get_indices(raw_tokens)
-
-            context_tokens_per_docid[document.id] = raw_tokens
-            context_ranges_per_docid[document.id] = chunk_boundaries_storage
+            ## all these need to be temporally ordered since the gold chunk happens to always be the first one and model will learn a bias
+            vectorized_tokens = []
+            for q in range(len(document_tokens)):
+                chunks = document_tokens[q]
+                chunk_ids = top_chunks_ids[q]
+                chunk_scores = top_chunk_scores[q]
+                gold_chunk = gold_chunk_id[q]
+                chunk_ids, chunk_scores = zip(*sorted(zip(chunk_ids, chunk_scores), key=lambda x:x[0]))
+                gold_chunk = chunk_ids.index(gold_chunk)
+                top_chunks_ids[q] = chunk_ids
+                top_chunk_scores[q] = chunk_scores
+                gold_chunk_id[q] = gold_chunk
+                anonymized_chunks = [self.vocab.add_and_get_indices(c) for c in chunks]
+                vectorized_tokens.append(anonymized_chunks)
 
             candidate_per_doc_per_answer = []
-
-            candidate_per_doc_per_answer_embed = []
             i = 0
             while i < len(document.candidates):
                 candidate_per_doc_per_answer.append(document.candidates[i])
-                if self.args.reduced and self.args.emb_elmo:
-                    candidate_per_doc_per_answer_embed.append(document.candidates_embed[i])
                 i += 2
 
-            ###  new candidate list duplicates to be removed and query.answer_indices to be updated
-            ## dictionary set that connects original answers and the small version
-            ## TODO: candidate_per_doc_per_answer_embed (Elmo embeddings have no support)
             candidate_per_doc_per_answer, answer_indexes_in_set = self.create_unique_candidate_set(
                 candidate_per_doc_per_answer)
             candidate_per_doc_per_answer_raw_tokens = deepcopy(candidate_per_doc_per_answer)
@@ -1144,10 +1047,6 @@ class DataLoader():
                     query.query_embed = self.vocab.add_and_get_indices(query.question_tokens)
 
                 query.question_tokens = query.question_tokens
-                # query.answer_indices = answer_indexes_in_set[q]
-
-                # candidate_per_doc_per_answer[query.answer_indices[0] / 2] = self.vocab.add_and_get_indices(
-                #     candidate_per_doc_per_answer[query.answer_indices[0] / 2])
 
             for c, candidate in enumerate(candidate_per_doc_per_answer):
                 candidate_per_doc_per_answer[c] = self.vocab.add_and_get_indices(candidate)
@@ -1156,12 +1055,8 @@ class DataLoader():
             candidate_per_doc_per_answer_indices = deepcopy(candidate_per_doc_per_answer)
             max_candidate_length = max(candidate_answer_lengths)
 
-            if self.args.reduced and self.args.emb_elmo:
-                candidate_padded_answers_embed = np.array(
-                    [pad_seq_elmo(answer, max_candidate_length) for answer in candidate_per_doc_per_answer_embed])
-            else:
-                candidate_padded_answers_embed = np.array(
-                    [pad_seq(answer, max_candidate_length) for answer in candidate_per_doc_per_answer])
+            candidate_padded_answers_embed = np.array(
+                [pad_seq(answer, max_candidate_length) for answer in candidate_per_doc_per_answer])
 
             candidates_embed_docid[document.id] = candidate_padded_answers_embed
             candidate_per_docid[document.id] = candidate_per_doc_per_answer_raw_tokens
@@ -1171,15 +1066,15 @@ class DataLoader():
                 if self.args.sentence_scoring:
                     data_points.append(Elmo_Data_Point
                                        (query.question_tokens, query.query_embed, query.answer_indices,
-                                        [], [], candidate_per_doc_per_answer_indices, [], document.id,
+                                        vectorized_tokens[idx], [], candidate_per_doc_per_answer_indices, [], document.id,
                                         top_chunks_ids[idx], top_chunk_scores[idx], gold_chunk_id[idx]))
                 else:
                     data_points.append(Elmo_Data_Point
                                        (query.question_tokens, query.query_embed, query.answer_indices,
                                         [], [], candidate_per_doc_per_answer_indices, [], document.id,
-                                        top_chunks[idx]))
+                                        top_chunks_ids[idx]))
 
-        return data_points, candidates_embed_docid, candidate_per_docid, context_per_docid, context_tokens_per_docid, context_ranges_per_docid
+        return data_points, candidates_embed_docid, candidate_per_docid
 
     def create_unique_candidate_set(self, candidate_set):
         combined_candidate_set = []
