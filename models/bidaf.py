@@ -52,7 +52,17 @@ def last_dim_softmax(tensor,mask):
 
 
 class MultiHeadedBidaf(nn.Module):
-	pass
+	def __init__(self, input_size, num_heads, dropout=0.2):
+		self.num_heads = num_heads
+		self.input_size  = input_size
+		self.head_dim = input_size
+
+		self.linear = nn.Linear(input_size, input_size)
+		self.activation = nn.ReLU()
+
+	def forward(self, U, H, U_mask, H_mask, direction=False ,identity=None, split=False, num_chunks = -1):
+		## TODO
+		pass
 
 
 class BiDAF(nn.Module):
@@ -62,9 +72,7 @@ class BiDAF(nn.Module):
 		self.elmo_size = 1024
 		self.linear = nn.Linear(input_size, input_size)
 		self.activation = nn.ReLU()
-
-
-
+		self.dot_product_linear = nn.Linear(2*input_size, 1)
 
 
 	## TODO: Add capability of sentence mask (scoring) for sentence selection model
@@ -92,8 +100,10 @@ class BiDAF(nn.Module):
 		U_Linear = self.linear(U)
 		U_Linear = self.activation(U_Linear)
 		
-		S = H_Linear.bmm(U_Linear.transpose(2, 1))
-
+		# S = H_Linear.bmm(U_Linear.transpose(2, 1))
+		H_input = H_Linear.unsqueeze(2).expand(-1, -1, J,-1).contiguous().view(batch_size, J*T, -1)
+		U_input = U_Linear.unsqueeze(1).expand(-1, T, -1,-1).contiguous().view(batch_size, J*T, -1)
+		S = self.dot_product_linear(torch.cat([H_input, U_input], dim=-1)).squeeze(2).view(batch_size, T, J)
 
 
 
