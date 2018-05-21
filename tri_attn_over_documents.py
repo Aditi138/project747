@@ -588,8 +588,7 @@ def train_mrr(index, indices, batch_answer_indices):
 def test_model(model, documents, vocab):
 	test_batches = create_batches(documents, args.batch_length, args.job_size, vocab)
 	print("Testing!")
-	evaluate(model, test_batches, test_candidates_embed_docid, test_context_per_docid, test_candidate_per_docid,
-			 test_context_tokens_per_docid, test_context_ranges_per_docid, args.debug_file + ".test")
+	evaluate(model, test_batches, test_candidates_embed_docid, test_candidate_per_docid, args.debug_file + ".test")
 
 
 if __name__ == "__main__":
