@@ -51,6 +51,10 @@ def last_dim_softmax(tensor,mask):
 	return reshaped_result.view(*tensor_shape)
 
 
+class MultiHeadedBidaf(nn.Module):
+	pass
+
+
 class BiDAF(nn.Module):
 	def __init__(self, input_size, dropout=0.2):
 		super(BiDAF, self).__init__()

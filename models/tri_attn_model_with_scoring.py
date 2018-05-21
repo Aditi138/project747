@@ -260,10 +260,10 @@ class OutputLayer(nn.Module):
 		self.mlp = nn.Sequential(
 			nn.Linear(input_size, hidden_size),
 			nn.ReLU(),
-			# nn.Dropout(0.2),
+			nn.Dropout(0.2),
 			nn.Linear(hidden_size, hidden_size),
 			nn.ReLU(),
-			# nn.Dropout(0.2),
+			nn.Dropout(0.2),
 			nn.Linear(hidden_size, 1),
 			#nn.Softmax(), ## since loss is being replaced by cross entropy the exoected input into loss function
 		)
