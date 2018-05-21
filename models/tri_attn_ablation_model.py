@@ -42,13 +42,13 @@ class TriAttn(nn.Module):
 		self.output_layer = OutputLayer(output_layer_inputdim, hidden_size)
 
 
-		## exp1: nonlinearity to bilinear attention
-		# self.answer_context_bilinear = nn.Sequential(
-		# 	nn.Linear(2 * hidden_size, 2 * hidden_size),
-		# 	nn.ReLU(),
-		# 	nn.Linear(2 * hidden_size, 2 * hidden_size))
-		# self.query_answer_bilinear = nn.Sequential(
-		# 	nn.Linear(2 * hidden_size, 2 * hidden_size),
+		## ex p1: nonlinearity to bilinear attention : (doesnt seem to help much)
+		self.answer_context_bilinear = nn.Sequential(
+			nn.Linear(2 * hidden_size, 2 * hidden_size))
+			# nn.ReLU(),
+			# nn.Linear(2 * hidden_size, 2 * hidden_size))
+		self.query_answer_bilinear = nn.Sequential(
+			nn.Linear(2 * hidden_size, 2 * hidden_size))
 		# 	nn.ReLU(),
 		# 	nn.Linear(2 * hidden_size, 2 * hidden_size))
 
@@ -142,8 +142,10 @@ class TriAttn(nn.Module):
 		'''
 
 		## For simple output layer
-		c_hidden = c_hidden.expand(batch_size, c_hidden.size(0), c_hidden.size(1))
-		scores = self.simple_output_layer(torch.cat([q_hidden, c_hidden, a_hidden.view(batch_size, num_chunks, -1)], dim=-1))
+		c_hidden = c_hidden.expand(batch_size, c_hidden.size(0), c_hidden.size(1)).contiguous()
+		q_hidden = q_hidden.unsqueeze(0).expand(batch_size, num_chunks, q_hidden.size(-1)).contiguous()
+		a_hidden = a_hidden.view(batch_size, num_chunks, -1)
+		scores = self.simple_output_layer(torch.cat([q_hidden, c_hidden, a_hidden], dim=-1))
 
 		# weighted_candidates = scores.squeeze(-1)
 		weighted_candidates = scores.squeeze(-1) + batch_context_scores  # (N,K)
@@ -252,7 +254,9 @@ class TriAttn(nn.Module):
 		'''
 
 		## For simple output layer
-		c_hidden = c_hidden.expand(batch_size, c_hidden.size(0), c_hidden.size(1))
+		c_hidden = c_hidden.expand(batch_size, c_hidden.size(0), c_hidden.size(1)).contiguous()
+		q_hidden = q_hidden.unsqueeze(0).expand(batch_size, num_chunks, q_hidden.size(-1)).contiguous()
+		a_hidden = a_hidden.view(batch_size, num_chunks, -1)
 		scores = self.simple_output_layer(torch.cat([q_hidden, c_hidden, a_hidden], dim=-1))
 
 		weighted_candidates = scores.squeeze(-1) + batch_context_scores  # (N,K)
