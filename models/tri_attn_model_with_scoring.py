@@ -43,22 +43,8 @@ class TriAttn(nn.Module):
 
 
 		# exp1: nonlinearity to bilinear attention
-		self.answer_context_bilinear = nn.Sequential(
-			nn.Linear(2 * hidden_size, 2 * hidden_size))
-			# nn.ReLU(),
-			# nn.Linear(2 * hidden_size, 2 * hidden_size))
-		self.query_answer_bilinear = nn.Sequential(
-			nn.Linear(2 * hidden_size, 2 * hidden_size))
-			# nn.ReLU(),
-			# nn.Linear(2 * hidden_size, 2 * hidden_size))
-
-		# self.simple_output_layer = nn.Sequential(nn.Linear(6*hidden_size, 4*hidden_size),
-		# 										 nn.ReLU(),
-		# 										 nn.Linear(4*hidden_size, 2*hidden_size),
-		# 										 nn.ReLU(),
-		# 										 nn.Linear(2*hidden_size, 1))
-
-
+		self.answer_context_bilinear = nn.Linear(2 * hidden_size, 2 * hidden_size)
+		self.query_answer_bilinear = nn.Linear(2 * hidden_size, 2 * hidden_size)
 		self.loss = torch.nn.CrossEntropyLoss()
 
 		self.dropout = torch.nn.Dropout(args.dropout)
