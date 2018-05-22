@@ -597,6 +597,13 @@ def test_model(model, documents, vocab):
 			 test_context_tokens_per_docid, test_context_ranges_per_docid, args.debug_file + ".test")
 
 
+def validate_model(model, documents, vocab):
+	test_batches = create_batches(documents, args.batch_length, args.job_size, vocab)
+	print("Validating!")
+	evaluate(model, test_batches, valid_candidates_embed_docid, valid_context_per_docid, valid_candidate_per_docid,
+			 valid_context_tokens_per_docid, valid_context_ranges_per_docid, args.debug_file + ".test")
+
+
 if __name__ == "__main__":
 	reload(sys)
 	sys.setdefaultencoding('utf8')
@@ -769,5 +776,6 @@ if __name__ == "__main__":
 	if args.test:
 		model = torch.load(args.model_path)
 		test_model(model, test_documents, loader.vocab)
+		validate_model(model, valid_documents, loader.vocab)
 	else:
 		train_epochs(model, loader.vocab)
