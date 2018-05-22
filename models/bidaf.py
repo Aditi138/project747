@@ -100,10 +100,10 @@ class BiDAF(nn.Module):
 		U_Linear = self.linear(U)
 		U_Linear = self.activation(U_Linear)
 		
-		# S = H_Linear.bmm(U_Linear.transpose(2, 1))
-		H_input = H_Linear.unsqueeze(2).expand(-1, -1, J,-1).contiguous().view(batch_size, J*T, -1)
-		U_input = U_Linear.unsqueeze(1).expand(-1, T, -1,-1).contiguous().view(batch_size, J*T, -1)
-		S = self.dot_product_linear(torch.cat([H_input, U_input], dim=-1)).squeeze(2).view(batch_size, T, J)
+		S = H_Linear.bmm(U_Linear.transpose(2, 1))
+		# H_input = H_Linear.unsqueeze(2).expand(-1, -1, J,-1).contiguous().view(batch_size, J*T, -1)
+		# U_input = U_Linear.unsqueeze(1).expand(-1, T, -1,-1).contiguous().view(batch_size, J*T, -1)
+		# S = self.dot_product_linear(torch.cat([H_input, U_input], dim=-1)).squeeze(2).view(batch_size, T, J)
 
 
 
