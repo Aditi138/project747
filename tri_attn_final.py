@@ -449,7 +449,9 @@ def train_epochs(model, vocab):
 						new_golden_ids, new_golden_scores = zip(*combined_sample)
 						golden_scores = np.array(copy.deepcopy(new_golden_scores))
 						golden_ids = copy.deepcopy(new_golden_ids)
-						top_most_chunk = golden_ids.index(top_chunk_id)
+						if args.sampling_type == "top_chunks":
+							top_most_chunk = golden_ids.index(top_chunk_id)
+						## top chunk not being used anywhere
 
 					new_full_ranges = [full_ranges[i] for i in golden_ids]
 					context_batch_length = len(new_full_ranges)
