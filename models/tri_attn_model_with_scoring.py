@@ -45,7 +45,7 @@ class TriAttn(nn.Module):
 
 
 		## output layer
-		output_layer_inputdim = 4 * hidden_size + 1
+		output_layer_inputdim = 4 * hidden_size
 		self.output_layer = OutputLayer(output_layer_inputdim, hidden_size)
 
 
@@ -131,10 +131,10 @@ class TriAttn(nn.Module):
 		logits_qa = self.query_answer_bilinear(q_hidden) * a_hidden  # (N, 2d)
 		logits_qa = logits_qa.view(batch_size, num_chunks, -1)  # (N,k,2d)
 		logits_ca = context_chunk_wise * a_hidden.view(batch_size, num_chunks, -1)  # (N,K,2d)
-		tfidf_feature = batch_context_scores.unsqueeze(0).expand(batch_size, batch_context_scores.size(0)).unsqueeze(2)
-		output_input = torch.cat([logits_qa, logits_ca, tfidf_feature], dim=-1)
-		# scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=-1))  # (N,K,4d) ==>#(N,K,1)
-		scores = self.output_layer(output_input)  # (N,K,4d) ==>#(N,K,1)
+		# tfidf_feature = batch_context_scores.unsqueeze(0).expand(batch_size, batch_context_scores.size(0)).unsqueeze(2)
+		# output_input = torch.cat([logits_qa, logits_ca, tfidf_feature], dim=-1)
+		# scores = self.output_layer(output_input)  # (N,K,4d) ==>#(N,K,1)
+		scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=-1))  # (N,K,4d) ==>#(N,K,1)
 
 
 		## For simple output layer
@@ -257,10 +257,10 @@ class TriAttn(nn.Module):
 		logits_qa = self.query_answer_bilinear(q_hidden) * a_hidden  # (N, 2d)
 		logits_qa = logits_qa.view(batch_size, num_chunks, -1)  # (N,k,2d)
 		logits_ca = context_chunk_wise * a_hidden.view(batch_size, num_chunks, -1)  # (N,K,2d)
-		tfidf_feature = batch_context_scores.unsqueeze(0).expand(batch_size, batch_context_scores.size(0)).unsqueeze(2)
-		output_input = torch.cat([logits_qa, logits_ca, tfidf_feature], dim=-1)
-		# scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=-1))  # (N,K,4d) ==>#(N,K,1)
-		scores = self.output_layer(output_input)  # (N,K,4d) ==>#(N,K,1)
+		# tfidf_feature = batch_context_scores.unsqueeze(0).expand(batch_size, batch_context_scores.size(0)).unsqueeze(2)
+		# output_input = torch.cat([logits_qa, logits_ca, tfidf_feature], dim=-1)
+		# scores = self.output_layer(output_input)  # (N,K,4d) ==>#(N,K,1)
+		scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=-1))  # (N,K,4d) ==>#(N,K,1)
 
 		## For simple output layer
 		# c_hidden = c_hidden.expand(batch_size, c_hidden.size(0), c_hidden.size(1))
