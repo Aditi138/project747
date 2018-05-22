@@ -415,22 +415,35 @@ def train_epochs(model, vocab):
 						golden_scores[enm] = g + 1e-6
 
 					## sampling from 2nd chunk chunk onwards
-					num_samples = 2
+					num_samples = 5
 					if args.sample_while_training:
 						# golden_ids contains top_most_chunk but then include only a sample of the others based on golden scores
 						top_chunk_id = golden_ids[top_most_chunk]
 						top_chunk_score = golden_scores[top_most_chunk]
 						sampled_gold_ids = copy.deepcopy(golden_ids)
 						sampled_scores = copy.deepcopy(list(golden_scores))
-						sampled_gold_ids.pop(top_most_chunk) ## top most chunk'd location is returned
-						sampled_scores.pop(top_most_chunk)
-						new_golden_ids = [top_chunk_id]
-						new_golden_scores = [top_chunk_score]
+
+
+						new_golden_ids = []
+						new_golden_scores = []
+
+						## top chunk part of the sample
+						if args.sampling_type == "top_chunk":
+							sampled_gold_ids.pop(top_most_chunk)  ## top most chunk'd location is returned
+							sampled_scores.pop(top_most_chunk)
+							new_golden_ids = [top_chunk_id]
+							new_golden_scores = [top_chunk_score]
+
+
 						while len(new_golden_ids) < num_samples:
-							sampled_id = np.random.choice(len(sampled_gold_ids), 1 , p=sampled_scores/sum(sampled_scores))
-							if sampled_gold_ids[sampled_id[0]] not in new_golden_ids:
-								new_golden_ids.append(sampled_gold_ids[sampled_id[0]])
-								new_golden_scores.append(sampled_scores[sampled_id[0]])
+							if args.sampling_type == "uniform":
+								sampled_id = np.random.randint(0, len(sampled_gold_ids))
+							else:
+								sampled_id = np.random.choice(len(sampled_gold_ids), 1 , p=sampled_scores/sum(sampled_scores))[0]
+							if sampled_gold_ids[sampled_id] not in new_golden_ids:
+								new_golden_ids.append(sampled_gold_ids[sampled_id])
+								new_golden_scores.append(sampled_scores[sampled_id])
+
 						combined_sample = zip(new_golden_ids, new_golden_scores)
 						np.random.shuffle(combined_sample)
 						new_golden_ids, new_golden_scores = zip(*combined_sample)
@@ -630,6 +643,7 @@ if __name__ == "__main__":
 	parser.add_argument("--use_scorer", action="store_true", default=False)
 	parser.add_argument("--clark_gardener", action="store_true", default=False)
 	parser.add_argument("--sample_while_training", action="store_true", default=False)
+	parser.add_argument("--sampling_type", type=str, default="multinomial")
 	parser.add_argument("--chunk_length", type=int, default=40)
 	parser.add_argument("--num_chunks", type=int, default=20)
 	parser.add_argument("--weighing", action="store_true", default=False)
