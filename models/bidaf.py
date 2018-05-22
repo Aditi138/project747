@@ -105,9 +105,6 @@ class BiDAF(nn.Module):
 		# U_input = U_Linear.unsqueeze(1).expand(-1, T, -1,-1).contiguous().view(batch_size, J*T, -1)
 		# S = self.dot_product_linear(torch.cat([H_input, U_input], dim=-1)).squeeze(2).view(batch_size, T, J)
 
-
-
-
 		if direction:
 			S = S * identity
 

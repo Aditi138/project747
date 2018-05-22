@@ -12,9 +12,12 @@ class TriAttn(nn.Module):
 		hidden_size = args.hidden_size
 		embed_size = args.embed_size
 		word_vocab_size = loader.vocab.get_length()
+		num_chunks = args.num_chunks
+		num_characteristics = 5
 
 		self.clark_gardener = args.clark_gardener
 		self.dropout_emb = args.dropout_emb
+		self.weighing = args.weighing
 
 		## word embedding layer
 		self.word_embedding_layer = LookupEncoder(word_vocab_size, embedding_dim=embed_size,pretrain_embedding=loader.pretrain_embedding)
@@ -36,9 +39,13 @@ class TriAttn(nn.Module):
 		self.self_attn_c = BiLinearAttn(2 * hidden_size,2 * hidden_size)
 		self.self_attn_a = LinearSeqAttn(2 * hidden_size)
 
+		self.scorer_mlp = nn.Sequential(nn.Linear(num_chunks * num_characteristics, 10),
+										nn.ReLU(),
+										nn.Linear(10, num_chunks))
+
 
 		## output layer
-		output_layer_inputdim = 4 * hidden_size
+		output_layer_inputdim = 4 * hidden_size + 1
 		self.output_layer = OutputLayer(output_layer_inputdim, hidden_size)
 
 
@@ -124,15 +131,31 @@ class TriAttn(nn.Module):
 		logits_qa = self.query_answer_bilinear(q_hidden) * a_hidden  # (N, 2d)
 		logits_qa = logits_qa.view(batch_size, num_chunks, -1)  # (N,k,2d)
 		logits_ca = context_chunk_wise * a_hidden.view(batch_size, num_chunks, -1)  # (N,K,2d)
-		scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=-1))  # (N,K,4d) ==>#(N,K,1)
+		tfidf_feature = batch_context_scores.unsqueeze(0).expand(batch_size, batch_context_scores.size(0)).unsqueeze(2)
+		output_input = torch.cat([logits_qa, logits_ca, tfidf_feature], dim=-1)
+		# scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=-1))  # (N,K,4d) ==>#(N,K,1)
+		scores = self.output_layer(output_input)  # (N,K,4d) ==>#(N,K,1)
 
 
 		## For simple output layer
 		# c_hidden = c_hidden.expand(batch_size, c_hidden.size(0), c_hidden.size(1))
 		# scores = self.simple_output_layer(torch.cat([q_hidden, c_hidden, a_hidden.view(batch_size, num_chunks, -1)], dim=-1))
 
-		# weighted_candidates = scores.squeeze(-1)
-		weighted_candidates = scores.squeeze(-1) + batch_context_scores  # (N,K)
+		## add weighing scheme over scores
+		transposed_scores = scores.squeeze(-1).transpose(0, 1).contiguous()
+		feature_mean = torch.mean(transposed_scores, dim=1)
+		feature_max = torch.max(transposed_scores, dim=1)[0]
+		feature_min = torch.min(transposed_scores, dim=1)[0]
+		feature_std = torch.std(transposed_scores, dim=1)
+		input_scorer_mlp = torch.cat(
+			[feature_mean, feature_std, feature_max, feature_min, batch_context_scores]).unsqueeze(0)
+		scored_tdfidfs = self.scorer_mlp(input_scorer_mlp).squeeze(0)
+
+		if self.weighing:
+			weighted_candidates = scored_tdfidfs + scores.squeeze(-1)
+			# weighted_candidates = scores.squeeze(-1) + batch_context_scores  # (N,K)
+		else:
+			weighted_candidates = scores.squeeze(-1)
 
 		## clark gardener change
 		if self.clark_gardener:
@@ -234,14 +257,30 @@ class TriAttn(nn.Module):
 		logits_qa = self.query_answer_bilinear(q_hidden) * a_hidden  # (N, 2d)
 		logits_qa = logits_qa.view(batch_size, num_chunks, -1)  # (N,k,2d)
 		logits_ca = context_chunk_wise * a_hidden.view(batch_size, num_chunks, -1)  # (N,K,2d)
-		scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=-1))  # (N,K,4d) ==>#(N,K,1)
-
+		tfidf_feature = batch_context_scores.unsqueeze(0).expand(batch_size, batch_context_scores.size(0)).unsqueeze(2)
+		output_input = torch.cat([logits_qa, logits_ca, tfidf_feature], dim=-1)
+		# scores = self.output_layer(torch.cat([logits_qa, logits_ca], dim=-1))  # (N,K,4d) ==>#(N,K,1)
+		scores = self.output_layer(output_input)  # (N,K,4d) ==>#(N,K,1)
 
 		## For simple output layer
 		# c_hidden = c_hidden.expand(batch_size, c_hidden.size(0), c_hidden.size(1))
 		# scores = self.simple_output_layer(torch.cat([q_hidden, c_hidden, a_hidden], dim=-1))
 
-		weighted_candidates = scores.squeeze(-1) + batch_context_scores  # (N,K)
+		## add weighing scheme over scores
+		transposed_scores = scores.squeeze(-1).transpose(0, 1).contiguous()
+		feature_mean = torch.mean(transposed_scores, dim=1)
+		feature_max = torch.max(transposed_scores, dim=1)[0]
+		feature_min = torch.min(transposed_scores, dim=1)[0]
+		feature_std = torch.std(transposed_scores, dim=1)
+		input_scorer_mlp = torch.cat(
+			[feature_mean, feature_std, feature_max, feature_min, batch_context_scores]).unsqueeze(0)
+		scored_tdfidfs = self.scorer_mlp(input_scorer_mlp).squeeze(0)
+
+		if self.weighing:
+			weighted_candidates = scored_tdfidfs + scores.squeeze(-1)
+			# weighted_candidates = scores.squeeze(-1) + batch_context_scores  # (N,K)
+		else:
+			weighted_candidates = scores.squeeze(-1)
 
 		log_weighted_candidates = log_sum_exp(weighted_candidates, dim=-1)  # (N)
 		log_denominator = log_sum_exp(weighted_candidates.view(-1), dim=0)
