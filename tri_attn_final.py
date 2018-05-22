@@ -61,7 +61,7 @@ def evaluate(model, batches, candidates_embed_docid, context_per_docid, candidat
 		for index, query_embed in enumerate(batch['q_embed']):
 
 			if fout is not None:
-				fout.write("\nQ: {0}".format(" ".join(batch_q_tokens[index])))
+				fout.write("\nQ: {0}\n".format(" ".join(batch_q_tokens[index])))
 			# query tokens
 
 			if args.emb_elmo:
@@ -257,6 +257,22 @@ def evaluate(model, batches, candidates_embed_docid, context_per_docid, candidat
 			index = position_gold_sorted + 1
 
 			mrr_value.append(1.0 / (index))
+
+			candidates = candidates_per_docid[doc_id]
+			summary = context_tokens_per_docid[doc_id]
+			full_ranges = context_ranges_per_docid[doc_id]
+			req_ranges = [full_ranges[g] for g in golden_ids]
+			chunk_contexts = [summary[r[0]:r[1]] for r in req_ranges]
+			for enn, chunk in enumerate(chunk_contexts):
+				fout.write(str(enn) + ":::" + " ".join(chunk) + "\n")
+			if fout is not None:
+				fout.write("\nRank: {0} / {1}   Gold: {2}\n".format(index, len(candidates), " ".join(
+					candidates[indices[position_gold_sorted]])))
+				for cand in range(10):
+					fout.write("C: {0}\n".format(" ".join(candidates[indices[cand]])))
+
+			fout.write("Golden Scores\n")
+			fout.write(" ".join(["{0:4f}".format(score) for score in golden_scores]))
 
 	mean_rr = np.mean(mrr_value)
 	print("MRR :{0}".format(mean_rr))
