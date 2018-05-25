@@ -14,23 +14,18 @@ class ChunkScore(nn.Module):
         self.question_encoder = RNNEncoder(args.embed_size, args.hidden_size)
         self.chunk_encoder = RNNEncoder(args.embed_size, args.hidden_size)
         self.modeling_layer = MLP(args.hidden_size)
-        self.loss_function=nn.CrossEntropyLoss()
+
         
-    def forward(self, chunks, question, gold_index, mask, answer):
+    def forward(self, chunks, question, gold_index):
 
         chunks_embedded = self.embedding_layer(chunks)
         question_embedded=self.embedding_layer(question)
-        chunks_encoded = self.chunk_encoder(chunks_embedded, mask)
+        chunks_encoded = self.chunk_encoder(chunks_embedded)
         question_encoded=self.question_encoder(question_embedded)
-        question_expanded=question_encoded.expand(chunks_encoded.size())
-        answer_embedded = self.embedding_layer(answer)
-        answer_encoded = self.answer_encoder(answer_embedded)
-        answer_expanded = answer_encoded.expand(chunks_encoded.size())
 
-
-        combined_representation=torch.cat((chunks_encoded, question_expanded, answer_expanded), 2).squeeze(dim=1)
+        combined_representation=torch.cat((chunks_encoded, question_encoded), 2).squeeze(dim=1)
         scores=self.modeling_layer(combined_representation).squeeze().unsqueeze(0)
-        loss=self.loss_function(scores, gold_index)
+        loss=F.binary_cross_entropy(F.sigmoid(scores), gold_index) / chunks.size(0)
         return loss, scores.data.cpu().numpy()
 
 
@@ -81,7 +76,7 @@ class RNNEncoder(nn.Module):
 class MLP(nn.Module):
     def __init__(self, hidden_size):
         super(MLP, self).__init__()
-        self.linear1 = nn.Linear(12 * hidden_size, 8 * hidden_size)
+        self.linear1 = nn.Linear(8 * hidden_size, 8 * hidden_size)
         self.activation = nn.ReLU()
         self.linear2 = nn.Linear(8 * hidden_size, 4 * hidden_size)
         self.activation = nn.ReLU()

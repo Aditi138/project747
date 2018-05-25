@@ -11,24 +11,31 @@ from time import time
 import random
 import pickle
 import codecs
+from collections import defaultdict
+import random
 
 
-def evaluate(model, batches, articles, args):
+
+
+def evaluate(model, batches):
     model.train(False)
-    accuracy=0
-    for iteration in range(len(batches)):
-        batch=batches[iteration]
-        article_id=batch["article"]
-        chunks= [pad_seq(articles[article_id][idd], batch["max_length"]) for idd in batch["paragraphs"]]
-        chunks=variable(torch.LongTensor(chunks))
-        question = variable(torch.LongTensor(np.array(batch["question"]))).unsqueeze(0)
-        gold_index = batch["paragraphs"].index(batch["gold"])
-        gold_variable = variable(torch.LongTensor([gold_index]))
-        mask = variable(torch.FloatTensor(batch["mask"]))
-        answer = variable(torch.LongTensor(batch["answer"])).unsqueeze(0)        
-        loss, scores = model(chunks, question, gold_variable, mask, answer)
-        if np.argmax(scores) == gold_index:
-            accuracy+=(1.0/len(batches))
+    correct = 0
+    denom = 0
+    for i, batch in enumerate(batches):
+        questions = variable(torch.LongTensor(batch[0]))
+        chunks = variable(torch.LongTensor(batch[1]))
+        gold = variable(torch.FloatTensor(batch[2]))
+        loss, prediction = model(chunks, questions, gold.unsqueeze(0))
+
+        prediction = [1 if p > 0.5 else 0 for p in prediction[0]]
+
+        #random
+        #prediction = [random.random() for _ in range(len(batch[0]))]
+        #prediction = [1 if p > 0.5 else 0 for p in prediction]
+        correct += sum([1 if y1 == y2 else 0 for y1, y2 in zip(prediction, batch[2])])
+        denom += len(batch[0])
+
+    accuracy = correct * 1.0 / denom
     model.train(True)
     return accuracy
 
@@ -40,40 +47,31 @@ def view_data(batch, articles):
         print(" ".join([loader.vocab.get_word(word_id) for word_id in articles[article_id][paragraph_id]]))
     
 
-def create_batches(data, articles):
 
-    batches=[]    
-    random.shuffle(data)
-    for point in data:
-        batch={}
-        batch["question"] = point.question_tokens
-        if len(point.question_tokens) <3:
-            continue
-        article_id=point.article_id
-        batch["article"] = article_id
+def make_bucket_batches(data, batch_size):
+    # Data are bucketed according to the length of the first item in the data_collections.
+    # Data are bucketed according to the length of the first item in the data_collections.
+    buckets = defaultdict(list)
+    tot_items = len(data[0])
+    for data_item in data:
+        src = data_item[0]
+        buckets[len(src)].append(data_item)
 
-        paragraphs = set()
-        paragraphs.add(point.gold_paragraph_id)
-        sample_paragraphs=[i for i in range(len(articles[article_id])) if i!=point.gold_paragraph_id]
-        paragraphs = paragraphs | set(np.random.choice(sample_paragraphs, size=min(args.competing_paragraphs, len(articles[article_id])), replace=False))
-        batch["paragraphs"] = list(paragraphs)
+    batches = []
+    # np.random.seed(2)
+    for src_len in buckets:
+        bucket = buckets[src_len]
+        np.random.shuffle(bucket)
 
-        batch["answer"] = articles[article_id][point.gold_paragraph_id][point.span_indices[0]:point.span_indices[1] + 1]
-        
-        article_lengths=[len(articles[article_id][paragraph_id]) for paragraph_id in batch["paragraphs"]]
-        batch["max_length"] = np.max(article_lengths)
-        batch["mask"] =  np.array([[int(i < article_lengths[j]) for i in range(batch["max_length"])] for j in range(len(paragraphs))])
-        batch["gold"] = point.gold_paragraph_id
-        batches.append(batch)
-
+        num_batches = int(np.ceil(len(bucket) * 1.0 / batch_size))
+        for i in range(num_batches):
+            cur_batch_size = batch_size if i < num_batches - 1 else len(bucket) - batch_size * i
+            batches.append([[bucket[i * batch_size + j][k] for j in range(cur_batch_size)] for k in range(tot_items)])
+    np.random.shuffle(batches)
     return batches
 
-def pad_batch(chunks, max_length):
-    padded_batch=[pad_seq(chunk, max_length) for chunk in chunks]
-    return padded_batch
 
-
-def train_epochs(model, train_data,train_articles,valid_data,valid_articles, args):
+def train_epochs(model,  train_questions,train_sentences,train_gold, valid_questions, valid_sentences, valid_gold ,args):
 
     clip_threshold = args.clip_threshold
     eval_interval = args.eval_interval
@@ -81,42 +79,37 @@ def train_epochs(model, train_data,train_articles,valid_data,valid_articles, arg
     optimizer = optim.Adam(model.parameters(), lr=args.learning_rate)
 
     train_loss = 0
-    train_accuracy = 0
+    denom = 0
+    correct = 0
 
-    valid_batches = create_batches(valid_data, valid_articles)
+    valid_batches = make_bucket_batches(zip(valid_questions, valid_sentences, valid_gold ), args.batch_length)
 
     for epoch in range(args.num_epochs):
-        train_batches = create_batches(train_data, train_articles)
+        train_batches = make_bucket_batches(zip(train_questions,train_sentences,train_gold),args.batch_length)
 
-        for i in range(len(train_batches)):
+        for i, batch in enumerate(train_batches):
             optimizer.zero_grad()
-            batch = train_batches[i]
-            article_id=batch["article"]
-            chunks= [pad_seq(train_articles[article_id][idd], batch["max_length"]) for idd in batch["paragraphs"]]
-            chunks=variable(torch.LongTensor(chunks))
-            question = variable(torch.LongTensor(np.array(batch["question"]))).unsqueeze(0)
-            gold_index = batch["paragraphs"].index(batch["gold"])
-            gold_variable = variable(torch.LongTensor([gold_index]))
-            mask = variable(torch.FloatTensor(batch["mask"]))
-            answer = variable(torch.LongTensor(batch["answer"])).unsqueeze(0)
-            loss, scores = model(chunks, question, gold_variable, mask, answer)
-            if np.argmax(scores) == gold_index:
-                train_accuracy+=(1.0/eval_interval)
-            train_loss += loss.data.cpu().numpy()[0]/eval_interval
+            questions = variable(torch.LongTensor(batch[0]))
+            chunks = variable(torch.LongTensor(batch[1]))
+            gold = variable(torch.FloatTensor(batch[2]))
+            loss, prediction = model(chunks, questions, gold.unsqueeze(0))
+
+            prediction = [1 if p > 0.5 else 0 for p in prediction[0]]
+            correct += sum([1 if y1 == y2 else 0 for y1, y2 in zip(prediction, batch[2])])
+            denom += len(batch[0])
+            train_loss += loss.data.cpu().numpy()[0] * len(batch[0])
+
             loss.backward()
             torch.nn.utils.clip_grad_norm(model.parameters(), clip_threshold)
             optimizer.step()
 
 
             if i % eval_interval == 0:
-                print("Iteration: {}".format(i))
-                print("Training loss: {}".format(train_loss))
-                print("Training accuracy: {}".format(train_accuracy))
-                valid_accuracy=evaluate(model, valid_batches, valid_articles, args)
+                print("Iteration: {} Training loss: {} Training accuracy: {}".format(i,train_loss * 1.0 / denom, correct * 1.0 / denom))
+                valid_accuracy=evaluate(model, valid_batches)
                 print("Validation accuracy: {}".format(valid_accuracy))
 
-                train_loss=0
-                train_accuracy=0
+
 
     print("All epochs done")
     
@@ -138,8 +131,8 @@ if __name__ == "__main__":
 
     # Model parameters
     parser.add_argument("--competing_paragraphs", type=int, default=1, help="number of paragraphs to consider in parallel to the gold paragraph")
-    parser.add_argument("--hidden_size", type=int, default=128)
-    parser.add_argument("--embed_size", type=int, default=128)
+    parser.add_argument("--hidden_size", type=int, default=64)
+    parser.add_argument("--embed_size", type=int, default=64)
     parser.add_argument("--cuda", action="store_true", default=True)
     parser.add_argument("--batch_length", type=int, default=10)
     parser.add_argument("--eval_interval", type=int, default=200)
@@ -147,6 +140,7 @@ if __name__ == "__main__":
     parser.add_argument("--dropout", type=float, default=0.2)
     parser.add_argument("--num_epochs", type=int, default=50)
     parser.add_argument("--clip_threshold", type=int, default=10)
+    parser.add_argument("--seed", type=int, default=1234)
 
     parser.add_argument("--meteor_path", type=str, default=10)
     parser.add_argument("--profile", action="store_true")
@@ -154,7 +148,9 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    torch.manual_seed(2)
+    torch.manual_seed(args.seed)
+    np.random.seed(args.seed)
+    random.seed(args.seed)
 
     if args.cuda and torch.cuda.is_available():
         vars(args)['use_cuda'] = True
@@ -164,8 +160,8 @@ if __name__ == "__main__":
 
     start = time()
     loader = SquadDataloader(args)
-    train_data, train_articles = loader.load_documents_with_paragraphs(args.train_path + "questions.pickle", args.train_path + "paragraphs.pickle", max_documents= args.max_documents)
-    valid_data, valid_articles = loader.load_documents_with_paragraphs(args.valid_path + "questions.pickle", args.valid_path + "paragraphs.pickle", max_documents=args.max_valid)
+    train_questions, train_sentences, train_gold = loader.load_documents_with_sentences(args.train_path, max_documents= args.max_documents)
+    valid_questions, valid_sentences, valid_gold = loader.load_documents_with_sentences(args.valid_path, max_documents=args.max_valid)
     end = time()
 
     print("Time loading data: {}s".format(end - start))
@@ -185,4 +181,4 @@ if __name__ == "__main__":
     if args.use_cuda:
         model = model.cuda()
 
-    train_epochs(model, train_data,train_articles,valid_data,valid_articles, args)
+    train_epochs(model, train_questions,train_sentences,train_gold,valid_questions, valid_sentences, valid_gold ,args)

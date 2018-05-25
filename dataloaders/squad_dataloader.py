@@ -12,23 +12,28 @@ class SquadDataloader():
     def __init__(self, args):
         self.vocab = Vocabulary()
 
-    def load_documents_with_paragraphs(self, qap_path, paragraph_path, max_documents=0, num_paragraphs = 4):
-        with open(qap_path, "rb") as fin:
+    def load_documents_with_sentences(self, path, max_documents=0, num_paragraphs = 4):
+        sentences = []
+        isGold = []
+        questions = []
+
+        with open(path, "rb") as fin:
             if max_documents > 0:
                 data_points = pickle.load(fin)[:max_documents]
             else:
                 data_points = pickle.load(fin)
-        with open(paragraph_path, "rb") as fin:
-            articles = pickle.load(fin)
+
         for e, data in enumerate(data_points):
-            data_points[e].question_tokens = self.vocab.add_and_get_indices(data.question_tokens)
-            data_points[e].top_paragraph_ids = data.top_paragraph_ids[:num_paragraphs]
-        for key in articles.keys():
-            paragraphs = articles[key]
-            for e, p in enumerate(paragraphs):
-                paragraphs[e] = self.vocab.add_and_get_indices(p)
-            articles[key] = paragraphs
-        return data_points, articles
+            question_tokens = self.vocab.add_and_get_indices(data.question_tokens)
+            for index, chunk in enumerate(data.context_tokens):
+                questions.append(question_tokens)
+                sentences.append(self.vocab.add_and_get_indices(chunk))
+                if index == data.gold_sentence_index:
+                    isGold.append(1)
+                else:
+                    isGold.append(0)
+
+        return questions, sentences, isGold
 
 class Vocabulary(object):
     def __init__(self, pad_token='pad', unk='unk', sos='<sos>',eos='<eos>' ):
